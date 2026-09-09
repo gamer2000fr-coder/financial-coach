@@ -2,6 +2,8 @@
 
 Frontend du POC de coach financier conversationnel. Il est conçu pour être utilisé directement avec le backend Spring Boot fourni séparément.
 
+Dépôt du projet : `https://github.com/gamer2000fr-coder/financial-coach` (branche `main`).
+
 ## Stack
 
 - React
@@ -21,7 +23,7 @@ npm install
 npm run dev
 ```
 
-Le frontend est disponible sur `http://localhost:5173`.
+Le frontend est disponible sur `http://localhost:9898` (et sur l'IP LAN de la machine, Vite écoute sur `0.0.0.0`).
 
 ## Configuration API
 
