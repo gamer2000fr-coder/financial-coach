@@ -210,6 +210,13 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .error-banner span { flex:1; }
 .error-banner button { background:transparent; color:#9c1c1c; cursor:pointer; }
 
+/* ---- Bandeau d'état du mode auto (mot-clé) ---- */
+.auto-hud { display:flex; align-items:center; justify-content:center; gap:8px; padding:8px 10px; border-top:1px solid #dedede; background:#f4f6fb; color:#4a5568; font-size:12px; }
+.auto-hud.listening { background:#fff4f4; color:#b0262f; }
+.auto-dot { width:9px; height:9px; border-radius:50%; background:#8fa1c4; animation:auto-blink 2s infinite; flex:none; }
+.auto-dot.listening { background:#e50930; animation:auto-blink 1s infinite; }
+@keyframes auto-blink { 0%,100% { opacity:.35; } 50% { opacity:1; } }
+
 .summary-column { display:flex; flex-direction:column; gap:13px; }
 .summary-header { display:flex; justify-content:space-between; align-items:flex-start; padding:9px 2px 5px; color:#777; }
 .summary-header h2 { font-size:20px; font-weight:700; }
@@ -525,8 +532,13 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .adv-toggle input:checked + .adv-toggle-ui { background:var(--accent,#4a6cf7); }
 .adv-toggle input:checked + .adv-toggle-ui::after { left:16px; }
 .adv-toggle-label { color:#3d3d3d; }
-.advanced-actions { display:flex; gap:10px; align-items:center; }
+.advanced-actions { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
 .advanced-actions .icon-button { display:grid; place-items:center; }
+.auto-warn { color:#b0b0b0; font-size:11px; white-space:nowrap; }
+.auto-config { display:flex; align-items:center; gap:6px; }
+.auto-wake-input { width:118px; padding:7px 8px; border:1px solid #d7d7d7; border-radius:3px; font-size:12px; color:#333; background:#fff; }
+.auto-wake-input:focus { outline:0; border-color:#999; }
+.auto-delay-select { padding:7px 5px; border:1px solid #d7d7d7; border-radius:3px; font-size:12px; color:#333; background:#fff; cursor:pointer; }
 
 /* ---- Page Agents (prompts) ---- */
 .agents-page {

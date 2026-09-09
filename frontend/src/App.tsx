@@ -30,6 +30,13 @@ const GUARD_STORAGE_KEY = 'financial-coach-guard'
 const ADVANCED_STORAGE_KEY = 'financial-coach-advanced'
 const VOICE_STORAGE_KEY = 'financial-coach-voice'
 const AUDIO_STORAGE_KEY = 'financial-coach-audio'
+const AUTO_AUDIO_STORAGE_KEY = 'financial-coach-auto-audio'
+const WAKE_WORD_STORAGE_KEY = 'financial-coach-wake-word'
+const SILENCE_STORAGE_KEY = 'financial-coach-silence-delay'
+const DEFAULT_WAKE_WORD = 'Chloé'
+const DEFAULT_SILENCE_SECONDS = 5
+const MIN_SILENCE_SECONDS = 2
+const MAX_SILENCE_SECONDS = 10
 
 const suggestions = [
   'Est-ce que je peux acheter un ordinateur à 1 500 € ?',
@@ -91,6 +98,39 @@ function stripMarkdown(text: string): string {
     .replace(/`/g, '')
     .replace(/^[#]+\s*/gm, '')
     .trim()
+}
+
+// --- Détection du mot-clé de réveil (insensible à la casse et aux accents) ---
+
+/** Normalise pour la comparaison : minuscules + suppression des accents (formes composées et décomposées). */
+function normalizeForMatch(text: string): string {
+  return (text || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+}
+
+/**
+ * Cherche le mot-clé dans un texte, mot par mot (forme composée ET décomposée acceptées,
+ * ex. « Chloé » reconnu « chloe », « Chloe\u0301 », « Chloé »…).
+ * @returns { found, rest } — rest = texte original qui suit le mot-clé (séparateurs initiaux retirés).
+ */
+function findWakeWord(text: string, wake: string): { found: boolean; rest: string } {
+  const trimmed = (wake || '').trim()
+  if (!trimmed || !text) return { found: false, rest: text ?? '' }
+  const target = normalizeForMatch(trimmed)
+  if (!target) return { found: false, rest: text }
+  // Découpe en mots (lettres/chiffres + marques d'accent) et séparateurs, en gardant les positions originales.
+  const tokenRegex = /[\p{L}\p{M}\p{N}]+|[^\p{L}\p{M}\p{N}]+/gu
+  let match: RegExpExecArray | null
+  while ((match = tokenRegex.exec(text)) !== null) {
+    const token = match[0]
+    if (/^[\p{L}\p{N}]/u.test(token) && normalizeForMatch(token) === target) {
+      const after = text.slice(match.index + token.length)
+      return { found: true, rest: after.replace(/^[\s.,;:!?«»"'()\-]+/, '') }
+    }
+  }
+  return { found: false, rest: text }
 }
 
 function welcomeMessages(): ChatMessage[] {
@@ -170,6 +210,24 @@ function App() {
   const listeningRef = useRef(false)
   const manualStopRef = useRef(false)
   const finalTextRef = useRef('')
+  const [autoAudio, setAutoAudio] = useState(() => localStorage.getItem(AUTO_AUDIO_STORAGE_KEY) === 'true')
+  const [wakeWord, setWakeWord] = useState(() => localStorage.getItem(WAKE_WORD_STORAGE_KEY) || DEFAULT_WAKE_WORD)
+  const [silenceSeconds, setSilenceSeconds] = useState(() => {
+    const raw = Number(localStorage.getItem(SILENCE_STORAGE_KEY))
+    return raw >= MIN_SILENCE_SECONDS && raw <= MAX_SILENCE_SECONDS ? raw : DEFAULT_SILENCE_SECONDS
+  })
+  // État du mode auto pour l'IHM : 'idle' (éteint) | 'standby' (veille, attend le mot-clé) | 'listening' (écoute)
+  const [autoState, setAutoState] = useState<'idle' | 'standby' | 'listening'>('idle')
+  const autoRecognitionRef = useRef<any>(null)
+  const autoActiveRef = useRef(false) // la session auto tourne ?
+  const autoPhaseRef = useRef<'standby' | 'listening'>('standby')
+  const autoBufferRef = useRef('') // texte finalisé capté en mode écoute
+  const autoTimerRef = useRef<number | null>(null) // timer de silence
+  const autoEnabledRef = useRef(autoAudio)
+  const wakeRef = useRef(wakeWord)
+  const silenceRef = useRef(silenceSeconds)
+  const loadingRef = useRef(false)
+  const submitRef = useRef<(text: string) => void>(() => {})
   const [voiceEnabled, setVoiceEnabled] = useState(() => localStorage.getItem(VOICE_STORAGE_KEY) !== 'false')
   const [audioEnabled, setAudioEnabled] = useState(() => localStorage.getItem(AUDIO_STORAGE_KEY) === 'true')
   const [ttsSupported] = useState<boolean>(() => typeof window !== 'undefined'
@@ -205,7 +263,36 @@ function App() {
     localStorage.setItem(AUDIO_STORAGE_KEY, audioEnabled ? 'true' : 'false')
   }, [audioEnabled])
 
-  // Audio désactivé : on coupe toute écoute micro et toute lecture vocale en cours.
+  useEffect(() => {
+    localStorage.setItem(AUTO_AUDIO_STORAGE_KEY, autoAudio ? 'true' : 'false')
+  }, [autoAudio])
+
+  useEffect(() => {
+    localStorage.setItem(WAKE_WORD_STORAGE_KEY, wakeWord)
+  }, [wakeWord])
+
+  useEffect(() => {
+    localStorage.setItem(SILENCE_STORAGE_KEY, String(silenceSeconds))
+  }, [silenceSeconds])
+
+  // Miroirs refs pour les callbacks de reconnaissance (pas de closure obsolète).
+  useEffect(() => {
+    autoEnabledRef.current = autoAudio
+  }, [autoAudio])
+  useEffect(() => {
+    wakeRef.current = wakeWord.trim() || DEFAULT_WAKE_WORD
+  }, [wakeWord])
+  useEffect(() => {
+    silenceRef.current = silenceSeconds
+  }, [silenceSeconds])
+  useEffect(() => {
+    loadingRef.current = loading
+  }, [loading])
+  useEffect(() => {
+    submitRef.current = submitMessage
+  })
+
+  // Audio désactivé : on coupe toute écoute micro, le mode auto et toute lecture vocale en cours.
   useEffect(() => {
     if (!audioEnabled) {
       listeningRef.current = false
@@ -215,6 +302,7 @@ function App() {
       } catch {
         // ignore
       }
+      stopAutoAudio()
       stopSpeaking()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -343,9 +431,151 @@ function App() {
     if (last) speakMessage(last.id, last.content)
   }
 
+  // ---------- Mode auto (mot-clé de réveil, type Siri) ----------
+
+  function clearAutoTimer() {
+    if (autoTimerRef.current !== null) {
+      window.clearTimeout(autoTimerRef.current)
+      autoTimerRef.current = null
+    }
+  }
+
+  /** Timer de silence écoulé : envoie la phrase captée, ou revient en veille si rien n'a été dit. */
+  function onAutoSilence() {
+    autoTimerRef.current = null
+    if (!autoActiveRef.current) return
+    if (autoPhaseRef.current !== 'listening') {
+      setInput('')
+      setAutoState('standby')
+      return
+    }
+    const text = autoBufferRef.current.trim()
+    if (loadingRef.current) {
+      // Réponse IA en cours : on garde la phrase et on réarme le timer.
+      autoTimerRef.current = window.setTimeout(onAutoSilence, silenceRef.current * 1000)
+      return
+    }
+    autoPhaseRef.current = 'standby'
+    autoBufferRef.current = ''
+    setInput('')
+    setAutoState('standby')
+    if (text) submitRef.current(text) // on reste en écoute continue ensuite
+  }
+
+  function stopAutoAudio() {
+    if (!autoActiveRef.current) {
+      setAutoState('idle')
+      return
+    }
+    autoActiveRef.current = false
+    clearAutoTimer()
+    const recognition = autoRecognitionRef.current
+    autoRecognitionRef.current = null
+    try {
+      recognition?.stop?.()
+    } catch {
+      // ignore
+    }
+    autoPhaseRef.current = 'standby'
+    autoBufferRef.current = ''
+    setAutoState('idle')
+  }
+
+  function startAutoAudio() {
+    if (autoActiveRef.current || !speechSupported) return
+    // Un seul SpeechRecognition actif à la fois : on coupe le push-to-talk s'il tournait.
+    try {
+      recognitionRef.current?.stop?.()
+    } catch {
+      // ignore
+    }
+    listeningRef.current = false
+    setListening(false)
+    const SpeechRecognitionCtor =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SpeechRecognitionCtor) return
+    const recognition = new SpeechRecognitionCtor()
+    recognition.lang = 'fr-FR'
+    recognition.interimResults = true
+    recognition.continuous = true
+    autoActiveRef.current = true
+    autoPhaseRef.current = 'standby'
+    autoBufferRef.current = ''
+    autoRecognitionRef.current = recognition
+    setAutoState('standby')
+
+    recognition.onresult = (event: any) => {
+      if (!autoActiveRef.current) return
+      let interim = ''
+      for (let index = event.resultIndex; index < event.results.length; index++) {
+        const result = event.results[index]
+        const transcript = (result[0]?.transcript as string) || ''
+        if (result.isFinal) {
+          if (autoPhaseRef.current === 'listening') {
+            autoBufferRef.current = `${autoBufferRef.current} ${transcript}`.trim()
+          } else {
+            // Veille : on attend le mot-clé (ignore tout le reste).
+            const hit = findWakeWord(transcript, wakeRef.current)
+            if (hit.found) {
+              autoPhaseRef.current = 'listening'
+              autoBufferRef.current = hit.rest || ''
+              setAutoState('listening')
+            }
+          }
+        } else if (autoPhaseRef.current === 'listening') {
+          interim = transcript
+        }
+      }
+      if (autoPhaseRef.current === 'listening') {
+        setInput(`${autoBufferRef.current} ${interim}`.trim())
+        clearAutoTimer()
+        autoTimerRef.current = window.setTimeout(onAutoSilence, silenceRef.current * 1000)
+      }
+    }
+    recognition.onerror = (event: any) => {
+      if (!autoActiveRef.current) return
+      if (event?.error === 'not-allowed' || event?.error === 'service-not-allowed') {
+        stopAutoAudio()
+        setAutoState('idle')
+        setError('Micro refusé (mode auto). Autorisez l’accès au micro puis réactivez le mode auto.')
+      }
+      // 'no-speech' / 'aborted' : silencieux, on relance via onend.
+    }
+    recognition.onend = () => {
+      if (autoActiveRef.current) {
+        window.setTimeout(() => {
+          if (autoActiveRef.current) {
+            try {
+              recognition.start()
+            } catch {
+              // ignore
+            }
+          }
+        }, 150)
+      }
+    }
+    try {
+      recognition.start()
+    } catch {
+      stopAutoAudio()
+    }
+  }
+
+  // Cycle de vie : le mode auto tourne tant que Audio + Auto sont activés et que le navigateur le supporte.
+  useEffect(() => {
+    if (!audioEnabled || !speechSupported || !autoAudio) {
+      stopAutoAudio()
+      return
+    }
+    startAutoAudio()
+    return () => stopAutoAudio()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [audioEnabled, speechSupported, autoAudio])
+
   useEffect(() => () => {
     try {
       recognitionRef.current?.stop?.()
+      autoRecognitionRef.current?.stop?.()
     } catch {
       // ignore
     }
@@ -440,6 +670,22 @@ function App() {
                 <span className="adv-toggle-ui" aria-hidden="true" />
                 <span className="adv-toggle-label">Audio</span>
               </label>
+              <label
+                className="adv-toggle"
+                title="Mode auto : dites le mot-clé puis votre question ; elle sera envoyée après le délai de silence choisi"
+              >
+                <input
+                  type="checkbox"
+                  checked={autoAudio}
+                  disabled={!speechSupported || !audioEnabled}
+                  onChange={(event) => setAutoAudio(event.target.checked)}
+                />
+                <span className="adv-toggle-ui" aria-hidden="true" />
+                <span className="adv-toggle-label">Auto</span>
+              </label>
+              {!speechSupported && (
+                <span className="auto-warn">Reconnaissance vocale non supportée</span>
+              )}
               <div className="provider-select-wrap">
                 <Bot size={16} />
                 <select
@@ -476,6 +722,31 @@ function App() {
                 />
                 <span>Réponses vocales</span>
               </label>
+              {autoAudio && audioEnabled && speechSupported && (
+                <span className="auto-config" title="Configuration du mode auto">
+                  <input
+                    className="auto-wake-input"
+                    type="text"
+                    value={wakeWord}
+                    maxLength={30}
+                    aria-label="Mot-clé de réveil"
+                    placeholder="Mot-clé (ex. Chloé)"
+                    onChange={(event) => setWakeWord(event.target.value)}
+                  />
+                  <select
+                    className="auto-delay-select"
+                    value={silenceSeconds}
+                    aria-label="Délai de silence en secondes"
+                    title="Délai de silence avant envoi"
+                    onChange={(event) => setSilenceSeconds(Number(event.target.value))}
+                  >
+                    {Array.from({ length: MAX_SILENCE_SECONDS - MIN_SILENCE_SECONDS + 1 },
+                      (_, index) => index + MIN_SILENCE_SECONDS).map((seconds) => (
+                      <option key={seconds} value={seconds}>{seconds}s</option>
+                    ))}
+                  </select>
+                </span>
+              )}
               <a className="icon-button logs-link" href="#/agents" target="_blank" rel="noopener noreferrer" title="Agents IA">
                 <FileText size={20} />
               </a>
@@ -573,6 +844,22 @@ function App() {
               )}
             </div>
 
+            {audioEnabled && autoAudio && speechSupported && (autoState === 'standby' || autoState === 'listening') && (
+              <div className={`auto-hud ${autoState}`} role="status">
+                {autoState === 'listening' ? (
+                  <>
+                    <span className="auto-dot listening" />
+                    <span>🎙️ Écoute… la question sera envoyée après {silenceSeconds}s de silence</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="auto-dot" />
+                    <span>🎧 En veille — dites «&nbsp;{wakeWord.trim() || DEFAULT_WAKE_WORD}&nbsp;» puis votre question</span>
+                  </>
+                )}
+              </div>
+            )}
+
             <div className="composer-wrap">
               {error && (
                 <div className="error-banner">
@@ -582,8 +869,7 @@ function App() {
                 </div>
               )}
               <div className="composer">
-                {audioEnabled && (
-                  <>
+                {audioEnabled && !autoAudio && (
                 <button
                   className={`composer-icon mic-button${listening ? ' listening' : ''}`}
                   type="button"
@@ -599,6 +885,8 @@ function App() {
                 >
                   {listening ? <MicOff size={19} /> : <Mic size={19} />}
                 </button>
+                )}
+                {audioEnabled && (
                 <button
                   className={`composer-icon mic-button speak-button${speakingId ? ' active' : ''}`}
                   type="button"
@@ -614,7 +902,6 @@ function App() {
                 >
                   {speakingId ? <VolumeX size={19} /> : <Volume2 size={19} />}
                 </button>
-                  </>
                 )}
                 <textarea
                   value={input}
