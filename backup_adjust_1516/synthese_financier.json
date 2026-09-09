@@ -1,0 +1,559 @@
+{
+  "period": {
+    "from": "2025-07-01",
+    "to": "2026-08-31"
+  },
+  "accounts": [
+    {
+      "accountId": "COMPTE_COURANT-001",
+      "balance": 1500.0
+    }
+  ],
+  "credits": [
+    {
+      "produit": "crédit_immobilier",
+      "mensualite": 956,
+      "fin": "2035-12-31"
+    }
+  ],
+  "savingsTotal": 14712.07,
+  "monthlySummaries": [
+    {
+      "month": "07/2025",
+      "income": 4841.88,
+      "expenses": 6532.33,
+      "savings": -1690.45,
+      "balance": 1500.0,
+      "categories": {
+        "GROCERIES": 483.77,
+        "OTHER": 2419.67,
+        "UTILITIES": 124.45,
+        "SHOPPING": 2496.12,
+        "INSURANCE": 796.99,
+        "TRANSPORT": 4.61,
+        "HEALTH": 7.49,
+        "TELECOM": 31.45,
+        "RESTAURANT": 7.62,
+        "SALARY": 160.16
+      },
+      "topExpenses": [
+        {
+          "date": "2025-07-07",
+          "label": "ECHEANCE PRET N°813074861751 CAPITAL AMORTI : 759,89 INTERETS : 46,85 ASSURANCE : 25,56 CAPITAL RESTANT : 58 248,00 DATE PREVISIONNELLE DE FIN : 07/08/2031",
+          "amount": 784.58,
+          "category": "INSURANCE"
+        },
+        {
+          "date": "2025-07-24",
+          "label": "CHEQUE 851",
+          "amount": 559.34,
+          "category": "OTHER"
+        },
+        {
+          "date": "2025-07-10",
+          "label": "CARTE X9103 09/07 CSEC SG COMMERCE ELECTRONIQUE",
+          "amount": 547.32,
+          "category": "SHOPPING"
+        }
+      ]
+    },
+    {
+      "month": "08/2025",
+      "income": 6160.69,
+      "expenses": 2467.81,
+      "savings": 3692.88,
+      "balance": 1500.0,
+      "categories": {
+        "OTHER": 383.35,
+        "SHOPPING": 934.11,
+        "UTILITIES": 124.45,
+        "INSURANCE": 797.92,
+        "TELECOM": 31.1,
+        "GROCERIES": 185.72,
+        "RESTAURANT": 11.16
+      },
+      "topExpenses": [
+        {
+          "date": "2025-08-07",
+          "label": "ECHEANCE PRET N°613074861751 CAPITAL AMORTI : 760,52 ASSURANCE : 25,56 CAPITAL RESTANT : 57 473,54 DATE PREVISIONNELLE DE FIN : 07/08/2031",
+          "amount": 784.58,
+          "category": "INSURANCE"
+        },
+        {
+          "date": "2025-08-12",
+          "label": "CARTE X9103 11/08 BOURSORAMA COMMERCE ELECTRONIQUE",
+          "amount": 239.99,
+          "category": "SHOPPING"
+        },
+        {
+          "date": "2025-08-11",
+          "label": "CARTE X9103 08/08 CSEC SG COMMERCE ELECTRONIQUE",
+          "amount": 227.48,
+          "category": "SHOPPING"
+        }
+      ]
+    },
+    {
+      "month": "09/2025",
+      "income": 4496.4,
+      "expenses": 4104.77,
+      "savings": 391.63,
+      "balance": 1403.57,
+      "categories": {
+        "OTHER": 1261.0,
+        "SHOPPING": 1437.59,
+        "GROCERIES": 317.76,
+        "RESTAURANT": 13.89,
+        "UTILITIES": 124.45,
+        "INSURANCE": 820.55,
+        "TELECOM": 31.85,
+        "HEALTH": 8.59,
+        "TAXES": 89.09
+      },
+      "topExpenses": [
+        {
+          "date": "2025-09-08",
+          "label": "ECHEANCE PRET N°813074861751 CAPITAL AMORTI : 761,15 INTERETS : 45,62 ASSURANCE : 25,56 CAPITAL RESTANT : 56 698,45 DATE PREVISIONNELLE DE FIN : 07/08/2031",
+          "amount": 784.58,
+          "category": "INSURANCE"
+        },
+        {
+          "date": "2025-09-10",
+          "label": "CARTE X9103 08/09 CSEC SG COMMERCE ELECTRONIQUE",
+          "amount": 337.83,
+          "category": "SHOPPING"
+        },
+        {
+          "date": "2025-09-11",
+          "label": "CARTE X9103 10/09 MR BAUDRY MATTHI",
+          "amount": 318.01,
+          "category": "OTHER"
+        }
+      ]
+    },
+    {
+      "month": "10/2025",
+      "income": 5575.85,
+      "expenses": 4167.13,
+      "savings": 1408.72,
+      "balance": 1500.0,
+      "categories": {
+        "SHOPPING": 382.62,
+        "UTILITIES": 127.97,
+        "OTHER": 1523.05,
+        "GROCERIES": 301.17,
+        "INSURANCE": 798.25,
+        "TELECOM": 31.68,
+        "RESTAURANT": 24.2,
+        "HEALTH": 24.76,
+        "TAXES": 953.43
+      },
+      "topExpenses": [
+        {
+          "date": "2025-10-28",
+          "label": "PRLV EUROP PONCTUEL 1508997594 1.468,00 POUR CPTE DE:D.G.F.LP IMPOT 91120 ID: FR46ZZZ005002 MOTIF: 6002184958607LR2591444520508 TLR ‘SEPA DGFIP IMPOT TF REF: 2P0870000TLR259144452050891120 MANDAT NNFR46ZZ2005002259 1444520508R495860",
+          "amount": 869.77,
+          "category": "TAXES"
+        },
+        {
+          "date": "2025-10-07",
+          "label": "ECHEANCE PRET N°813074861751 1.17488 CAPITAL AMORTI : 761,78 INTERETS : 45,00 ASSURANCE : 25,56 CAPITAL RESTANT : 55 922,71 DATE PREVISIONNELLE DE FIN : 07/08/2031",
+          "amount": 784.58,
+          "category": "INSURANCE"
+        },
+        {
+          "date": "2025-10-06",
+          "label": "PRELEVEMENT EUROPEEN 0311563322 ‘417,54 DE: Institution Sainte Marie ID: FR18Z2Z417174 MOTIF: STE MARIE ANTONY PRELEV FORFAITAIRE PAR ENFANT 05 OCTOBRE 2025 REF: MANDAT-07056-002 06-10-25 MANDAT MANDAT-07056-002",
+          "amount": 375.79,
+          "category": "OTHER"
+        }
+      ]
+    },
+    {
+      "month": "11/2025",
+      "income": 5427.81,
+      "expenses": 3390.1,
+      "savings": 2037.71,
+      "balance": 1500.0,
+      "categories": {
+        "SHOPPING": 937.35,
+        "GROCERIES": 118.48,
+        "OTHER": 1248.97,
+        "SALARY": 35.47,
+        "RESTAURANT": 10.24,
+        "UTILITIES": 127.97,
+        "INSURANCE": 798.25,
+        "TELECOM": 19.03,
+        "HEALTH": 5.45,
+        "TAXES": 88.89
+      },
+      "topExpenses": [
+        {
+          "date": "2025-11-07",
+          "label": "ECHEANCE PRET N°813074861751 1.17488 CAPITAL AMORTI : 76,07 INTERETS : 44,39 ASSURANCE : 25,56 (CAPITAL RESTANT : 55 146,33 DATE PREVISIONNELLE DE FIN : 07/08/2031",
+          "amount": 784.58,
+          "category": "INSURANCE"
+        },
+        {
+          "date": "2025-11-05",
+          "label": "PRELEVEMENT EUROPEEN 3533083819 491,79 DE: Institution Sainte Marie 1D: FR18ZZ2417174 MOTIF: STE MARIE ANTONY PRELEV 05 NOVEMBRE 2025 REF: MANDAT-07056-002 05-11-25 MANDAT MANDAT-07056-002",
+          "amount": 442.61,
+          "category": "OTHER"
+        },
+        {
+          "date": "2025-11-17",
+          "label": "CARTE X9103 16/11 CONSERV-WISS NET 187,26 COMMERCE ELECTRONIQUE",
+          "amount": 168.53,
+          "category": "SHOPPING"
+        }
+      ]
+    },
+    {
+      "month": "12/2025",
+      "income": 4641.47,
+      "expenses": 4244.51,
+      "savings": 396.96,
+      "balance": 1500.0,
+      "categories": {
+        "GROCERIES": 301.1,
+        "RESTAURANT": 159.02,
+        "SHOPPING": 629.46,
+        "OTHER": 2035.59,
+        "UTILITIES": 127.97,
+        "TELECOM": 41.18,
+        "INSURANCE": 798.48,
+        "HEALTH": 41.16,
+        "TRANSPORT": 27.52,
+        "TAXES": 83.03
+      },
+      "topExpenses": [
+        {
+          "date": "2025-12-08",
+          "label": "ECHEANCE PRET N°813074861751 1.17488 CAPITAL AMORTI : 763,04 INTERETS : 43,77 ASSURANCE : 25,56 CAPITAL RESTANT : 54 369,31 DATE PREVISIONNELLE DE FIN : 07/08/2031",
+          "amount": 784.58,
+          "category": "INSURANCE"
+        },
+        {
+          "date": "2025-12-05",
+          "label": "PRELEVEMENT EUROPEEN 6500081634 460,92 DE: Institution Sainte Marie 1D: FR18ZZZ417174 MOTIF: STE MARIE ANTONY PRELEV 5 DECEMBRE 2025 REF: MANDAT-07056-002 05-12-25 MANDAT MANDAT-07056-002",
+          "amount": 414.83,
+          "category": "OTHER"
+        },
+        {
+          "date": "2025-12-24",
+          "label": "CHEQUE 866 224,61",
+          "amount": 202.15,
+          "category": "OTHER"
+        }
+      ]
+    },
+    {
+      "month": "01/2026",
+      "income": 4691.63,
+      "expenses": 2844.06,
+      "savings": 1847.57,
+      "balance": 1500.0,
+      "categories": {
+        "OTHER": 1127.3,
+        "UTILITIES": 124.45,
+        "SHOPPING": 475.13,
+        "RESTAURANT": 20.77,
+        "GROCERIES": 254.33,
+        "INSURANCE": 797.32,
+        "HEALTH": 13.6,
+        "TELECOM": 31.16
+      },
+      "topExpenses": [
+        {
+          "date": "2026-01-07",
+          "label": "ECHEANCE PRET N°813074861751 CAPITAL AMORTI : 763,66 INTERETS : 43,15 ASSURANCE : 25,56 CAPITAL RESTANT : 53 591,65 DATE PREVISIONNELLE DE FIN : 07/08/2031",
+          "amount": 784.58,
+          "category": "INSURANCE"
+        },
+        {
+          "date": "2026-01-05",
+          "label": "PRELEVEMENT EUROPEEN 0208165706 DE: Institution Sainte Marie ID: FR18Z22417174 MOTIF: SAINTE MARIE ANTONY PRELEV 05 JANVI ER 2026 REF: MANDAT-07056-002 05-01-26 MANDAT MANDAT-07056-002",
+          "amount": 416.48,
+          "category": "OTHER"
+        },
+        {
+          "date": "2026-01-02",
+          "label": "PRELEVEMENT EUROPEEN 9019455351 DE: TotalEnergies Electricite et Gaz Fr ance ID: FRO3ZZZ488157 MOTIF: Prelevement TotalEnergies Electrici te et Gaz France-Reference client 1 15992374 REF: 0115992374-222604314083 MANDAT DEMP017369753",
+          "amount": 124.45,
+          "category": "UTILITIES"
+        }
+      ]
+    },
+    {
+      "month": "02/2026",
+      "income": 4231.76,
+      "expenses": 2773.99,
+      "savings": 1457.77,
+      "balance": 1500.0,
+      "categories": {
+        "GROCERIES": 270.39,
+        "SHOPPING": 560.87,
+        "OTHER": 953.25,
+        "RESTAURANT": 28.32,
+        "UTILITIES": 124.45,
+        "INSURANCE": 797.36,
+        "TELECOM": 39.35
+      },
+      "topExpenses": [
+        {
+          "date": "2026-02-07",
+          "label": "ECHEANCE PRET N°813074861751 CAPITAL AMORTI : 764,29 INTERETS : 42,54 ASSURANCE : 25,56 CAPITAL RESTANT : 52 813,35 DATE PREVISIONNELLE DE FIN : 07/08/2031",
+          "amount": 784.58,
+          "category": "INSURANCE"
+        },
+        {
+          "date": "2026-02-05",
+          "label": "PRELEVEMENT EUROPEEN 3502036007 DE: Institution Sainte Marie ID: FR18Z22417174 MOTIF: SAINTE MARIE ANTONY PRELEV 05 FEVRI ER 2026 REF: MANDAT-07056-002 05-02-26 MANDAT MANDAT-07056-002",
+          "amount": 416.25,
+          "category": "OTHER"
+        },
+        {
+          "date": "2026-02-16",
+          "label": "CARTE X9103 15/02 CONSERV-WISS NET COMMERCE ELECTRONIQUE",
+          "amount": 218.02,
+          "category": "SHOPPING"
+        }
+      ]
+    },
+    {
+      "month": "03/2026",
+      "income": 4960.64,
+      "expenses": 3013.94,
+      "savings": 1946.7,
+      "balance": 1500.0,
+      "categories": {
+        "SHOPPING": 563.09,
+        "OTHER": 1354.07,
+        "TRANSPORT": 13.78,
+        "TELECOM": 30.04,
+        "SALARY": 64.79,
+        "UTILITIES": 58.68,
+        "INSURANCE": 797.92,
+        "GROCERIES": 121.94,
+        "RESTAURANT": 9.63
+      },
+      "topExpenses": [
+        {
+          "date": "2026-03-07",
+          "label": "ECHEANCE PRET N°813074861751 ‘CAPITAL AMORTI : 764,92 INTERETS : 41,92 ASSURANCE : 25,56 ‘CAPITAL RESTANT : 52 034,41 DATE PREVISIONNELLE DE FIN : 07/08/2031",
+          "amount": 784.58,
+          "category": "INSURANCE"
+        },
+        {
+          "date": "2026-03-05",
+          "label": "PRELEVEMENT EUROPEEN 6333441634 DE: Institution Sainte Marie ID: FR18Z2ZZ417174 MOTIF: SAINTE MARIE ANTONY PRELEV 05 MARS 2026 REF: MANDAT-07056-002 05-03-26 MANDAT MANDAT-07056-002",
+          "amount": 454.91,
+          "category": "OTHER"
+        },
+        {
+          "date": "2026-03-16",
+          "label": "CARTE X9819 14/03 SAINTE MARIE COMMERCE ELECTRONIQUE",
+          "amount": 210.04,
+          "category": "SHOPPING"
+        }
+      ]
+    },
+    {
+      "month": "04/2026",
+      "income": 4536.0,
+      "expenses": 4999.45,
+      "savings": -463.45,
+      "balance": 1500.0,
+      "categories": {
+        "SHOPPING": 922.36,
+        "OTHER": 1814.95,
+        "UTILITIES": 138.99,
+        "HEALTH": 81.44,
+        "GROCERIES": 494.8,
+        "SALARY": 132.58,
+        "RESTAURANT": 81.84,
+        "INSURANCE": 1301.3,
+        "TELECOM": 31.19
+      },
+      "topExpenses": [
+        {
+          "date": "2026-04-07",
+          "label": "ECHEANCE PRET N°813074861751 CAPITAL AMORTI : 765,55 INTERETS : 41,30 ASSURANCE : 25,56 CAPITAL RESTANT : 51 254,82 DATE PREVISIONNELLE DE FIN : 07/08/2031",
+          "amount": 784.58,
+          "category": "INSURANCE"
+        },
+        {
+          "date": "2026-04-07",
+          "label": "PRELEVEMENT EUROPEEN 0204960070 DE: AXA ID: FR14Z2Z391832 MOTIF: 10000948656327-CONTRAT0000021934000 104 REF: 10000948656327 MANDAT 00AX000000000021998516",
+          "amount": 503.17,
+          "category": "INSURANCE"
+        },
+        {
+          "date": "2026-04-08",
+          "label": "PRELEVEMENT EUROPEEN 0718491513 DE: Institution Sainte Marie ID: FR18ZZZ417174 MOTIF: SAINTE MARIE ANTONY PRELEV AVRIL 20 26 REF: MANDAT-07056-002 07-04-26 MANDAT MANDAT-07056-002",
+          "amount": 458.69,
+          "category": "OTHER"
+        }
+      ]
+    },
+    {
+      "month": "05/2026",
+      "income": 4302.3,
+      "expenses": 3959.63,
+      "savings": 342.67,
+      "balance": 1500.0,
+      "categories": {
+        "OTHER": 1528.74,
+        "SHOPPING": 1099.08,
+        "GROCERIES": 294.45,
+        "SALARY": 63.32,
+        "UTILITIES": 137.03,
+        "INSURANCE": 797.36,
+        "TELECOM": 26.49,
+        "RESTAURANT": 8.72,
+        "HEALTH": 4.44
+      },
+      "topExpenses": [
+        {
+          "date": "2026-05-07",
+          "label": "ECHEANCE PRET N°813074861751 CAPITAL AMORTI : 766,18. INTERETS : 40,68 ASSURANCE : 25,56 ‘CAPITAL RESTANT : 50 474,60 DATE PREVISIONNELLE DE FIN : 07/08/2031",
+          "amount": 784.58,
+          "category": "INSURANCE"
+        },
+        {
+          "date": "2026-05-29",
+          "label": "‘CARTE X9819 28/05 CABINET DENTAIRE",
+          "amount": 544.72,
+          "category": "OTHER"
+        },
+        {
+          "date": "2026-05-28",
+          "label": "CARTE X9103 27/05 CSEC SG COMMERCE ELECTRONIQUE",
+          "amount": 544.67,
+          "category": "SHOPPING"
+        }
+      ]
+    },
+    {
+      "month": "06/2026",
+      "income": 4511.79,
+      "expenses": 3526.64,
+      "savings": 985.15,
+      "balance": 1500.0,
+      "categories": {
+        "SHOPPING": 450.74,
+        "RESTAURANT": 41.27,
+        "OTHER": 1046.53,
+        "GROCERIES": 493.28,
+        "UTILITIES": 138.99,
+        "SALARY": 81.86,
+        "INSURANCE": 1236.07,
+        "TELECOM": 27.63,
+        "TRANSPORT": 10.27
+      },
+      "topExpenses": [
+        {
+          "date": "2026-06-08",
+          "label": "ECHEANCE PRET N°813074861751 ‘CAPITAL AMORTI : 766,82 INTERETS : 40,06 ASSURANCE : 25,56 ‘CAPITAL RESTANT : 49 693,72 DATE PREVISIONNELLE DE FIN : 07/08/2031",
+          "amount": 784.58,
+          "category": "INSURANCE"
+        },
+        {
+          "date": "2026-06-05",
+          "label": "PRELEVEMENT EUROPEEN 6502729190 DE: Institution Sainte Marie ID: FR182Z2417174 MOTIF: SAINTE MARIE ANTONY PRELEV JUIN 202 6 REF: MANDAT-07056-002 05-06-26 MANDAT MANDAT-07056-002",
+          "amount": 461.75,
+          "category": "OTHER"
+        },
+        {
+          "date": "2026-06-05",
+          "label": "PRELEVEMENT EUROPEEN 6200509750 DE: AXA ID: FR142ZZ391832 MOTIF: 10000964759367-CONTRAT000002 1993973 304 REF: 1000964759367 MANDAT 00AX000000000022381248",
+          "amount": 437.75,
+          "category": "INSURANCE"
+        }
+      ]
+    },
+    {
+      "month": "07/2026",
+      "income": 4547.79,
+      "expenses": 4481.94,
+      "savings": 65.85,
+      "balance": 1500.0,
+      "categories": {
+        "SHOPPING": 1218.56,
+        "OTHER": 1685.52,
+        "UTILITIES": 140.24,
+        "HEALTH": 58.48,
+        "GROCERIES": 472.34,
+        "INSURANCE": 797.43,
+        "LOAN": 31.88,
+        "TELECOM": 28.95,
+        "SALARY": 48.54
+      },
+      "topExpenses": [
+        {
+          "date": "2026-07-07",
+          "label": "ECHEANCE PRET N°813074861751 CAPITAL AMORTI : 768,23 INTERETS : 40,30 ASSURANCE : 23,61 CAPITAL RESTANT : 48080,67 DATE PREVISIONNELLE DE FIN : 07/08/2031",
+          "amount": 784.58,
+          "category": "INSURANCE"
+        },
+        {
+          "date": "2026-07-13",
+          "label": "CARTE X1854 10/07 MAESA DES NATIO",
+          "amount": 179.76,
+          "category": "OTHER"
+        },
+        {
+          "date": "2026-07-01",
+          "label": "CARTE X2491 27/06 CDC PTT COMMERCE ELECTRONIQUE",
+          "amount": 176.51,
+          "category": "SHOPPING"
+        }
+      ]
+    },
+    {
+      "month": "08/2026",
+      "income": 4294.66,
+      "expenses": 3728.59,
+      "savings": 566.07,
+      "balance": 1500.0,
+      "categories": {
+        "TRANSPORT": 11.78,
+        "OTHER": 1364.73,
+        "SHOPPING": 819.05,
+        "GROCERIES": 529.27,
+        "UTILITIES": 140.24,
+        "INSURANCE": 12.85,
+        "TELECOM": 51.24,
+        "SAVINGS": 784.58,
+        "RESTAURANT": 14.85
+      },
+      "topExpenses": [
+        {
+          "date": "2026-08-07",
+          "label": "ECHEANCE PRET N°813074861751 ‘CAPITAL AMORTI : 768,87 INTERETS : 39,66 CAPITAL RESTANT : 47311,80 DATE PREVISIONNELLE DE FIN : 07/08/2031",
+          "amount": 784.58,
+          "category": "SAVINGS"
+        },
+        {
+          "date": "2026-08-24",
+          "label": "CARTE X1854 22/08 PAYPAL *AIRBNB HMWBWW COMMERCE ELECTRONIQUE",
+          "amount": 160.81,
+          "category": "SHOPPING"
+        },
+        {
+          "date": "2026-08-03",
+          "label": "PRELEVEMENT EUROPEEN 2915162567 DE: TotalEnergies Electricite et Gaz Fr ance ID: FR03ZZZ488157 MOTIF: Prelevement TotalEnergies Electrici te et Gaz France-Reference client 1 15992374 REF: 0115992374-224004502890 MANDAT DEMP017369753",
+          "amount": 140.24,
+          "category": "UTILITIES"
+        }
+      ]
+    }
+  ],
+  "global": {
+    "averageMonthlyIncome": 4801.48,
+    "averageMonthlyExpenses": 3873.92,
+    "currentAccountBalance": 1500.0,
+    "savingsTotal": 14712.07,
+    "monthlyLoanPayments": 956
+  }
+}

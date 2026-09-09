@@ -1,0 +1,63 @@
+ARBRE DE DÉCISION — ASSURANCE AUTO
+==================================
+
+Rôle : choisir et justifier une formule d'assurance auto adaptée au véhicule et au profil du client.
+Utilisation : suivre les étapes dans l'ordre ; appliquer la première condition qui correspond au client.
+
+
+ÉTAPE 1 — Périmètre
+- SI le client ne cherche PAS à assurer un véhicule : ALORS aucune recommandation assurance auto (sortir du parcours).
+- SINON : passer à l'étape 2.
+
+
+ÉTAPE 2 — Le véhicule est-il en LOA / LLD / leasing ?
+- SI OUI : recommander la formule « Leasing » (prioritaire).
+- SI NON : passer à l'étape 3.
+
+
+ÉTAPE 3 — Formule de base selon la valeur et l'ancienneté du véhicule
+- Véhicule neuf / récent / valeur élevée        → « Tous Risques+ »
+- Véhicule récent / valeur moyenne à élevée     → « Tous Risques »
+- Véhicule ancien / valeur modérée              → « Tiers+ »
+- Véhicule très ancien / faible valeur          → « Tiers »
+
+
+ÉTAPE 4 — Ajustement selon le risque client
+Tenir compte de ces facteurs (peuvent faire monter le niveau de formule ou ajuster les franchises) :
+- jeune conducteur ;
+- sinistres récents ;
+- bonus / malus ;
+- kilométrage annuel ;
+- stationnement ;
+- usage privé ou professionnel ;
+- zone géographique.
+
+
+ÉTAPE 5 — Ajustement selon les besoins de protection
+Vérifier les garanties / options utiles au client :
+- vol ;
+- vandalisme ;
+- bris de glace ;
+- dommages tous accidents (dommages au propre véhicule) ;
+- véhicule de remplacement ;
+- assistance 0 km ;
+- protection du conducteur renforcée.
+
+
+ÉTAPE 6 — Réductions potentielles à vérifier
+- petit rouleur ;
+- véhicule électrique ;
+- jeune conducteur éligible ;
+- bon bonus ;
+- enfant d'un assuré SG.
+
+
+ÉTAPE 7 — Estimation
+- Calculer le coût et le niveau de protection obtenu.
+
+
+ÉTAPE 8 — Réponse au client (LLM)
+Expliquer en français, de façon claire et pédagogique :
+- la recommandation retenue et pourquoi ;
+- une alternative moins chère ;
+- une alternative plus protectrice.

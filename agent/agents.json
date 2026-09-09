@@ -1,0 +1,73 @@
+[
+  {
+    "id": "ag-generic",
+    "libelle": "Générique (questions factuelles)",
+    "theme": "generic",
+    "prompt": "generic.txt",
+    "data": [
+      "/data/transaction/transactions_2026_08.json",
+      "/data/transaction/transactions_2026_07.json",
+      "/data/transaction/transactions_2026_06.json"
+    ]
+  },
+  {
+    "id": "ag-credit-conso",
+    "libelle": "Crédit à la consommation",
+    "theme": "credit_conso",
+    "prompt": "credit-conso.txt",
+    "data": [
+      "/data/catalogue/credit_conso.json",
+      "/data/catalogue/cascade/credit_conso.txt"
+    ]
+  },
+  {
+    "id": "ag-credit-immo",
+    "libelle": "Crédit immobilier",
+    "theme": "credit_immo",
+    "prompt": "credit-immo.txt",
+    "data": [
+      "/data/catalogue/credit_immo.json",
+      "/data/catalogue/cascade/credit_immo.txt"
+    ]
+  },
+  {
+    "id": "ag-epargne",
+    "libelle": "Épargne et placements",
+    "theme": "epargne",
+    "prompt": "epargne.txt",
+    "data": [
+      "/data/catalogue/epargne.json",
+      "/data/catalogue/cascade/epargne.txt"
+    ]
+  },
+  {
+    "id": "ag-assurance-auto",
+    "libelle": "Assurance auto",
+    "theme": "assurance_auto",
+    "prompt": "assurance-auto.txt",
+    "data": [
+      "/data/catalogue/assurance_auto.json",
+      "/data/catalogue/cascade/assurance_auto.txt"
+    ]
+  },
+  {
+    "id": "ag-assurance-habitation",
+    "libelle": "Assurance habitation",
+    "theme": "assurance_habitation",
+    "prompt": "assurance-habitation.txt",
+    "data": [
+      "/data/catalogue/assurance_habitation.json",
+      "/data/catalogue/cascade/assurance_habitation.txt"
+    ]
+  },
+  {
+    "id": "ag-assurance-emprunteur",
+    "libelle": "Assurance emprunteur immobilier",
+    "theme": "assurance_emprunteur",
+    "prompt": "assurance-emprunteur.txt",
+    "data": [
+      "/data/catalogue/assurance_emprunteur_immo.json",
+      "/data/catalogue/cascade/assurance_emprunteur_immo.txt"
+    ]
+  }
+]

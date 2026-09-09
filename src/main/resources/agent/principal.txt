@@ -1,0 +1,307 @@
+{
+  "catalogue": {
+    "banque": "SG",
+    "categorie": "assurance_auto",
+    "pays": "France",
+    "date_reference": "2026-09-06",
+    "devise": "EUR"
+  },
+  
+  "produit": {
+    "id": "sg_assurance_auto",
+    "nom": "Assurance Auto SG",
+    "type": "assurance_automobile",
+    "souscription_en_ligne": true,
+    "devis_en_ligne": true,
+
+    "formules": [
+      {
+        "id": "sg_auto_tiers",
+        "nom": "Tiers",
+        "niveau_protection": 1,
+        "tarif_indicatif_mensuel": {
+          "a_partir_de": 18.20,
+          "devise": "EUR"
+        },
+        "garanties": [
+          "responsabilite_civile",
+          "defense_penale_et_recours",
+          "protection_conducteur_jusqua_400000"
+        ],
+        "assistance": {
+          "accident_km": 0,
+          "panne_km": 25
+        },
+        "options": [
+          {
+            "nom": "protection_conducteur_renforcee",
+            "prix_mensuel_indicatif": 1.91
+          }
+        ],
+        "regles_recommandation": {
+          "priorite_si": [
+            "budget_assurance_tres_limite",
+            "vehicule_ancien",
+            "faible_valeur_vehicule",
+            "client_recherche_couverture_legale_minimale"
+          ]
+        }
+      },
+
+      {
+        "id": "sg_auto_tiers_plus",
+        "nom": "Tiers+",
+        "niveau_protection": 2,
+        "tarif_indicatif_mensuel": {
+          "a_partir_de": 20.64,
+          "devise": "EUR"
+        },
+        "garanties": [
+          "responsabilite_civile",
+          "defense_penale_et_recours",
+          "protection_conducteur_jusqua_400000",
+          "bris_de_glace",
+          "catastrophes_naturelles",
+          "catastrophes_technologiques"
+        ],
+        "assistance": {
+          "accident_km": 0,
+          "panne_km": 25
+        },
+        "options": [
+          {
+            "nom": "assistance_renforcee",
+            "prix_mensuel_indicatif": 3.78
+          },
+          {
+            "nom": "protection_conducteur_renforcee",
+            "prix_mensuel_indicatif": 1.91
+          },
+          {
+            "nom": "vol_incendie_evenements_naturels",
+            "prix_mensuel_indicatif": 1.80
+          }
+        ],
+        "regles_recommandation": {
+          "priorite_si": [
+            "client_veut_plus_que_responsabilite_civile",
+            "vehicule_valeur_moyenne",
+            "besoin_bris_de_glace"
+          ]
+        }
+      },
+
+      {
+        "id": "sg_auto_tous_risques",
+        "nom": "Tous Risques",
+        "niveau_protection": 3,
+        "tarif_indicatif_mensuel": {
+          "a_partir_de": 30.50,
+          "devise": "EUR"
+        },
+        "garanties": [
+          "responsabilite_civile",
+          "defense_penale_et_recours",
+          "protection_conducteur_jusqua_400000",
+          "bris_de_glace",
+          "catastrophes_naturelles",
+          "catastrophes_technologiques",
+          "vol",
+          "incendie",
+          "evenements_naturels",
+          "dommages_tous_accidents",
+          "vandalisme"
+        ],
+        "assistance": {
+          "accident_km": 0,
+          "panne_km": 25
+        },
+        "avantages": [
+          "minimum_indemnisation_1200",
+          "jusqua_6_mensualites_credit_auto_sg_prises_en_charge_sous_conditions"
+        ],
+        "options": [
+          {
+            "nom": "assistance_renforcee",
+            "prix_mensuel_indicatif": 3.78
+          },
+          {
+            "nom": "protection_conducteur_renforcee",
+            "prix_mensuel_indicatif": 1.91
+          },
+          {
+            "nom": "indemnisation_renforcee",
+            "prix_mensuel_indicatif": 1.06
+          },
+          {
+            "nom": "contenu_du_vehicule",
+            "prix_mensuel_indicatif": 3.42
+          }
+        ],
+        "regles_recommandation": {
+          "priorite_si": [
+            "vehicule_recent",
+            "vehicule_valeur_importante",
+            "client_veut_couverture_dommmages_propres",
+            "vehicule_finance_par_credit"
+          ]
+        }
+      },
+
+      {
+        "id": "sg_auto_tous_risques_plus",
+        "nom": "Tous Risques+",
+        "niveau_protection": 4,
+        "tarif_indicatif_mensuel": {
+          "a_partir_de": 39.23,
+          "devise": "EUR"
+        },
+        "garanties": [
+          "responsabilite_civile",
+          "defense_penale_et_recours",
+          "protection_conducteur_renforcee_jusqua_1000000",
+          "bris_de_glace",
+          "catastrophes_naturelles",
+          "catastrophes_technologiques",
+          "vol",
+          "incendie",
+          "evenements_naturels",
+          "dommages_tous_accidents",
+          "vandalisme",
+          "indemnisation_renforcee"
+        ],
+        "indemnisation": {
+          "valeur_a_neuf_jusqua_mois": 36,
+          "minimum_indemnisation": 1200
+        },
+        "assistance": {
+          "accident_km": 0,
+          "panne_km": 25,
+          "remise_route_rapide": true,
+          "service_voiture_a_domicile": true
+        },
+        "options": [
+          {
+            "nom": "contenu_du_vehicule",
+            "prix_mensuel_indicatif": 3.42
+          }
+        ],
+        "regles_recommandation": {
+          "priorite_si": [
+            "vehicule_neuf",
+            "vehicule_tres_recent",
+            "vehicule_valeur_elevee",
+            "client_recherche_protection_maximale"
+          ]
+        }
+      },
+
+      {
+        "id": "sg_auto_leasing",
+        "nom": "Leasing",
+        "niveau_protection": 3,
+        "tarif_indicatif_mensuel": {
+          "a_partir_de": 30.85,
+          "devise": "EUR"
+        },
+        "cible": [
+          "vehicule_leasing",
+          "loa",
+          "lld"
+        ],
+        "garanties": [
+          "responsabilite_civile",
+          "defense_penale_et_recours",
+          "protection_conducteur_jusqua_400000",
+          "bris_de_glace",
+          "catastrophes_naturelles",
+          "catastrophes_technologiques",
+          "vol",
+          "incendie",
+          "evenements_naturels",
+          "dommages_tous_accidents",
+          "vandalisme"
+        ],
+        "minimum_indemnisation": 1200,
+        "options": [
+          {
+            "nom": "assistance_renforcee",
+            "prix_mensuel_indicatif": 3.78
+          },
+          {
+            "nom": "protection_conducteur_renforcee",
+            "prix_mensuel_indicatif": 1.91
+          },
+          {
+            "nom": "indemnisation_renforcee",
+            "prix_mensuel_indicatif": 1.06
+          },
+          {
+            "nom": "contenu_du_vehicule",
+            "prix_mensuel_indicatif": 3.42
+          }
+        ],
+        "regles_recommandation": {
+          "priorite_tres_elevee_si": [
+            "financement_LOA",
+            "financement_LLD",
+            "vehicule_en_leasing"
+          ]
+        }
+      }
+    ],
+
+    "reductions": [
+      {
+        "id": "petit_rouleur",
+        "reduction_pct": 10,
+        "conditions": {
+          "kilometres_annuels_maximum": 6000
+        }
+      },
+      {
+        "id": "vehicule_electrique",
+        "reduction_pct": 10,
+        "conditions": {
+          "motorisation": "electrique"
+        }
+      },
+      {
+        "id": "enfant_assure",
+        "reduction_pct": 10,
+        "conditions": {
+          "age_maximum": 24,
+          "parent_deja_assure_auto": true
+        }
+      },
+      {
+        "id": "bon_bonus",
+        "reduction_pct_maximum": 10,
+        "conditions": {
+          "crm_maximum": 0.5,
+          "anciennete_condition_annees": 3
+        }
+      },
+      {
+        "id": "jeune",
+        "reduction_pct": 10,
+        "conditions": {
+          "age_maximum": 29,
+          "anciennete_permis_minimum_annees": 3,
+          "anciennete_assurance_minimum_annees": 3,
+          "crm_maximum": 0.85
+        }
+      }
+    ],
+
+    "assistance_generale": {
+      "disponible_24h_24": true,
+      "disponible_7j_7": true,
+      "depannage_objectif_maximum_minutes": 60,
+      "indemnisation_si_depannage_depasse_objectif": 30,
+      "reseau_garages_agrees": true,
+      "avance_frais_reparation": false,
+      "reparations_garantiees_a_vie": true
+    }
+  }
+}

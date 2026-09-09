@@ -1,0 +1,49 @@
+ARBRE DE DÉCISION — ASSURANCE EMPRUNTEUR IMMOBILIER
+===================================================
+
+Rôle : déterminer si une assurance emprunteur est nécessaire et quelle couverture / quotité recommander.
+Utilisation : suivre les étapes dans l'ordre ; appliquer la première condition qui correspond au client.
+
+
+ÉTAPE 1 — Périmètre
+- SI le client n'a PAS de crédit immobilier en cours et PAS de projet de crédit immobilier : ALORS pas d'assurance emprunteur (sortir).
+- SINON : passer à l'étape 2.
+
+
+ÉTAPE 2 — Usage du bien
+- Résidence principale ou secondaire :
+  ALORS proposer une couverture complète : décès + PTIA + incapacité + invalidité.
+- Investissement locatif :
+  ALORS proposer une couverture adaptée à un investisseur (décès / PTIA au minimum).
+- Profil senior :
+  ALORS proposer une formule senior adaptée.
+
+
+ÉTAPE 3 — Client fonction publique / BFM ?
+- SI OUI : vérifier et comparer avec l'assurance emprunteur BFM.
+- SI NON : passer à l'étape 4.
+
+
+ÉTAPE 4 — Nombre d'emprunteurs
+- 1 seul emprunteur : quotité généralement 100 %.
+- 2 emprunteurs : faire choisir la quotité (ex. 50/50, 70/30, 100/100, etc.).
+
+
+ÉTAPE 5 — Situation professionnelle et familiale
+Tenir compte de : salarié ; indépendant ; métiers à risque ; revenus du conjoint ; enfants à charge.
+
+
+ÉTAPE 6 — Option perte d'emploi
+- Évaluer si le client a besoin de l'option « perte d'emploi ».
+
+
+ÉTAPE 7 — Comparaison contrat
+- Comparer le contrat d'assurance emprunteur SG avec une délégation externe.
+
+
+ÉTAPE 8 — Coût
+- Calculer le coût total de l'assurance.
+
+
+ÉTAPE 9 — Réponse au client (LLM)
+Expliquer en français la couverture recommandée (garanties + quotité) et les éléments de comparaison.

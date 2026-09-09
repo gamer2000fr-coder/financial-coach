@@ -1,0 +1,66 @@
+ARBRE DE DÉCISION — CRÉDIT CONSO
+================================
+
+Rôle : recommander le crédit à la consommation (ou le paiement comptant) le plus adapté au besoin et au profil du client.
+Utilisation : suivre les étapes dans l'ordre ; appliquer la première condition qui correspond au client.
+
+
+ÉTAPE 1 — Périmètre
+- SI la demande ne concerne PAS un besoin de financement conso : ALORS aucune recommandation de crédit conso (sortir).
+- SINON : passer à l'étape 2.
+
+
+ÉTAPE 2 — Le client peut-il financer sans crédit ?
+- Le client peut-il payer comptant le projet tout en conservant une épargne de sécurité suffisante ?
+- SI OUI : recommander un paiement comptant (ou partiellement comptant), puis éventuellement comparer avec un crédit.
+- SI NON : passer à l'étape 3.
+
+
+ÉTAPE 3 — Regroupement de crédits ?
+- SI OUI :
+    - Client éligible BFM → comparer « BFM Perspective » vs « Crédit Compact ».
+    - Sinon → « Crédit Compact ».
+- SI NON : passer à l'étape 4.
+
+
+ÉTAPE 4 — Projet véhicule ?
+- SI OUI :
+    - Client éligible BFM → comparer « BFM Liberté Auto » vs « Crédit Auto Expresso ».
+    - Sinon → « Crédit Auto Expresso ».
+- SI NON : passer à l'étape 5.
+
+
+ÉTAPE 5 — Client étudiant ?
+- SI OUI :
+    - Élève de la fonction publique → « BFM Élève ».
+    - Permis + âge 15-25 ans → « Prêt Permis à 1 € / jour ».
+    - Sinon → « Prêt Étudiant Évolutif ».
+- SI NON : passer à l'étape 6.
+
+
+ÉTAPE 6 — Jeune actif (18-29 ans) ?
+- SI OUI :
+    - Éligible BFM → comparer « BFM Jeunes Actifs » / « BFM Liberté ».
+    - Sinon → « Expresso Jeune Actif ».
+- SI NON : passer à l'étape 7.
+
+
+ÉTAPE 7 — Éligible BFM / fonction publique ?
+- SI OUI :
+    - Mobilité / reconversion → « BFM Mobilité / Reconversion ».
+    - Besoin exact de 1 500 € + profil éligible → « Avance BFM ».
+    - Projet personnel classique → « BFM Liberté ».
+- SI NON : passer à l'étape 8.
+
+
+ÉTAPE 8 — Besoin ponctuel ou récurrent ?
+- Besoin PONCTUEL → « Crédit Expresso ».
+- Besoin RÉCURRENT / réserve de trésorerie → « Alterna ».
+
+
+ÉTAPE 9 — Contrôle final de soutenabilité
+Vérifier : mensualité ; reste à vivre ; taux d'endettement ; incidents bancaires ; épargne restante ; coût total du crédit.
+
+
+ÉTAPE 10 — Réponse au client (IA)
+Expliquer en français : la recommandation retenue et pourquoi ; des alternatives ; les points de vigilance.

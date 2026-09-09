@@ -1,0 +1,147 @@
+{
+  "catalogue": {
+    "banque": "SG",
+    "categorie": "assurances_habitation",
+    "pays": "France",
+    "date_reference": "2026-09-06",
+    "devise": "EUR"
+  },
+
+  "produits": {
+      "id": "sg_assurance_habitation",
+      "nom": "Assurance Habitation SG",
+      "famille": "assurance_habitation",
+      "assureur": "Sogessur",
+
+      "cibles": [
+        "locataire",
+        "proprietaire_occupant",
+        "etudiant",
+        "proprietaire_non_occupant"
+      ],
+
+      "formules": [
+        {
+          "id": "sg_habitation_initiale",
+          "nom": "Initiale",
+          "niveau_protection": 1,
+          "cible": [
+            "locataire",
+            "proprietaire_occupant"
+          ],
+          "positionnement": "protection_essentielle"
+        },
+        {
+          "id": "sg_habitation_confort",
+          "nom": "Confort",
+          "niveau_protection": 2,
+          "cible": [
+            "locataire",
+            "proprietaire_occupant"
+          ],
+          "positionnement": "protection_intermediaire"
+        },
+        {
+          "id": "sg_habitation_optimale",
+          "nom": "Optimale",
+          "niveau_protection": 3,
+          "cible": [
+            "locataire",
+            "proprietaire_occupant"
+          ],
+          "positionnement": "protection_renforcee"
+        },
+        {
+          "id": "sg_habitation_etudiante",
+          "nom": "Étudiante",
+          "cible": [
+            "etudiant"
+          ],
+          "positionnement": "logement_etudiant"
+        },
+        {
+          "id": "sg_habitation_pno",
+          "nom": "Propriétaire non occupant",
+          "acronyme": "PNO",
+          "cible": [
+            "proprietaire_bailleur",
+            "investisseur_locatif"
+          ],
+          "positionnement": "logement_loue_ou_non_occupe",
+
+          "tarif_indicatif": {
+            "a_partir_de_mensuel": 8.70,
+            "devise": "EUR"
+          },
+
+          "eligibilite": {
+            "personne_physique": true,
+            "majeur": true,
+            "titulaire_compte_sg": true,
+            "nombre_pieces_maximum": 15
+          },
+
+          "contrat": {
+            "duree_initiale_mois": 12,
+            "renouvellement_tacite": true
+          }
+        }
+      ],
+
+      "garanties_possibles": [
+        "responsabilite_civile",
+        "degats_des_eaux",
+        "gel",
+        "incendie",
+        "evenements_assimiles",
+        "tempete",
+        "grele",
+        "neige",
+        "pluies_exceptionnelles",
+        "catastrophes_naturelles",
+        "catastrophes_technologiques",
+        "attentats",
+        "actes_de_terrorisme",
+        "vol",
+        "deteriorations_suite_vol",
+        "bris_de_glace",
+        "dommages_electriques",
+        "defense_penale",
+        "recours_suite_accident"
+      ],
+
+      "protections_complementaires": [
+        "objets_usuels",
+        "objets_de_valeur",
+        "valeur_a_neuf",
+        "assistance_urgence",
+        "assistance_serrurerie",
+        "assistance_plomberie",
+        "assistance_electromenager",
+        "assistance_violences_conjugales_et_intrafamiliales"
+      ],
+
+      "avantage_credit_sg": {
+        "nom": "Plus Tranquillité Bancaire",
+        "description": "Prise en charge possible de mensualités du prêt immobilier SG en cas de sinistre grave, selon conditions du contrat.",
+        "maximum_mensualites": 12
+      },
+
+      "regles_recommandation": {
+        "si_locataire": [
+          "assurance_habitation_obligatoire"
+        ],
+        "si_proprietaire_copropriete": [
+          "assurance_responsabilite_civile_obligatoire"
+        ],
+        "si_proprietaire_maison_individuelle": [
+          "assurance_non_obligatoire_legalement",
+          "fortement_recommandee"
+        ],
+        "si_investissement_locatif": [
+          "proposer_formule_PNO"
+        ]
+      }
+    }
+
+}

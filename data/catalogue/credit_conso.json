@@ -1,0 +1,664 @@
+{
+  "catalogue": {
+    "banque": "SG",
+    "ancien_nom": "Société Générale",
+    "pays": "France",
+    "categorie": "credit_consommation",
+    "date_reference": "2026-09-06",
+    "devise": "EUR",
+    "disclaimer": "Un crédit engage l'emprunteur et doit être remboursé. Vérifier les capacités de remboursement avant tout engagement."
+  },
+  "offres": [
+    {
+      "id": "sg_credit_expresso",
+      "nom": "Crédit Expresso",
+      "famille": "pret_personnel",
+      "type_credit": "amortissable_non_affecte",
+      "cible": [
+        "particulier_majeur"
+      ],
+      "projets_adaptes": [
+        "voiture",
+        "travaux",
+        "vacances",
+        "voyage",
+        "demenagement",
+        "mariage",
+        "ameublement",
+        "equipement",
+        "ordinateur",
+        "depense_importante",
+        "projet_personnel"
+      ],
+      "projets_exclus": [
+        "acquisition_immobiliere",
+        "construction_immobiliere"
+      ],
+      "montant": {
+        "minimum": 1000,
+        "maximum_public": null,
+        "reponse_principe_immediate_jusqua": 35000,
+        "devise": "EUR"
+      },
+      "duree": {
+        "minimum_mois": 12,
+        "maximum_mois": 84
+      },
+      "taux": {
+        "type": "fixe",
+        "taeg": null,
+        "depend_du_dossier": true
+      },
+      "justificatif_achat": false,
+      "apport_obligatoire": false,
+      "souscription_en_ligne": true,
+      "fonds": {
+        "delai_minimum_jours": 8
+      },
+      "flexibilite": {
+        "mensualites_modulables": true,
+        "remboursement_anticipe": true,
+        "differe_possible": true,
+        "differe_maximum_mois": 3
+      },
+      "assurance_emprunteur": {
+        "disponible": true,
+        "obligatoire": false
+      },
+      "regles_recommandation": {
+        "priorite_si": [
+          "client_majeur",
+          "besoin >= 1000",
+          "projet_non_immobilier",
+          "besoin_financement_ponctuel"
+        ],
+        "eviter_si": [
+          "client_etudiant_eligible_pret_etudiant",
+          "client_fonctionnaire_eligible_bfm",
+          "besoin_recurrent_de_tresorerie",
+          "regroupement_de_credits"
+        ]
+      }
+    },
+
+    {
+      "id": "sg_credit_auto_expresso",
+      "nom": "Crédit Auto Expresso",
+      "famille": "credit_auto",
+      "type_credit": "credit_amortissable",
+      "cible": [
+        "particulier_majeur"
+      ],
+      "projets_adaptes": [
+        "achat_voiture",
+        "achat_voiture_neuve",
+        "achat_voiture_occasion",
+        "achat_moto",
+        "achat_scooter",
+        "achat_deux_roues"
+      ],
+      "montant": {
+        "minimum": 1000,
+        "maximum_public": null,
+        "reponse_principe_immediate_jusqua": 35000,
+        "devise": "EUR"
+      },
+      "duree": {
+        "minimum_mois": 12,
+        "maximum_mois": 84
+      },
+      "taux": {
+        "type": "fixe",
+        "taeg": null,
+        "depend_du_dossier": true
+      },
+      "apport_obligatoire": false,
+      "flexibilite": {
+        "mensualites_modulables": true,
+        "remboursement_anticipe": true
+      },
+      "assurance_emprunteur": {
+        "disponible": true,
+        "obligatoire": false
+      },
+      "regles_recommandation": {
+        "priorite_si": [
+          "projet_achat_vehicule",
+          "besoin >= 1000"
+        ],
+        "eviter_si": [
+          "client_fonctionnaire_avec_offre_bfm_plus_avantageuse"
+        ]
+      }
+    },
+
+    {
+      "id": "sg_alterna",
+      "nom": "Crédit renouvelable Alterna",
+      "famille": "credit_renouvelable",
+      "type_credit": "renouvelable",
+      "cible": [
+        "particulier_majeur"
+      ],
+      "projets_adaptes": [
+        "imprevu",
+        "petite_tresorerie",
+        "achat",
+        "travaux",
+        "vacances",
+        "depense_ponctuelle"
+      ],
+      "montant": {
+        "minimum": 1500,
+        "maximum": null,
+        "minimum_virement": 150,
+        "devise": "EUR",
+        "determination": "selon_capacite_remboursement_et_besoins"
+      },
+      "taux": {
+        "type": "variable_selon_utilisation",
+        "taeg": null
+      },
+      "fonctionnement": {
+        "reserve_reutilisable": true,
+        "interets_uniquement_sur_sommes_utilisees": true,
+        "cout_si_non_utilise": false
+      },
+      "fonds": {
+        "delai_virement_heures": 48
+      },
+      "mensualite": {
+        "minimum": 30,
+        "devise": "EUR"
+      },
+      "justificatif_achat": false,
+      "remboursement_anticipe": {
+        "possible": true,
+        "sans_frais": true
+      },
+      "assurance_emprunteur": {
+        "disponible": true,
+        "obligatoire": false,
+        "cout_indicatif_encours_mensuel_pct": 0.34
+      },
+      "regles_recommandation": {
+        "priorite_si": [
+          "besoin_de_reserve_disponible",
+          "depenses_imprevues",
+          "besoins_recurrents_de_petits_montants"
+        ],
+        "eviter_si": [
+          "achat_unique_financable_par_pret_amortissable",
+          "besoin_long_terme",
+          "client_risque_surendettement"
+        ],
+        "vigilance": "Comparer systématiquement le coût total avec un prêt personnel amortissable."
+      }
+    },
+
+    {
+      "id": "sg_expresso_jeune_actif",
+      "nom": "Crédit Expresso Jeune Actif",
+      "famille": "pret_personnel_jeune",
+      "type_credit": "amortissable_non_affecte",
+      "cible": [
+        "jeune_actif"
+      ],
+      "eligibilite": {
+        "age_minimum": 18,
+        "age_maximum": 29,
+        "statut_actif_requis": true
+      },
+      "projets_adaptes": [
+        "installation",
+        "ameublement",
+        "ordinateur",
+        "mobilite",
+        "permis",
+        "premier_logement",
+        "equipement",
+        "projet_personnel"
+      ],
+      "montant": {
+        "minimum": 1500,
+        "maximum": 7000,
+        "devise": "EUR"
+      },
+      "duree": {
+        "minimum_mois": 12,
+        "maximum_mois": 60
+      },
+      "taux": {
+        "type": "fixe",
+        "taeg": null,
+        "conditions_preferentielles": true
+      },
+      "justificatif_depense": false,
+      "remboursement_anticipe": {
+        "possible": true
+      },
+      "regles_recommandation": {
+        "priorite_si": [
+          "age_entre_18_et_29",
+          "client_actif",
+          "besoin_entre_1500_et_7000"
+        ],
+        "eviter_si": [
+          "client_etudiant_sans_activite",
+          "besoin > 7000"
+        ]
+      }
+    },
+
+    {
+      "id": "sg_pret_etudiant_evolutif",
+      "nom": "Prêt Étudiant Évolutif",
+      "famille": "pret_etudiant",
+      "type_credit": "pret_etudiant_amortissable",
+      "cible": [
+        "etudiant"
+      ],
+      "eligibilite": {
+        "majeur": true,
+        "inscription_enseignement_superieur": true,
+        "limite_age": null
+      },
+      "projets_adaptes": [
+        "frais_scolarite",
+        "frais_inscription",
+        "loyer",
+        "depenses_courantes",
+        "ordinateur",
+        "mobilier",
+        "voiture",
+        "equipement",
+        "vie_etudiante"
+      ],
+      "projets_exclus": [
+        "acquisition_immobiliere"
+      ],
+      "montant": {
+        "minimum": 1000,
+        "maximum": 120000,
+        "devise": "EUR"
+      },
+      "duree": {
+        "minimum_mois": 12,
+        "maximum_mois": 120
+      },
+      "taux": {
+        "type": "fixe",
+        "taeg": null
+      },
+      "justificatif_depense": false,
+      "apport_obligatoire": false,
+      "caution": {
+        "generalement_requise": true,
+        "type": "parents_ou_tiers"
+      },
+      "flexibilite": {
+        "differe_remboursement": true,
+        "decaissement_fractionne": true,
+        "cadences_decaissement": [
+          "trimestrielle",
+          "semestrielle",
+          "annuelle"
+        ],
+        "modification_duree_possible": true
+      },
+      "alternative_sans_caution_personnelle": {
+        "nom": "Prêt Étudiant garanti par l'État / Bpifrance",
+        "montant_maximum_indique": 20000
+      },
+      "regles_recommandation": {
+        "priorite_si": [
+          "client_etudiant",
+          "projet_lie_aux_etudes_ou_installation",
+          "besoin >= 1000"
+        ],
+        "forte_priorite_si": [
+          "client_etudiant_achete_ordinateur",
+          "client_etudiant_finance_frais_scolarite"
+        ]
+      }
+    },
+
+    {
+      "id": "sg_permis_1_euro_jour",
+      "nom": "Prêt Permis à 1 € par jour",
+      "famille": "pret_permis",
+      "type_credit": "pret_aide",
+      "cible": [
+        "jeune"
+      ],
+      "eligibilite": {
+        "age_minimum": 15,
+        "age_maximum": 25
+      },
+      "projets_adaptes": [
+        "permis_de_conduire"
+      ],
+      "montant": {
+        "minimum": 600,
+        "maximum": 1200,
+        "devise": "EUR"
+      },
+      "interets": {
+        "pris_en_charge_par_etat": true
+      },
+      "regles_recommandation": {
+        "priorite_si": [
+          "age_entre_15_et_25",
+          "projet_permis_conduire"
+        ]
+      }
+    },
+
+    {
+      "id": "sg_credit_compact",
+      "nom": "Crédit Compact",
+      "famille": "regroupement_credits",
+      "type_credit": "regroupement_credit_amortissable",
+      "cible": [
+        "particulier_majeur_avec_plusieurs_credits_conso"
+      ],
+      "eligibilite": {
+        "majeur": true,
+        "plusieurs_credits_consommation": true
+      },
+      "projets_adaptes": [
+        "regroupement_credit_auto",
+        "regroupement_credit_travaux",
+        "regroupement_credit_renouvelable",
+        "regroupement_cartes_magasin",
+        "reduction_mensualites",
+        "simplification_budget"
+      ],
+      "credits_exclus": [
+        "credit_immobilier"
+      ],
+      "montant": {
+        "minimum": 1500,
+        "maximum": null,
+        "devise": "EUR"
+      },
+      "duree": {
+        "minimum_mois": 12,
+        "maximum_mois": 84
+      },
+      "taux": {
+        "type": "fixe"
+      },
+      "besoin_complementaire_possible": true,
+      "flexibilite": {
+        "mensualites_modulables": true,
+        "report_echeances": true,
+        "maximum_reports_par_an": 3,
+        "remboursement_anticipe": true
+      },
+      "regles_recommandation": {
+        "priorite_si": [
+          "client_plusieurs_credits_conso",
+          "client_cherche_reduire_mensualites",
+          "client_cherche_simplifier_budget"
+        ],
+        "vigilance": "Une mensualité réduite peut résulter d'un allongement de la durée et augmenter le coût total du crédit."
+      }
+    },
+
+    {
+      "id": "bfm_liberte",
+      "nom": "Prêt BFM Liberté",
+      "distributeur": "SG",
+      "preteur": "Banque Française Mutualiste",
+      "famille": "pret_personnel_fonction_publique",
+      "type_credit": "amortissable_non_affecte",
+      "cible": [
+        "fonctionnaire",
+        "agent_service_public",
+        "adherent_mutuelle_bfm_eligible",
+        "conjoint_eligible"
+      ],
+      "eligibilite": {
+        "majeur": true,
+        "compte_sg": true,
+        "conditions_bfm": true
+      },
+      "projets_adaptes": [
+        "travaux",
+        "voyage",
+        "mariage",
+        "naissance",
+        "equipement",
+        "imprevu",
+        "projet_personnel"
+      ],
+      "montant": {
+        "minimum": 1500,
+        "maximum": 75000,
+        "devise": "EUR"
+      },
+      "duree": {
+        "minimum_mois": 6,
+        "maximum_mois": 96
+      },
+      "taux": {
+        "type": "fixe",
+        "depend_de_la_duree": true
+      },
+      "frais_dossier": 0,
+      "justificatif_depense": false,
+      "flexibilite": {
+        "remboursement_anticipe_sans_frais": true,
+        "differe_possible": true,
+        "differe_maximum_mois": 3
+      },
+      "regles_recommandation": {
+        "priorite_si": [
+          "client_eligible_bfm",
+          "besoin >= 1500"
+        ],
+        "comparaison_obligatoire_avec": [
+          "sg_credit_expresso"
+        ]
+      }
+    },
+
+    {
+      "id": "bfm_jeunes_actifs",
+      "nom": "Prêt BFM Jeunes Actifs",
+      "distributeur": "SG",
+      "preteur": "Banque Française Mutualiste",
+      "famille": "pret_jeune_fonction_publique",
+      "type_credit": "amortissable_non_affecte",
+      "eligibilite": {
+        "age_minimum": 18,
+        "age_maximum": 34,
+        "fonctionnaire_ou_ayant_droit_bfm": true,
+        "compte_sg": true
+      },
+      "montant": {
+        "minimum": 1500,
+        "maximum": 3000,
+        "devise": "EUR"
+      },
+      "duree": {
+        "minimum_mois": 6,
+        "maximum_mois": 36
+      },
+      "frais_dossier": 0,
+      "justificatif_depense": false,
+      "regles_recommandation": {
+        "priorite_si": [
+          "client_bfm_age_moins_35",
+          "besoin_entre_1500_et_3000"
+        ],
+        "si_besoin_superieur": "bfm_liberte"
+      }
+    },
+
+    {
+      "id": "bfm_avance",
+      "nom": "Prêt Avance BFM",
+      "distributeur": "SG",
+      "preteur": "Banque Française Mutualiste",
+      "famille": "pret_fonction_publique_taux_zero",
+      "type_credit": "amortissable_non_affecte",
+      "eligibilite": {
+        "age_minimum": 18,
+        "age_maximum": 34,
+        "eleve_fonction_publique_ou_ayant_droit_eligible": true,
+        "compte_sg": true
+      },
+      "projets_adaptes": [
+        "scolarite",
+        "demenagement",
+        "depot_garantie",
+        "amenagement",
+        "installation"
+      ],
+      "montant": {
+        "minimum": 1500,
+        "maximum": 1500,
+        "montant_unique": true,
+        "devise": "EUR"
+      },
+      "duree": {
+        "minimum_mois": 24,
+        "maximum_mois": 24,
+        "duree_unique": true
+      },
+      "taux": {
+        "taeg_fixe_pct": 0.0
+      },
+      "frais_dossier": 0,
+      "justificatif_depense": false,
+      "regles_recommandation": {
+        "priorite_tres_elevee_si": [
+          "client_eligible",
+          "besoin_environ_1500"
+        ],
+        "raison": "Financement à TAEG fixe de 0 %."
+      }
+    },
+
+    {
+      "id": "bfm_eleve",
+      "nom": "Prêt BFM Élève",
+      "distributeur": "SG",
+      "preteur": "Banque Française Mutualiste",
+      "famille": "pret_etudiant_fonction_publique",
+      "eligibilite": {
+        "eleve_ecole_fonction_publique": true
+      },
+      "projets_adaptes": [
+        "etudes",
+        "scolarite",
+        "equipement",
+        "installation",
+        "projet_etudiant"
+      ],
+      "montant": {
+        "minimum": 1500,
+        "maximum": 20000,
+        "devise": "EUR"
+      },
+      "duree": {
+        "minimum_mois": 6,
+        "maximum_mois": 48
+      },
+      "frais_dossier": 0,
+      "justificatif_depense": false,
+      "regles_recommandation": {
+        "priorite_si": [
+          "eleve_fonction_publique",
+          "besoin_entre_1500_et_20000"
+        ]
+      }
+    },
+
+    {
+      "id": "bfm_mobilite_reconversion",
+      "nom": "Prêt BFM Mobilité / Reconversion",
+      "distributeur": "SG",
+      "preteur": "Banque Française Mutualiste",
+      "famille": "pret_mobilite_professionnelle",
+      "type_credit": "amortissable_non_affecte",
+      "eligibilite": {
+        "majeur": true,
+        "profils": [
+          "militaire",
+          "agent_hospitalier"
+        ],
+        "compte_sg": true
+      },
+      "projets_adaptes": [
+        "demenagement",
+        "mobilite_geographique",
+        "ameublement",
+        "reconversion_professionnelle",
+        "formation",
+        "stage"
+      ],
+      "montant": {
+        "minimum": 1500,
+        "maximum": 20000,
+        "devise": "EUR"
+      },
+      "duree": {
+        "minimum_mois": 6,
+        "maximum_mois": 48
+      },
+      "taux": {
+        "type": "fixe"
+      },
+      "frais_dossier": 0,
+      "justificatif_depense": false,
+      "flexibilite": {
+        "differe_maximum_mois": 3,
+        "remboursement_anticipe_sans_frais": true
+      },
+      "regles_recommandation": {
+        "priorite_si": [
+          "client_militaire_ou_agent_hospitalier",
+          "projet_mobilite_ou_reconversion"
+        ]
+      }
+    },
+
+    {
+      "id": "bfm_perspective",
+      "nom": "Prêt BFM Perspective",
+      "distributeur": "SG",
+      "preteur": "Banque Française Mutualiste",
+      "famille": "regroupement_credits_fonction_publique",
+      "type_credit": "regroupement_credits",
+      "cible": [
+        "agent_secteur_public_eligible_bfm"
+      ],
+      "projets_adaptes": [
+        "regroupement_credits",
+        "reduction_mensualites",
+        "simplification_budget"
+      ],
+      "montant": {
+        "minimum": 1500,
+        "maximum": 75000,
+        "devise": "EUR"
+      },
+      "duree": {
+        "minimum_mois": 6,
+        "maximum_mois": 96
+      },
+      "regles_recommandation": {
+        "priorite_si": [
+          "client_eligible_bfm",
+          "plusieurs_credits_existants"
+        ],
+        "comparaison_obligatoire_avec": [
+          "sg_credit_compact"
+        ]
+      }
+    }
+  ]
+}

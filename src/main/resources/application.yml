@@ -1,0 +1,30 @@
+server:
+  port: ${SERVER_PORT:9797}
+
+spring:
+  application:
+    name: financial-coach-backend
+
+app:
+  data:
+    # Racine du répertoire de données consolidé (contient data.json, banking, catalogue, transaction).
+    dir: ${DATA_DIR:./data}
+    # Fichier bancaire consolidé dans le répertoire /data (racine du projet).
+    banking-file: ${BANKING_FILE:./data/banking_demo_normalized.json}
+  ai:
+    openai:
+      base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+      api-key: ${OPENAI_API_KEY:}
+      model: ${OPENAI_MODEL:gpt-4o-mini}
+    deepseek:
+      base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+      api-key: ${DEEPSEEK_API_KEY:}
+      model: ${DEEPSEEK_MODEL:deepseek-chat}
+    default-provider: ${AI_PROVIDER:MOCK}
+    synthesis-file: ${SYNTHESIS_FILE:./data/synthese_financier.json}
+
+logging:
+  level:
+    com.coach.financier: INFO
+
+cascade: true

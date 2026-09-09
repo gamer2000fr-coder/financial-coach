@@ -1,0 +1,67 @@
+ARBRE DE DÉCISION — CRÉDIT IMMOBILIER
+=====================================
+
+Rôle : vérifier la faisabilité d'un projet immobilier et recommander le montage de financement le plus adapté.
+Utilisation : suivre les étapes dans l'ordre ; appliquer la première condition qui correspond au client.
+
+
+ÉTAPE 1 — Périmètre
+- SI le projet n'est PAS réellement immobilier : ALORS sortir du parcours crédit immobilier.
+- SINON : passer à l'étape 2.
+
+
+ÉTAPE 2 — Faisabilité financière
+Vérifier : apport disponible ; revenus stables ; crédits existants ; taux d'endettement ; reste à vivre ; épargne restante après achat ; frais de notaire / garantie / travaux.
+- SI le projet n'est PAS soutenable : ALORS ne pas proposer de financement.
+- SI le projet est soutenable : passer à l'étape 3.
+
+
+ÉTAPE 3 — Achat avant vente du logement actuel ?
+- SI le client achète avant d'avoir vendu son logement actuel :
+  ALORS proposer un « Crédit Relais » (+ prêt immobilier complémentaire si nécessaire).
+- SI NON : passer à l'étape 4.
+
+
+ÉTAPE 4 — Résidence principale ?
+- SI le projet est une résidence principale :
+    1. Si primo-accédant :
+       - éligible PTZ → intégrer le « PTZ » en priorité ;
+       - sinon → continuer.
+    2. Si revenus compatibles avec le « PAS » → comparer PAS + PTZ + prêt classique.
+    3. Sinon, si « Prêt Conventionné » pertinent → comparer.
+    4. Sinon → « prêt immobilier à taux fixe ».
+- SI NON (pas une résidence principale) : passer à l'étape 5.
+
+
+ÉTAPE 5 — Investissement locatif ?
+- SI OUI :
+    - Profil patrimonial / stratégie « in fine » pertinente → comparer « Prêt In Fine » vs « Prêt Immobilier Taux Fixe ».
+    - Sinon → « Prêt Immobilier Taux Fixe ».
+- SI NON : passer à l'étape 6.
+
+
+ÉTAPE 6 — PEL / CEL avec droits à prêt ?
+- SI le client possède un PEL ou CEL avec droits à prêt : calculer l'intérêt du « Prêt Épargne Logement » et le comparer au taux du prêt principal.
+- SI NON : passer à l'étape 7.
+
+
+ÉTAPE 7 — Travaux de rénovation énergétique ?
+- SI OUI : vérifier l'« Éco-PTZ » (+ prêt principal si besoin).
+- SI NON : passer à l'étape 8.
+
+
+ÉTAPE 8 — Éligible BFM / fonction publique ?
+- SI OUI : appliquer les avantages BFM / une caution adaptée.
+- SI NON : passer à l'étape 9.
+
+
+ÉTAPE 9 — Compléter le plan de financement
+- Compléter avec le « Prêt Immobilier à Taux Fixe SG ».
+
+
+ÉTAPE 10 — Coûts annexes à intégrer
+- assurance emprunteur ; garantie / caution ; frais de dossier ; frais de notaire ; travaux ; charges / taxe foncière.
+
+
+ÉTAPE 11 — Réponse au client (LLM)
+Expliquer en français le montage de financement recommandé et les alternatives.

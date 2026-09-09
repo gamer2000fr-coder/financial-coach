@@ -1,0 +1,347 @@
+{
+  "catalogue": {
+    "banque": "SG",
+    "categorie": "credit_immobilier",
+    "pays": "France",
+    "date_reference": "2026-09-06",
+    "devise": "EUR"
+  },
+  "offres": [
+    {
+      "id": "sg_pret_immo_taux_fixe",
+      "nom": "Prêt Immobilier à Taux Fixe",
+      "type_credit": "immobilier_amortissable",
+      "cible": [
+        "particulier_majeur"
+      ],
+      "projets_adaptes": [
+        "residence_principale",
+        "residence_secondaire",
+        "achat_neuf",
+        "achat_ancien",
+        "construction",
+        "investissement_locatif",
+        "achat_avec_travaux"
+      ],
+      "taux": {
+        "type": "fixe",
+        "taux_personnalise": true
+      },
+      "duree": {
+        "minimum_annees": 3,
+        "maximum_annees": 25
+      },
+      "financement": {
+        "jusqua_pct_operation": 100
+      },
+      "flexibilite": {
+        "mensualites_modulables": true,
+        "report_echeances_possible": true,
+        "paliers_remboursement": true
+      },
+      "conditions": {
+        "majeur": true,
+        "compte_sg": true,
+        "acceptation_dossier": true
+      },
+      "garanties_possibles": [
+        "caution_credit_logement",
+        "hypotheque",
+        "caution_mutuelle_fonction_publique"
+      ],
+      "regles_recommandation": {
+        "priorite_si": [
+          "achat_immobilier_classique",
+          "construction",
+          "investissement_locatif",
+          "besoin_financement_long_terme"
+        ]
+      }
+    },
+
+    {
+      "id": "sg_ptz",
+      "nom": "Prêt à Taux Zéro",
+      "acronyme": "PTZ",
+      "type_credit": "pret_reglemente_sans_interet",
+      "cible": [
+        "primo_accedant"
+      ],
+      "projets_adaptes": [
+        "residence_principale",
+        "achat_logement_neuf",
+        "construction",
+        "achat_ancien_sous_conditions"
+      ],
+      "eligibilite": {
+        "primo_accedant": true,
+        "conditions_ressources": true,
+        "residence_principale": true,
+        "conditions_reglementaires": true
+      },
+      "taux": {
+        "taux_interet_pct": 0,
+        "interets_payes_par_etat": true
+      },
+      "frais_dossier": 0,
+      "financement": {
+        "finance_totalite_operation": false,
+        "type": "financement_complementaire"
+      },
+      "quotite_indicative": {
+        "maison_neuve_pct_min": 10,
+        "maison_neuve_pct_max": 30,
+        "appartement_neuf_pct_min": 20,
+        "appartement_neuf_pct_max": 50
+      },
+      "regles_recommandation": {
+        "priorite_tres_elevee_si": [
+          "primo_accedant",
+          "revenus_eligibles",
+          "achat_residence_principale"
+        ],
+        "doit_etre_associe_a": [
+          "autre_credit_immobilier"
+        ]
+      }
+    },
+
+    {
+      "id": "sg_credit_relais",
+      "nom": "Crédit Relais",
+      "type_credit": "credit_immobilier_in_fine_temporaire",
+      "cible": [
+        "proprietaire_vendant_un_bien"
+      ],
+      "projets_adaptes": [
+        "achat_nouveau_logement_avant_vente_ancien"
+      ],
+      "montant": {
+        "maximum_pct_valeur_bien_a_vendre": 90
+      },
+      "duree": {
+        "maximum_mois": 12,
+        "maximum_mois_vefa_ou_construction": 24
+      },
+      "taux": {
+        "type": "fixe"
+      },
+      "remboursement": {
+        "capital": "fin_de_pret",
+        "differé_partiel_possible": true,
+        "differé_total_possible": true
+      },
+      "conditions": {
+        "majeur": true,
+        "compte_sg": true,
+        "bien_actuel_en_vente": true
+      },
+      "regles_recommandation": {
+        "priorite_si": [
+          "client_deja_proprietaire",
+          "client_achete_avant_de_vendre"
+        ],
+        "eviter_si": [
+          "aucun_bien_a_revendre"
+        ]
+      }
+    },
+
+    {
+      "id": "sg_pret_in_fine",
+      "nom": "Prêt Immobilier In Fine",
+      "type_credit": "immobilier_in_fine",
+      "cible": [
+        "investisseur_immobilier"
+      ],
+      "projets_adaptes": [
+        "investissement_locatif"
+      ],
+      "remboursement": {
+        "interets": "pendant_duree_du_pret",
+        "capital": "fin_du_pret"
+      },
+      "regles_recommandation": {
+        "priorite_si": [
+          "investissement_locatif",
+          "client_patrimonial",
+          "strategie_fiscale_et_patrimoniale"
+        ],
+        "vigilance": [
+          "cout_total",
+          "risque_capital_a_rembourser_a_echeance",
+          "necessite_epargne_ou_garantie_associee"
+        ]
+      }
+    },
+
+    {
+      "id": "sg_pas",
+      "nom": "Prêt à l’Accession Sociale",
+      "acronyme": "PAS",
+      "type_credit": "pret_reglemente",
+      "cible": [
+        "menage_revenus_modestes"
+      ],
+      "projets_adaptes": [
+        "residence_principale",
+        "construction",
+        "achat_neuf",
+        "achat_ancien",
+        "travaux_sous_conditions"
+      ],
+      "eligibilite": {
+        "conditions_ressources": true,
+        "conditions_reglementaires": true
+      },
+      "financement": {
+        "jusqua_pct_operation": 100
+      },
+      "taux": {
+        "type": "plafonne"
+      },
+      "avantages": [
+        "frais_dossier_reduits",
+        "financement_jusqua_100_pct_sous_conditions"
+      ],
+      "regles_recommandation": {
+        "priorite_si": [
+          "revenus_modestes",
+          "achat_residence_principale"
+        ]
+      }
+    },
+
+    {
+      "id": "sg_pret_conventionne",
+      "nom": "Prêt Conventionné",
+      "type_credit": "pret_immobilier_reglemente",
+      "cible": [
+        "particulier_majeur"
+      ],
+      "eligibilite": {
+        "conditions_ressources": false,
+        "compte_sg": true
+      },
+      "projets_adaptes": [
+        "residence_principale",
+        "construction",
+        "investissement_locatif_sous_conditions",
+        "travaux_sous_conditions"
+      ],
+      "financement": {
+        "jusqua_pct_operation": 100
+      },
+      "taux": {
+        "type": "plafonne"
+      },
+      "flexibilite": {
+        "paliers_remboursement": true
+      },
+      "regles_recommandation": {
+        "priorite_si": [
+          "client_non_eligible_pas",
+          "besoin_pret_reglemente",
+          "projet_eligible"
+        ]
+      }
+    },
+
+    {
+      "id": "sg_pret_epargne_logement",
+      "nom": "Prêt Épargne Logement",
+      "type_credit": "pret_reglemente_epargne_logement",
+      "cible": [
+        "detenteur_pel",
+        "detenteur_cel"
+      ],
+      "eligibilite": {
+        "pel_ou_cel": true,
+        "droits_a_pret_suffisants": true
+      },
+      "projets_adaptes": [
+        "residence_principale",
+        "residence_secondaire_sous_conditions",
+        "investissement_locatif_sous_conditions",
+        "travaux"
+      ],
+      "taux": {
+        "type": "fixe",
+        "determination": "selon_conditions_du_PEL_ou_CEL"
+      },
+      "montants_reglementaires_indicatifs": {
+        "pel_maximum": 92000,
+        "cel_maximum": 23000
+      },
+      "duree_indicative": {
+        "minimum_annees": 2,
+        "maximum_annees": 15
+      },
+      "regles_recommandation": {
+        "priorite_si": [
+          "client_possede_PEL_ou_CEL",
+          "droits_a_pret_interessants"
+        ],
+        "comparaison_obligatoire_avec": [
+          "sg_pret_immo_taux_fixe"
+        ]
+      }
+    },
+
+    {
+      "id": "sg_eco_ptz",
+      "nom": "Éco-prêt à Taux Zéro",
+      "acronyme": "Eco-PTZ",
+      "type_credit": "pret_travaux_reglemente_sans_interet",
+      "projets_adaptes": [
+        "renovation_energetique"
+      ],
+      "montant": {
+        "maximum": 50000,
+        "devise": "EUR"
+      },
+      "taux": {
+        "taux_interet_pct": 0
+      },
+      "eligibilite": {
+        "travaux_eligibles_reglementation": true,
+        "logement_eligible": true
+      },
+      "regles_recommandation": {
+        "priorite_tres_elevee_si": [
+          "travaux_renovation_energetique",
+          "client_eligible"
+        ]
+      }
+    },
+
+    {
+      "id": "sg_bfm_avantages_immo",
+      "nom": "Avantages BFM Crédit Immobilier",
+      "type_credit": "avantages_client_fonction_publique",
+      "distributeur": "SG",
+      "partenaire": "Banque Française Mutualiste",
+      "cible": [
+        "fonctionnaire",
+        "agent_secteur_public",
+        "client_bfm_eligible"
+      ],
+      "produits_concernes": [
+        "sg_pret_immo_taux_fixe",
+        "sg_ptz",
+        "pret_developpement_durable"
+      ],
+      "avantages": [
+        "frais_dossier_reduits",
+        "assurance_emprunteur_conditions_specifiques",
+        "caution_mutuelle_possible"
+      ],
+      "regles_recommandation": {
+        "priorite_si": [
+          "client_agent_secteur_public"
+        ],
+        "action": "verifier_systematiquement_eligibilite_bfm"
+      }
+    }
+  ]
+}

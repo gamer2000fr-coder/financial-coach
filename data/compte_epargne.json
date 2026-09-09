@@ -1,0 +1,16 @@
+{
+  "savingsAccounts": [
+    {
+      "accountId": "LIVRET-A-001",
+      "type": "COMPTE_EPARGNE",
+      "currency": "EUR",
+      "solde": 12195.18
+    },
+    {
+      "accountId": "LIVRET-DEV-DURABLE-001",
+      "type": "COMPTE_EPARGNE",
+      "currency": "EUR",
+      "solde": 2500
+    }
+  ]
+}

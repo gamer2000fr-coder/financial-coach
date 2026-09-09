@@ -1,0 +1,960 @@
+{
+  "periode": "05/2026",
+  "year": "2026",
+  "month": "05",
+  "transactionCount": 119,
+  "transactions": [
+    {
+      "date": "04/05/2026",
+      "nature_operation": "CARTE X9103 01/05 NYX*PAP",
+      "debit": 0.41,
+      "credit": null,
+      "transactionId": "TX-02010",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "04/05/2026",
+      "nature_operation": "CARTE X9819 01/05 ODALYS CITY",
+      "debit": 2.31,
+      "credit": null,
+      "transactionId": "TX-02011",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "04/05/2026",
+      "nature_operation": "CARTE X9819 01/05 AU FOURNIL DE WISSOU",
+      "debit": 2.53,
+      "credit": null,
+      "transactionId": "TX-02012",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "04/05/2026",
+      "nature_operation": "CARTE X9103 01/05 PATHE DIJON",
+      "debit": 5.46,
+      "credit": null,
+      "transactionId": "TX-02013",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "04/05/2026",
+      "nature_operation": "CARTE X9103 01/05 LE CHARRETON",
+      "debit": 31.48,
+      "credit": null,
+      "transactionId": "TX-02014",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "04/05/2026",
+      "nature_operation": "CARTE X9103 01/05 NYX*PAP",
+      "debit": 0.38,
+      "credit": null,
+      "transactionId": "TX-02015",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "04/05/2026",
+      "nature_operation": "CARTE X9819 01/05 SumUp *Mini market",
+      "debit": 2.93,
+      "credit": null,
+      "transactionId": "TX-02016",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "04/05/2026",
+      "nature_operation": "CARTE X9819 01/05 APRR AUTOROUTE",
+      "debit": 9.07,
+      "credit": null,
+      "transactionId": "TX-02017",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "04/05/2026",
+      "nature_operation": "CARTE X9103 01/05 PAYPAL *ODALYSEVAS! COMMERCE ELECTRONIQUE",
+      "debit": 73.76,
+      "credit": null,
+      "transactionId": "TX-02018",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "04/05/2026",
+      "nature_operation": "CARTE X9103 01/05 NYX*PAP",
+      "debit": 0.6,
+      "credit": null,
+      "transactionId": "TX-02019",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "04/05/2026",
+      "nature_operation": "CARTE X9819 01/05 SARL THEVENOT",
+      "debit": 3.76,
+      "credit": null,
+      "transactionId": "TX-02020",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "04/05/2026",
+      "nature_operation": "CARTE X9819 01/05 AUCHAN 1302C",
+      "debit": 21.16,
+      "credit": null,
+      "transactionId": "TX-02021",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "04/05/2026",
+      "nature_operation": "CARTE X9103 01/05 NYX*PAP",
+      "debit": 0.6,
+      "credit": null,
+      "transactionId": "TX-02022",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "04/05/2026",
+      "nature_operation": "CARTE X9103 02/05 PAYPAL *NETFLIX COMMERCE ELECTRONIQUE",
+      "debit": 3.28,
+      "credit": null,
+      "transactionId": "TX-02023",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "04/05/2026",
+      "nature_operation": "CARTE X9819 02/05 BVG",
+      "debit": 2.14,
+      "credit": null,
+      "transactionId": "TX-02024",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "04/05/2026",
+      "nature_operation": "CARTE X9103 02/05 DIJONANNE",
+      "debit": 4.08,
+      "credit": null,
+      "transactionId": "TX-02025",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "04/05/2026",
+      "nature_operation": "CARTE X9819 02/05 APRR FLEURY-EN-BIERE",
+      "debit": 8.38,
+      "credit": null,
+      "transactionId": "TX-02026",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "04/05/2026",
+      "nature_operation": "CARTE X9103 02/05 DIJON SANS C",
+      "debit": 11.34,
+      "credit": null,
+      "transactionId": "TX-02027",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "04/05/2026",
+      "nature_operation": "CARTE X9819 02/05 CARREFOUR QUETIG",
+      "debit": 18.65,
+      "credit": null,
+      "transactionId": "TX-02028",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "04/05/2026",
+      "nature_operation": "CARTE X9103 03/05 LIKNADISTRIB-",
+      "debit": 1.09,
+      "credit": null,
+      "transactionId": "TX-02029",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "04/05/2026",
+      "nature_operation": "‘CARTE X9103 03/05 AUCHAN SUPERMAR",
+      "debit": 25.11,
+      "credit": null,
+      "transactionId": "TX-02030",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "04/05/2026",
+      "nature_operation": "‘CARTE X9819 03/05 GRAND FRAIS.",
+      "debit": 27.91,
+      "credit": null,
+      "transactionId": "TX-02031",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "05/05/2026",
+      "nature_operation": "VIR RECU 3483465511S DE: CAF DE L ESSONNE MOTIF: 7504258MDU 042026ME REF: 41121624V16",
+      "debit": null,
+      "credit": 52.76,
+      "transactionId": "TX-02032",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "05/05/2026",
+      "nature_operation": "CARTE X9103 30/04 AMAZON EU SARL COMMERCE ELECTRONIQUE",
+      "debit": 1.83,
+      "credit": null,
+      "transactionId": "TX-02033",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "05/05/2026",
+      "nature_operation": "CARTE X9819 04/05 LHERAULT",
+      "debit": 4.28,
+      "credit": null,
+      "transactionId": "TX-02034",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "05/05/2026",
+      "nature_operation": "CARTE X9103 04/05 SODEXO WEB 4795897 COMMERCE ELECTRONIQUE",
+      "debit": 8.05,
+      "credit": null,
+      "transactionId": "TX-02035",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "05/05/2026",
+      "nature_operation": "CARTE X9103 04/05 PAYPAL *Paiement 4X ‘COMMERCE ELECTRONIQUE",
+      "debit": 32.0,
+      "credit": null,
+      "transactionId": "TX-02036",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "05/05/2026",
+      "nature_operation": "PRELEVEMENT EUROPEEN 3024989692 DE: TotalEnergies Electricite et Gaz Fr ance ID: FRO3ZZZ488157 MOTIF: Prelevement TotalEnergies Electrici te et Gaz France-Reference client 1 15992374 REF: 0115992374-222204 120242 MANDAT DEMP017369753",
+      "debit": 137.03,
+      "credit": null,
+      "transactionId": "TX-02037",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "05/05/2026",
+      "nature_operation": "PRELEVEMENT EUROPEEN 3401070803 DE: ALS ACTION LOGEMENT SERVICES ID: FR30ZZZ822E81 MOTIF: 00003562720SLOANSN REF: 000035627205LOANSN MANDAT PERO0200000781",
+      "debit": 80.88,
+      "credit": null,
+      "transactionId": "TX-02038",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "05/05/2026",
+      "nature_operation": "PRELEVEMENT EUROPEEN 3419420029 DE: SOGESSUR ID: FR13ZZZ428225 MOTIF: SOGESSUR/000000006054 114186843536/0 00000006054114001 REF: 000000006054 114186843536 MANDAT 0000000060541 14001",
+      "debit": 24.17,
+      "credit": null,
+      "transactionId": "TX-02039",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "05/05/2026",
+      "nature_operation": "PRELEVEMENT EUROPEEN 3434154515. DE: Institution Sainte Marie ID: FR18ZZ2417174 MOTIF: SAINTE MARIE ANTONY PRELEV MAI 2026 REF: MANDAT-07056-002 05-05-26 MANDAT MANDAT-07056-002",
+      "debit": 438.29,
+      "credit": null,
+      "transactionId": "TX-02040",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "06/05/2026",
+      "nature_operation": "CARTE X9819 05/05 SC-L ETOILE DU",
+      "debit": 3.11,
+      "credit": null,
+      "transactionId": "TX-02041",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "06/05/2026",
+      "nature_operation": "‘CARTE X9103 05/05 FRANCILIANE COMMERCE ELECTRONIQUE",
+      "debit": 67.28,
+      "credit": null,
+      "transactionId": "TX-02042",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "07/05/2026",
+      "nature_operation": "CARTE X9103 06/05 AUCHAN 1302C",
+      "debit": 8.58,
+      "credit": null,
+      "transactionId": "TX-02043",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "07/05/2026",
+      "nature_operation": "‘CARTE X9103 RETRAIT DAB 06/05 08H10 LA BANQUE POSTALE 916891",
+      "debit": 27.43,
+      "credit": null,
+      "transactionId": "TX-02044",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "07/05/2026",
+      "nature_operation": "ECHEANCE PRET N°813074861751 CAPITAL AMORTI : 766,18. INTERETS : 40,68 ASSURANCE : 25,56 ‘CAPITAL RESTANT : 50 474,60 DATE PREVISIONNELLE DE FIN : 07/08/2031",
+      "debit": 784.58,
+      "credit": null,
+      "transactionId": "TX-02045",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "09/05/2026",
+      "nature_operation": "000001 VIR INSTANTANE EMIS LOGITEL POUR: ALEX MARTIN 11 05 BQ BNPA CPT 00005419649 DATE: 09/05/2026 22:54 REF: 662982126247 REF: 032026129488712700000001 MOTIF: Pret moi 300, je te le rembourserai dans un mois. (CHEZ: BNPAFRPPXXX",
+      "debit": 131.53,
+      "credit": null,
+      "transactionId": "TX-02046",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "09/05/2026",
+      "nature_operation": "PRELEVEMENT EUROPEEN 3703102850 DE: BOUYGUES TELECOM ID: FR35Z2Z4 18323 MOTIF: PRLV Cdiscount Mobile Fact N. FMO00 18166661 REF: BTBD000000N0000000000018670537 MANDAT REF0018536592",
+      "debit": 2.66,
+      "credit": null,
+      "transactionId": "TX-02047",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "11/05/2026",
+      "nature_operation": "VIR RECU 9612948870619 DE: M. OU MME ALEX MARTIN",
+      "debit": null,
+      "credit": 424.97,
+      "transactionId": "TX-02048",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "11/05/2026",
+      "nature_operation": "VIR RECU 9613149565337 DE: M. OU MME ALEX MARTIN",
+      "debit": null,
+      "credit": 141.66,
+      "transactionId": "TX-02049",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "11/05/2026",
+      "nature_operation": "CARTE X9103 07/05 PAYPAL *ALIPAY EUR (COMMERCE ELECTRONIQUE",
+      "debit": 5.99,
+      "credit": null,
+      "transactionId": "TX-02050",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "11/05/2026",
+      "nature_operation": "CARTE X9819 07/05 SOC. GEN. JULLIA COMMERCE ELECTRONIQUE",
+      "debit": 5.93,
+      "credit": null,
+      "transactionId": "TX-02051",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "11/05/2026",
+      "nature_operation": "CARTE X9103 07/05 AMAZON EU SARL (COMMERCE ELECTRONIQUE",
+      "debit": 12.53,
+      "credit": null,
+      "transactionId": "TX-02052",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "11/05/2026",
+      "nature_operation": "‘CARTE X9819 08/05 XL NOODLE HOUSE",
+      "debit": 13.01,
+      "credit": null,
+      "transactionId": "TX-02053",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "11/05/2026",
+      "nature_operation": "CARTE X9819 08/05 XL NOODLE HOUSE",
+      "debit": 14.11,
+      "credit": null,
+      "transactionId": "TX-02054",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "11/05/2026",
+      "nature_operation": "CARTE X9103 08/05 AUCHAN SUPERMAR",
+      "debit": 16.52,
+      "credit": null,
+      "transactionId": "TX-02055",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "11/05/2026",
+      "nature_operation": "CARTE X9103 08/05 GRAND FRAIS",
+      "debit": 25.44,
+      "credit": null,
+      "transactionId": "TX-02056",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "11/05/2026",
+      "nature_operation": "CARTE X9103 09/05 PAYPAL *GITHUB INC (COMMERCE ELECTRONIQUE",
+      "debit": 3.21,
+      "credit": null,
+      "transactionId": "TX-02057",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "11/05/2026",
+      "nature_operation": "CARTE X9819 09/05 LA GOURMANDISE",
+      "debit": 3.11,
+      "credit": null,
+      "transactionId": "TX-02058",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "11/05/2026",
+      "nature_operation": "CARTE X9103 09/05 AMAZON PAYMENTS COMMERCE ELECTRONIQUE",
+      "debit": 12.75,
+      "credit": null,
+      "transactionId": "TX-02059",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "11/05/2026",
+      "nature_operation": "CARTE X9819 09/05 AUCHAN SUPERMAR",
+      "debit": 13.28,
+      "credit": null,
+      "transactionId": "TX-02060",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "11/05/2026",
+      "nature_operation": "CARTE X9819 10/05 Cyrillus SAS (COMMERCE ELECTRONIQUE",
+      "debit": 35.93,
+      "credit": null,
+      "transactionId": "TX-02061",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "11/05/2026",
+      "nature_operation": "CARTE X9103 10/05 AMAZON PAYMENTS: COMMERCE ELECTRONIQUE",
+      "debit": 1.31,
+      "credit": null,
+      "transactionId": "TX-02062",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "11/05/2026",
+      "nature_operation": "CARTE X9819 RETRAIT DAB 08/05 11H58 LA BANQUE POSTALE 916891",
+      "debit": 8.12,
+      "credit": null,
+      "transactionId": "TX-02063",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "12/05/2026",
+      "nature_operation": "VIR RECU 4286028302S DE: DFIN COM PTP MOTIF: 1295188 REF: EX0000142253",
+      "debit": null,
+      "credit": 26.34,
+      "transactionId": "TX-02064",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "12/05/2026",
+      "nature_operation": "‘CARTE X9819 10/05 Converse Netherlands B.V 18,13 EUR PAYS-BAS COMMERCE ELECTRONIQUE",
+      "debit": 22.0,
+      "credit": null,
+      "transactionId": "TX-02065",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "12/05/2026",
+      "nature_operation": "CARTE X9819 11/05 PHARMACIE",
+      "debit": 4.44,
+      "credit": null,
+      "transactionId": "TX-02066",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "12/05/2026",
+      "nature_operation": "CARTE X9103 11/05 SODEXO WEB 4795897 (COMMERCE ELECTRONIQUE",
+      "debit": 7.84,
+      "credit": null,
+      "transactionId": "TX-02067",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "13/05/2026",
+      "nature_operation": "CARTE X9103 12/05 AMAZON PRIME FR (COMMERCE ELECTRONIQUE",
+      "debit": 2.69,
+      "credit": null,
+      "transactionId": "TX-02068",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "15/05/2026",
+      "nature_operation": "CARTE X9103 13/05 AUCHAN SUPERMAR",
+      "debit": 11.67,
+      "credit": null,
+      "transactionId": "TX-02069",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "15/05/2026",
+      "nature_operation": "(CARTE X9819 14/05 CULTURA SC",
+      "debit": 8.53,
+      "credit": null,
+      "transactionId": "TX-02070",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "15/05/2026",
+      "nature_operation": "PRELEVEMENT EUROPEEN 4301359159 DE: EPS-EURO PROTECTION SURVEILLANCE ID: FR13ZZ2Z262161 MOTIF: EPS Ref. 845018 Facture Echeance 052026 No $100053110 REF: 02076-000012873 MANDAT $0000845018-S-001",
+      "debit": 23.85,
+      "credit": null,
+      "transactionId": "TX-02071",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "15/05/2026",
+      "nature_operation": "PRELEVEMENT EUROPEEN 4306645903 DE: AXA FRANCE VIE SA ID: FR1422Z391832 MOTIF: 10000954326916-CONTRAT0000021723332 304 REF: 1000954326916 MANDAT 00AX000000000020778977",
+      "debit": 12.78,
+      "credit": null,
+      "transactionId": "TX-02072",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "18/05/2026",
+      "nature_operation": "VIR RECU 4884876995S DE: LBC France SAS MOTIF: leboncoin payout PROVENANCE: NL Pays Bas",
+      "debit": null,
+      "credit": 165.09,
+      "transactionId": "TX-02073",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "18/05/2026",
+      "nature_operation": "VIR RECU 9613653658587 DE: M. OU MME ALEX MARTIN",
+      "debit": null,
+      "credit": 354.14,
+      "transactionId": "TX-02074",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "18/05/2026",
+      "nature_operation": "CARTE X9103 14/05 PAYPAL *FLUTEDEPAN COMMERCE ELECTRONIQUE",
+      "debit": 6.41,
+      "credit": null,
+      "transactionId": "TX-02075",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "18/05/2026",
+      "nature_operation": "CARTE X9103 15/05 BURGER KING",
+      "debit": 8.31,
+      "credit": null,
+      "transactionId": "TX-02076",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "18/05/2026",
+      "nature_operation": "CARTE X9103 15/05 CASTORAMA",
+      "debit": 3.38,
+      "credit": null,
+      "transactionId": "TX-02077",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "18/05/2026",
+      "nature_operation": "CARTE X9819 16/05 LA GOURMANDISE",
+      "debit": 2.76,
+      "credit": null,
+      "transactionId": "TX-02078",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "18/05/2026",
+      "nature_operation": "CARTE X9819 16/05 UGC BORNES CCVEL",
+      "debit": 5.15,
+      "credit": null,
+      "transactionId": "TX-02079",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "18/05/2026",
+      "nature_operation": "CARTE X9103 16/05 MP*DAC CORA",
+      "debit": 16.79,
+      "credit": null,
+      "transactionId": "TX-02080",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "18/05/2026",
+      "nature_operation": "CARTE X9819 16/05 GRAND FRAIS",
+      "debit": 27.2,
+      "credit": null,
+      "transactionId": "TX-02081",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "18/05/2026",
+      "nature_operation": "CARTE X9819 16/05 CRF MASSY",
+      "debit": 82.81,
+      "credit": null,
+      "transactionId": "TX-02082",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "19/05/2026",
+      "nature_operation": "CARTE X9819 18/05 DECATHLON.FR COMMERCE ELECTRONIQUE",
+      "debit": 6.6,
+      "credit": null,
+      "transactionId": "TX-02083",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "19/05/2026",
+      "nature_operation": "PRELEVEMENT EUROPEEN 4800447652 DE: BOUYGUES TELECOM ID: FR35Z2Z4 18323 MOTIF: O7xxxxx400 REF: PAGPO110FJEEG6 MANDAT BT115146TLB34",
+      "debit": 1.28,
+      "credit": null,
+      "transactionId": "TX-02084",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "20/05/2026",
+      "nature_operation": "VIR RECU 9614056106756 DE: M. OU MME ALEX MARTIN",
+      "debit": null,
+      "credit": 212.48,
+      "transactionId": "TX-02085",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "21/05/2026",
+      "nature_operation": "} COTISATION JAZZ PERSONNEL SG",
+      "debit": 2.53,
+      "credit": null,
+      "transactionId": "TX-02086",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "21/05/2026",
+      "nature_operation": "» COTISATION JAZZ PERSONNEL SG",
+      "debit": 1.23,
+      "credit": null,
+      "transactionId": "TX-02087",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "21/05/2026",
+      "nature_operation": "CARTE X9103 19/05 AMAZON EU SARL COMMERCE ELECTRONIQUE",
+      "debit": 3.22,
+      "credit": null,
+      "transactionId": "TX-02088",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "21/05/2026",
+      "nature_operation": "CARTE X9103 19/05 PAYPAL *PVCPDISTRIB COMMERCE ELECTRONIQUE",
+      "debit": 127.89,
+      "credit": null,
+      "transactionId": "TX-02089",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "21/05/2026",
+      "nature_operation": "CARTE X9103 20/05 AUCHAN 1302C",
+      "debit": 20.94,
+      "credit": null,
+      "transactionId": "TX-02090",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "21/05/2026",
+      "nature_operation": "CARTE X9103 20/05 PAYPAL *Paiement 4X COMMERCE ELECTRONIQUE",
+      "debit": 31.32,
+      "credit": null,
+      "transactionId": "TX-02091",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "21/05/2026",
+      "nature_operation": "PRELEVEMENT EUROPEEN 5002722200 DE: BOUYGUES TELECOM ID: FR35ZZZ4 18323 MOTIF: PRLV NRJ Mobile Fact N. FM000185408 88 REF: BTBD000000N000000000001 9078910 MANDAT LM1200065F597",
+      "debit": 5.54,
+      "credit": null,
+      "transactionId": "TX-02092",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "22/05/2026",
+      "nature_operation": "VIR INST RE 664194818816 WERO DE: ALEX MARTIN DATE: 21/05/2026 19:38 MOTIF: WERO f477€34e9544496d84 ef34e083a47f 1d remboursement REF: 019e4b9db9917ea6b70de86fe7b2badd",
+      "debit": null,
+      "credit": 20.96,
+      "transactionId": "TX-02093",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "22/05/2026",
+      "nature_operation": "CARTE X9819 21/05 SOC. GEN. JULLIA COMMERCE ELECTRONIQUE",
+      "debit": 5.62,
+      "credit": null,
+      "transactionId": "TX-02094",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "26/05/2026",
+      "nature_operation": "000001 VIR INSTANTANE EMIS WERO POUR: WISSEM G BAN: XXXXXXXXXXXXXXXXXXXAAKX 46 17 DATE: 26/05/2026 16:47 REF: 664699550144 REF: 019e64c131a37286a60eee9cf6bf4ed7",
+      "debit": 0.36,
+      "credit": null,
+      "transactionId": "TX-02095",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "26/05/2026",
+      "nature_operation": "CARTE X9103 19/05 SODEXO WEB = 4795897 COMMERCE ELECTRONIQUE",
+      "debit": 7.64,
+      "credit": null,
+      "transactionId": "TX-02096",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "26/05/2026",
+      "nature_operation": "CARTE X9819 22/05 SOC. GEN. JULLIA COMMERCE ELECTRONIQUE",
+      "debit": 3.84,
+      "credit": null,
+      "transactionId": "TX-02097",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "26/05/2026",
+      "nature_operation": "CARTE X9103 22/05 AUCHAN 1302C",
+      "debit": 21.73,
+      "credit": null,
+      "transactionId": "TX-02098",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "26/05/2026",
+      "nature_operation": "CARTE X9819 23/05 LAPOSTE G916890",
+      "debit": 2.0,
+      "credit": null,
+      "transactionId": "TX-02099",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "26/05/2026",
+      "nature_operation": "CARTE X9819 23/05 Pierre Vacances",
+      "debit": 2.78,
+      "credit": null,
+      "transactionId": "TX-02100",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "26/05/2026",
+      "nature_operation": "CARTE X9103 23/05 LA GOURMANDISE",
+      "debit": 2.85,
+      "credit": null,
+      "transactionId": "TX-02101",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "26/05/2026",
+      "nature_operation": "CARTE X9819 23/05 CARREFOUR MARKET",
+      "debit": 4.06,
+      "credit": null,
+      "transactionId": "TX-02102",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "26/05/2026",
+      "nature_operation": "CARTE X9103 23/05 PAYPAL *GITHUB INC COMMERCE ELECTRONIQUE",
+      "debit": 3.45,
+      "credit": null,
+      "transactionId": "TX-02103",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "26/05/2026",
+      "nature_operation": "CARTE X9819 23/05 CARREFOUR MARKET",
+      "debit": 9.41,
+      "credit": null,
+      "transactionId": "TX-02104",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "26/05/2026",
+      "nature_operation": "CARTE X9103 24/05 SAPN COMMERCE ELECTRONIQUE",
+      "debit": 5.99,
+      "credit": null,
+      "transactionId": "TX-02105",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "26/05/2026",
+      "nature_operation": "CARTE X9819 24/05 LE BALBEC",
+      "debit": 2.79,
+      "credit": null,
+      "transactionId": "TX-02106",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "26/05/2026",
+      "nature_operation": "CARTE X9103 24/05 Aux piaisirs du p",
+      "debit": 37.03,
+      "credit": null,
+      "transactionId": "TX-02107",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "26/05/2026",
+      "nature_operation": "CARTE X9819 25/05 SARL FRANI",
+      "debit": 3.7,
+      "credit": null,
+      "transactionId": "TX-02108",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "26/05/2026",
+      "nature_operation": "CARTE X9819 25/05 AUCHAN SUPERMAR:",
+      "debit": 40.53,
+      "credit": null,
+      "transactionId": "TX-02109",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "27/05/2026",
+      "nature_operation": "VIR RECU 5780634433S DE: SOCIETE GENERALE MOTIF: Appointements - 05/26 REF: SCT 0779 NET GL0031111114 102379",
+      "debit": null,
+      "credit": 2175.25,
+      "transactionId": "TX-02110",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "27/05/2026",
+      "nature_operation": "VIR RECU _5780634684S DE: SOCIETE GENERALE MOTIF: Appointements - 05/26. REF: SCT 0779 NET GL004222222 102383",
+      "debit": null,
+      "credit": 1801.25,
+      "transactionId": "TX-02111",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "27/05/2026",
+      "nature_operation": "CARTE X9103 25/05 AMAZON EU SARL COMMERCE ELECTRONIQUE",
+      "debit": 4.59,
+      "credit": null,
+      "transactionId": "TX-02112",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "27/05/2026",
+      "nature_operation": "CARTE X9103 26/05 SAPN COMMERCE ELECTRONIQUE",
+      "debit": 7.17,
+      "credit": null,
+      "transactionId": "TX-02113",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "28/05/2026",
+      "nature_operation": "CARTE X9819 REMBT 27/05 Cyrillus SAS COMMERCE ELECTRONIQUE",
+      "debit": null,
+      "credit": 50.01,
+      "transactionId": "TX-02114",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "28/05/2026",
+      "nature_operation": "CARTE X9103 REMBT 27/05 PAYPAL *FLUTEDEP COMMERCE ELECTRONIQUE",
+      "debit": null,
+      "credit": 10.64,
+      "transactionId": "TX-02115",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "28/05/2026",
+      "nature_operation": "CARTE X9103 27/05 CSEC SG COMMERCE ELECTRONIQUE",
+      "debit": 104.23,
+      "credit": null,
+      "transactionId": "TX-02116",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "28/05/2026",
+      "nature_operation": "CARTE X9103 27/05 CSEC SG COMMERCE ELECTRONIQUE",
+      "debit": 544.67,
+      "credit": null,
+      "transactionId": "TX-02117",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "28/05/2026",
+      "nature_operation": "PRELEVEMENT EUROPEEN 5703894998 DE: Mutuelle du personnel du groupe Soc jete Generale-MUTUELLE DU PERSONNEL ID: FR57ZZZ110922 MOTIF: 20260528MUTUELLE DU PE014674376 REF: A2F3E0C58C67488B80348698974CD4D2 MANDAT ++9680GEN000000049832",
+      "debit": 9.59,
+      "credit": null,
+      "transactionId": "TX-02118",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "28/05/2026",
+      "nature_operation": "PRELEVEMENT EUROPEEN 5703895007 DE: Mutuelle du personnel du groupe Soc iete Generale-MUTUELLE DU PERSONNEL ID: FR57ZZZ110922 MOTIF: 20260528MUTUELLE DU PE014699757 REF: 1FBC574AFOBF4B22AE9E93CD029AB994 MANDAT 7F489B308BC5426F8FCOF5F130D3390C",
+      "debit": 9.69,
+      "credit": null,
+      "transactionId": "TX-02119",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "28/05/2026",
+      "nature_operation": "PRELEVEMENT EUROPEEN 5711215076 DE: SFR ID: FR44ZZZ332801 MOTIF: SFR Privt SEPA 1-WRW4S1ZU 003997500 184 REF: 003997500184 1-WRW4S1ZU MANDAT GP202002070001537581",
+      "debit": 11.65,
+      "credit": null,
+      "transactionId": "TX-02120",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "28/05/2026",
+      "nature_operation": "CHEQUE 873",
+      "debit": 18.32,
+      "credit": null,
+      "transactionId": "TX-02121",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "28/05/2026",
+      "nature_operation": "000001 VIR EUROPEEN EMIS LOGITEL POUR: M. OU MME ALEX MARTIN 28 05 SG 03994 CPT 00034109393 REF: 9614761973127 ‘CHEZ: SOGEFRPP",
+      "debit": 463.72,
+      "credit": null,
+      "transactionId": "TX-02122",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "29/05/2026",
+      "nature_operation": "‘CARTE X9819 28/05 RELAIS DE CRETEIL",
+      "debit": 26.06,
+      "credit": null,
+      "transactionId": "TX-02123",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "29/05/2026",
+      "nature_operation": "‘CARTE X9819 28/05 CABINET DENTAIRE",
+      "debit": 544.72,
+      "credit": null,
+      "transactionId": "TX-02124",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "29/05/2026",
+      "nature_operation": "PRELEVEMENT EUROPEEN 5803341692 DE: BOUYGUES TELECOM ID: FR35Z2ZZ4 18323 MOTIF: 06xx0%x945 REF: PAGPO110FL61V4 MANDAT BT1150VYAUB51",
+      "debit": 5.36,
+      "credit": null,
+      "transactionId": "TX-02125",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "29/05/2026",
+      "nature_operation": "PRELEVEMENT EUROPEEN 5809162696 DE: SARL LES LUTHIERS DU QUATUOR: ID: FR60ZZZ897B39 MOTIF: Location Mai 2026. REF: LES LUTHIERS DU QUATUOR LOCATION MANDAT CAMILLE MARTIN-0000000/260920V",
+      "debit": 12.1,
+      "credit": null,
+      "transactionId": "TX-02126",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "29/05/2026",
+      "nature_operation": "PRELEVEMENT EUROPEEN 5809162705 DE: SARL LES LUTHIERS DU QUATUOR: ID: FR60ZZZ897B39 MOTIF: Location Mai 2026, REF: LES LUTHIERS DU QUATUOR LOCATION MANDAT CAMILLE MARTIN-0000000/260920V_",
+      "debit": 12.7,
+      "credit": null,
+      "transactionId": "TX-02127",
+      "accountId": "ACC-COURANT-001"
+    },
+    {
+      "date": "31/05/2026",
+      "nature_operation": "VIREMENT VERS COMPTE EPARGNE 880.67 EUR (cap)",
+      "debit": 880.67,
+      "credit": null,
+      "transactionId": "TX-VIR-EP-2026-05-cap",
+      "accountId": "ACC-COURANT-001"
+    }
+  ]
+}

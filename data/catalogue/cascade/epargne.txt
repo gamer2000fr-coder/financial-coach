@@ -1,0 +1,35 @@
+ARBRE DE DÉCISION — ÉPARGNE / PLACEMENT
+=======================================
+
+Rôle : recommander le produit d'épargne ou de placement le plus adapté à la situation et à l'objectif du client.
+Utilisation : suivre les étapes dans l'ordre ; appliquer la première condition qui correspond au client.
+
+
+ÉTAPE 1 — Épargne de précaution suffisante ?
+- SI NON (le client n'a pas d'épargne de sécurité) :
+    - Client éligible LEP ?
+        - OUI → proposer le « LEP » en priorité.
+        - NON → « Livret A » disponible ?
+            - OUI → proposer le « Livret A ».
+            - NON → proposer le « LDDS ».
+- SI OUI (épargne de précaution suffisante) : passer à l'étape 2.
+
+
+ÉTAPE 2 — Objectif du client
+- Projet court terme (< 3 ans) :
+    - Besoin de liquidité immédiate ? OUI → « Livret A » / « LDDS » / « CSL ».
+    - Besoin de liquidité immédiate ? NON → « Compte à Terme ».
+- Projet immobilier :
+    - Besoin de liquidité flexible → « CEL ».
+    - Horizon moyen terme → « PEL ».
+- Retraite :
+    - Client suffisamment imposé ? OUI → « PER » en priorité.
+    - Client suffisamment imposé ? NON → « Assurance-vie » / « PEA » selon le risque.
+- Constitution de patrimoine à long terme :
+    - Tolérance au risque faible   → « Assurance-vie » majoritairement en fonds euros.
+    - Tolérance au risque moyenne  → « Assurance-vie » multisupport.
+    - Tolérance au risque élevée   → « PEA » / « PEA-PME ».
+- Transmission / succession :
+    → « Assurance-vie ».
+- Argent disponible sans objectif précis :
+    → Évaluer l'horizon et la tolérance au risque, puis orienter vers : Livrets / « CAT » / « Assurance-vie » / « PEA ».

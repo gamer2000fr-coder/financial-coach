@@ -1,0 +1,86 @@
+[
+  {
+    "path": "/data/catalogue/assurance_auto.json",
+    "description": "Assurance auto"
+  },
+  {
+    "path": "/data/catalogue/assurance_emprunteur_immo.json",
+    "description": "Assurance emprunteur immobilier"
+  },
+  {
+    "path": "/data/catalogue/assurance_habitation.json",
+    "description": "Assurance habitation"
+  },
+  {
+    "path": "/data/catalogue/credit_conso.json",
+    "description": "Crédit consommation"
+  },
+  {
+    "path": "/data/catalogue/credit_immo.json",
+    "description": "Crédit immobilier"
+  },
+  {
+    "path": "/data/catalogue/epargne.json",
+    "description": "Épargne"
+  },
+  {
+    "path": "/data/synthese_financier.json",
+    "description": "Synthèse financière"
+  },
+  {
+    "path": "/data/transaction/transactions_2025_07.json",
+    "description": "Transactions juillet 2025, compte courant"
+  },
+  {
+    "path": "/data/transaction/transactions_2025_08.json",
+    "description": "Transactions août 2025, compte courant"
+  },
+  {
+    "path": "/data/transaction/transactions_2025_09.json",
+    "description": "Transactions septembre 2025, compte courant"
+  },
+  {
+    "path": "/data/transaction/transactions_2025_10.json",
+    "description": "Transactions octobre 2025, compte courant"
+  },
+  {
+    "path": "/data/transaction/transactions_2025_11.json",
+    "description": "Transactions novembre 2025, compte courant"
+  },
+  {
+    "path": "/data/transaction/transactions_2025_12.json",
+    "description": "Transactions décembre 2025, compte courant"
+  },
+  {
+    "path": "/data/transaction/transactions_2026_01.json",
+    "description": "Transactions janvier 2026, compte courant"
+  },
+  {
+    "path": "/data/transaction/transactions_2026_02.json",
+    "description": "Transactions février 2026, compte courant"
+  },
+  {
+    "path": "/data/transaction/transactions_2026_03.json",
+    "description": "Transactions mars 2026, compte courant"
+  },
+  {
+    "path": "/data/transaction/transactions_2026_04.json",
+    "description": "Transactions avril 2026, compte courant"
+  },
+  {
+    "path": "/data/transaction/transactions_2026_05.json",
+    "description": "Transactions mai 2026, compte courant"
+  },
+  {
+    "path": "/data/transaction/transactions_2026_06.json",
+    "description": "Transactions juin 2026, compte courant"
+  },
+  {
+    "path": "/data/transaction/transactions_2026_07.json",
+    "description": "Transactions juillet 2026, compte courant"
+  },
+  {
+    "path": "/data/transaction/transactions_2026_08.json",
+    "description": "Transactions août 2026"
+  }
+]

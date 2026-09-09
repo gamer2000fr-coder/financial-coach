@@ -1,0 +1,39 @@
+ARBRE DE DÉCISION — ASSURANCE HABITATION
+========================================
+
+Rôle : déterminer si une assurance habitation est requise et quelle formule recommander selon la situation d'occupation.
+Utilisation : suivre les étapes dans l'ordre ; appliquer la première condition qui correspond au client.
+
+
+ÉTAPE 1 — Périmètre
+- SI le client n'occupe PAS de logement : ALORS aucune assurance habitation à proposer (sortir).
+- SINON : passer à l'étape 2.
+
+
+ÉTAPE 2 — Statut d'occupation du client
+- Locataire :
+  ALORS assurance habitation OBLIGATOIRE. Choisir le niveau :
+    - budget serré              → formule « Initiale »
+    - protection standard       → formule « Confort »
+    - protection renforcée      → formule « Optimale »
+- Propriétaire occupant :
+  ALORS assurance habitation fortement recommandée. Choisir :
+    - logement simple / petit budget → « Initiale »
+    - usage courant                  → « Confort »
+    - logement de valeur / forte protection → « Optimale »
+- Étudiant :
+  ALORS proposer la « Formule Étudiante ».
+- Propriétaire bailleur / logement non occupé :
+  ALORS proposer la « Formule PNO » (propriétaire non occupant).
+
+
+ÉTAPE 3 — Ajustement selon les risques du logement
+Tenir compte de : valeur du mobilier ; objets de valeur ; localisation ; maison ou appartement ; étage ; dépendances ; historique de sinistres ; risque vol ; équipements.
+
+
+ÉTAPE 4 — Options et garanties utiles
+- Ajouter les options / garanties pertinentes selon le profil et le logement.
+
+
+ÉTAPE 5 — Réponse au client (LLM)
+Expliquer en français la recommandation retenue et pourquoi.

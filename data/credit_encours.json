@@ -1,0 +1,10 @@
+{
+  "credits": [
+    {
+      "produit": "crédit_immobilier",
+      "mensualite": 956,
+      "fin": "31/12/2035",
+      "creditId": "CR-001"
+    }
+  ]
+}
