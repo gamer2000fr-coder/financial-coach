@@ -539,6 +539,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .auto-wake-input { width:118px; padding:7px 8px; border:1px solid #d7d7d7; border-radius:3px; font-size:12px; color:#333; background:#fff; }
 .auto-wake-input:focus { outline:0; border-color:#999; }
 .auto-delay-select { padding:7px 5px; border:1px solid #d7d7d7; border-radius:3px; font-size:12px; color:#333; background:#fff; cursor:pointer; }
+.voice-rate-select { padding:7px 5px; border:1px solid #d7d7d7; border-radius:3px; font-size:12px; color:#333; background:#fff; cursor:pointer; }
 
 /* ---- Page Agents (prompts) ---- */
 .agents-page {

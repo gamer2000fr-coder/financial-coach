@@ -29,6 +29,7 @@ const PROVIDER_STORAGE_KEY = 'financial-coach-provider'
 const GUARD_STORAGE_KEY = 'financial-coach-guard'
 const ADVANCED_STORAGE_KEY = 'financial-coach-advanced'
 const VOICE_STORAGE_KEY = 'financial-coach-voice'
+const VOICE_RATE_STORAGE_KEY = 'financial-coach-voice-rate'
 const AUDIO_STORAGE_KEY = 'financial-coach-audio'
 const AUTO_AUDIO_STORAGE_KEY = 'financial-coach-auto-audio'
 const WAKE_WORD_STORAGE_KEY = 'financial-coach-wake-word'
@@ -229,6 +230,10 @@ function App() {
   const loadingRef = useRef(false)
   const submitRef = useRef<(text: string) => void>(() => {})
   const [voiceEnabled, setVoiceEnabled] = useState(() => localStorage.getItem(VOICE_STORAGE_KEY) !== 'false')
+  const [voiceRate, setVoiceRate] = useState(() => {
+    const raw = Number(localStorage.getItem(VOICE_RATE_STORAGE_KEY))
+    return raw >= 0.5 && raw <= 2 ? raw : 1
+  })
   const [audioEnabled, setAudioEnabled] = useState(() => localStorage.getItem(AUDIO_STORAGE_KEY) === 'true')
   const [ttsSupported] = useState<boolean>(() => typeof window !== 'undefined'
     && 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window)
@@ -258,6 +263,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem(VOICE_STORAGE_KEY, voiceEnabled ? 'true' : 'false')
   }, [voiceEnabled])
+
+  useEffect(() => {
+    localStorage.setItem(VOICE_RATE_STORAGE_KEY, String(voiceRate))
+  }, [voiceRate])
 
   useEffect(() => {
     localStorage.setItem(AUDIO_STORAGE_KEY, audioEnabled ? 'true' : 'false')
@@ -408,7 +417,7 @@ function App() {
     setSpeakingId(id)
     const utterance = new SpeechSynthesisUtterance(stripMarkdown(text))
     utterance.lang = 'fr-FR'
-    utterance.rate = 1
+    utterance.rate = voiceRate
     utterance.onend = () => {
       speakingIdRef.current = null
       setSpeakingId(null)
@@ -517,6 +526,9 @@ function App() {
             // Veille : on attend le mot-clé (ignore tout le reste).
             const hit = findWakeWord(transcript, wakeRef.current)
             if (hit.found) {
+              // Barge-in : le mot-clé interrompt immédiatement la lecture vocale en cours,
+              // puis on écoute la nouvelle question.
+              stopSpeaking()
               autoPhaseRef.current = 'listening'
               autoBufferRef.current = hit.rest || ''
               setAutoState('listening')
@@ -722,6 +734,22 @@ function App() {
                 />
                 <span>Réponses vocales</span>
               </label>
+              {ttsSupported && audioEnabled && (
+                <select
+                  className="voice-rate-select"
+                  value={voiceRate}
+                  aria-label="Vitesse de la voix"
+                  title="Vitesse de lecture des réponses"
+                  onChange={(event) => setVoiceRate(Number(event.target.value))}
+                >
+                  <option value={0.5}>🐢 0,5×</option>
+                  <option value={0.75}>0,75×</option>
+                  <option value={1}>1×</option>
+                  <option value={1.25}>1,25×</option>
+                  <option value={1.5}>1,5×</option>
+                  <option value={2}>🐇 2×</option>
+                </select>
+              )}
               {autoAudio && audioEnabled && speechSupported && (
                 <span className="auto-config" title="Configuration du mode auto">
                   <input
