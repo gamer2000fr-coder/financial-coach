@@ -6,21 +6,21 @@
     "date_reference": "2026-09-06",
     "devise": "EUR"
   },
-  
   "produit": {
     "id": "sg_assurance_auto",
     "nom": "Assurance Auto SG",
+    "url": "https://particuliers.sg.fr/assurances/nos-offres/assurance-auto",
     "type": "assurance_automobile",
     "souscription_en_ligne": true,
     "devis_en_ligne": true,
-
     "formules": [
       {
         "id": "sg_auto_tiers",
         "nom": "Tiers",
+        "url": "https://particuliers.sg.fr/assurances/nos-offres/assurance-auto",
         "niveau_protection": 1,
         "tarif_indicatif_mensuel": {
-          "a_partir_de": 18.20,
+          "a_partir_de": 18.2,
           "devise": "EUR"
         },
         "garanties": [
@@ -47,10 +47,10 @@
           ]
         }
       },
-
       {
         "id": "sg_auto_tiers_plus",
         "nom": "Tiers+",
+        "url": "https://particuliers.sg.fr/assurances/nos-offres/assurance-auto",
         "niveau_protection": 2,
         "tarif_indicatif_mensuel": {
           "a_partir_de": 20.64,
@@ -79,7 +79,7 @@
           },
           {
             "nom": "vol_incendie_evenements_naturels",
-            "prix_mensuel_indicatif": 1.80
+            "prix_mensuel_indicatif": 1.8
           }
         ],
         "regles_recommandation": {
@@ -90,13 +90,13 @@
           ]
         }
       },
-
       {
         "id": "sg_auto_tous_risques",
         "nom": "Tous Risques",
+        "url": "https://particuliers.sg.fr/assurances/nos-offres/assurance-auto",
         "niveau_protection": 3,
         "tarif_indicatif_mensuel": {
-          "a_partir_de": 30.50,
+          "a_partir_de": 30.5,
           "devise": "EUR"
         },
         "garanties": [
@@ -147,10 +147,10 @@
           ]
         }
       },
-
       {
         "id": "sg_auto_tous_risques_plus",
         "nom": "Tous Risques+",
+        "url": "https://particuliers.sg.fr/assurances/nos-offres/assurance-auto",
         "niveau_protection": 4,
         "tarif_indicatif_mensuel": {
           "a_partir_de": 39.23,
@@ -195,10 +195,10 @@
           ]
         }
       },
-
       {
         "id": "sg_auto_leasing",
         "nom": "Leasing",
+        "url": "https://particuliers.sg.fr/assurances/nos-offres/assurance-auto",
         "niveau_protection": 3,
         "tarif_indicatif_mensuel": {
           "a_partir_de": 30.85,
@@ -250,7 +250,6 @@
         }
       }
     ],
-
     "reductions": [
       {
         "id": "petit_rouleur",
@@ -293,7 +292,6 @@
         }
       }
     ],
-
     "assistance_generale": {
       "disponible_24h_24": true,
       "disponible_7j_7": true,

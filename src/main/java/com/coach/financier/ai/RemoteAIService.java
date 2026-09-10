@@ -28,45 +28,12 @@ public abstract class RemoteAIService implements AIService {
     }
 
     @Override
-    public AIModels.Classification classifyUserRequest(String message, AIModels.AIProvider provider) {
-        if (apiKey == null || apiKey.isBlank()) {
-            throw new IllegalStateException("Clé API absente pour le fournisseur " + providerName);
-        }
-        String system = AgentFiles.readPromptOrDefault("classifieur.txt", """
-                Tu es le classificateur d'un coach financier bancaire.
-                Ton rôle est de dire si la demande de l'utilisateur relève de l'accompagnement financier et budgétaire personnel.
-
-                Catégories possibles (choisis-en UNE seule) :
-                PURCHASE_PROJECT, BUDGET, SAVINGS, CREDIT, CASHFLOW, FINANCIAL_HEALTH, BANK_PRODUCT, OTHER_FINANCIAL, OUT_OF_SCOPE.
-
-                OUT_OF_SCOPE (inScope=false) UNIQUEMENT si la demande est clairement sans AUCUN lien avec les finances personnelles :
-                actualité, sport, météo, politique, santé, cuisine/recette, programmation, culture, jeux, etc.,
-                ou si elle est frauduleuse/nuisible, ou si elle demande d'inventer ou de modifier des données bancaires.
-                Le bavardage, les salutations et les formules de politesse ne sont PAS du hors-sujet.
-
-                RÈGLE PAR DÉFAUT : dans le doute, classe la demande comme DANS le périmètre (inScope=true).
-                Une question vague, courte ou ambiguë (par exemple « Bonjour », « Et pour ce montant ? », « Est-ce raisonnable ? », « Combien ? »)
-                doit être classée inScope=true dans la catégorie la plus probable (OTHER_FINANCIAL si aucune ne s'impose).
-
-                Réponds UNIQUEMENT en JSON valide : {"inScope":true|false,"category":"...","reason":"..."}
-                avec "reason" courte en français.
-                N'invente aucune donnée bancaire.
-                """);
-        String content = call(system, message);
-        try {
-            return objectMapper.readValue(content, AIModels.Classification.class);
-        } catch (Exception e) {
-            throw new IllegalStateException("Réponse classifier invalide: " + content, e);
-        }
-    }
-
-    @Override
     public IntentClassification classifyIntent(String userMessage, String currentProjectDescription,
                                               AIModels.AIProvider provider) {
         if (apiKey == null || apiKey.isBlank()) {
             throw new IllegalStateException("Clé API absente pour le fournisseur " + providerName);
         }
-        String system = AgentFiles.readPromptOrDefault("classifieur.txt", defaultIntentClassifierPrompt());
+        String system = AgentFiles.readPromptOrDefault("classifieur.txt", FALLBACK_INTENT_CLASSIFIER_PROMPT);
         StringBuilder user = new StringBuilder();
         if (currentProjectDescription != null && !currentProjectDescription.isBlank()) {
             user.append("CURRENT_PROJECT:\n").append(currentProjectDescription).append("\n\n");
@@ -80,47 +47,17 @@ public abstract class RemoteAIService implements AIService {
         }
     }
 
-    /** Prompt par défaut du classifieur d'intention (utilisé si classifieur.txt est absent). */
-    private String defaultIntentClassifierPrompt() {
-        return """
-                Tu analyses les messages d'un client bancaire.
-
-                Ton rôle est uniquement de comprendre la demande et de retourner une structure JSON.
-
-                Tu ne donnes aucun conseil financier.
-                Tu ne proposes aucun produit bancaire.
-                Tu n'expliques rien directement au client.
-
-                Utilise également CURRENT_PROJECT lorsqu'il est fourni afin de comprendre les expressions comme :
-                "mon projet", "pour mon cas", "et en 3 fois ?", "et si je finance seulement la moitié ?",
-                "finalement ce sera 12 000 €".
-
-                Retourne :
-                - inScope
-                - intent (PURCHASE, FINANCING_REQUEST, AFFORDABILITY_CHECK, COMPARE_OPTIONS, BUDGET_ANALYSIS,
-                  SAVINGS_ANALYSIS, CREDIT_INFORMATION, PRODUCT_INFORMATION, PROJECT_UPDATE, FOLLOW_UP,
-                  OUT_OF_SCOPE, OTHER)
-                - projectType (VEHICLE, REAL_ESTATE_PURCHASE, HOME_WORK, ELECTRONICS, FURNITURE, TRAVEL,
-                  EDUCATION, WEDDING, HEALTH_EXPENSE, CASH_NEED, DEBT_RESTRUCTURING, SAVINGS, BUDGET,
-                  INVESTMENT, INSURANCE, OTHER_FINANCIAL, UNKNOWN)
-                - projectObject
-                - amount (nombre, sans devise)
-                - currency
-                - refersToCurrentProject
-                - projectChanged
-                - confidence (HIGH, MEDIUM, LOW)
-                - reason (courte, en français)
-
-                projectType doit être choisi uniquement parmi les valeurs autorisées.
-                N'invente aucune donnée absente du message ou du contexte.
-                Si le type ne peut pas être déterminé de manière suffisamment fiable : projectType = UNKNOWN.
-                Si le message concerne le projet courant sans le modifier : refersToCurrentProject = true,
-                projectChanged = false.
-                Si une nouvelle information modifie le projet courant : projectChanged = true.
-
-                Réponds UNIQUEMENT en JSON valide.
-                """;
-    }
+    /**
+     * Filet de sécurité MINIMAL si {@code classifieur.txt} est absent (le vrai prompt de
+     * classification vit dans {@code ./agent/classifieur.txt}). Volontairement court : il ne
+     * duplique pas le fichier et sert juste à obtenir un JSON exploitable.
+     */
+    private static final String FALLBACK_INTENT_CLASSIFIER_PROMPT =
+            "Tu analyses les messages d'un client bancaire. Tu ne donnes aucun conseil et ne proposes aucun produit.\n"
+            + "Réponds UNIQUEMENT en JSON valide avec les champs : inScope, intent, projectType, projectObject, "
+            + "amount, currency, refersToCurrentProject, projectChanged, confidence, reason.\n"
+            + "N'invente aucune donnée absente du message ou du contexte. "
+            + "Si le type de projet n'est pas fiable : projectType = UNKNOWN.";
 
     @Override
     public AIModels.AIAnswer answer(String customerMessage, AIModels.Classification classification,

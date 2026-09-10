@@ -22,24 +22,6 @@ public class MockAIService implements AIService {
             "(?<!\\d)(\\d{1,3}(?:[ .]\\d{3})*(?:[.,]\\d+)?|\\d+(?:[.,]\\d+)?)\\s*(€|eur|euros|euro)?",
             Pattern.CASE_INSENSITIVE);
 
-    @Override
-    public AIModels.Classification classifyUserRequest(String message, AIModels.AIProvider provider) {
-        String text = message == null ? "" : message.toLowerCase();
-        if (text.contains("vacances") || text.contains("météo") || text.contains("football") || text.contains("coupe du monde")) {
-            return new AIModels.Classification(false, AIModels.RequestCategory.OUT_OF_SCOPE,
-                    "La demande ne concerne pas les finances personnelles.");
-        }
-        if (text.contains("acheter") || text.contains("achat") || text.contains("ordinateur") || text.contains("macbook")) {
-            return new AIModels.Classification(true, AIModels.RequestCategory.PURCHASE_PROJECT,
-                    "La demande concerne un achat et son impact sur la situation financière.");
-        }
-        if (text.contains("épargne") || text.contains("eparg")) return new AIModels.Classification(true, AIModels.RequestCategory.SAVINGS, "La demande concerne l'épargne.");
-        if (text.contains("crédit") || text.contains("credit") || text.contains("prêt") || text.contains("pret")) return new AIModels.Classification(true, AIModels.RequestCategory.CREDIT, "La demande concerne un crédit.");
-        if (text.contains("budget") || text.contains("dépense") || text.contains("depense")) return new AIModels.Classification(true, AIModels.RequestCategory.BUDGET, "La demande concerne le budget.");
-        if (text.contains("revenu") || text.contains("cashflow") || text.contains("trésorerie") || text.contains("tresorerie")) return new AIModels.Classification(true, AIModels.RequestCategory.CASHFLOW, "La demande concerne les flux de trésorerie.");
-        return new AIModels.Classification(true, AIModels.RequestCategory.OTHER_FINANCIAL, "La demande est liée aux finances personnelles.");
-    }
-
     /**
      * Mode démo : classification d'intention déterministe par mots-clés.
      * (Le vrai classifieur enrichi est utilisé par les fournisseurs GPT/DeepSeek.)

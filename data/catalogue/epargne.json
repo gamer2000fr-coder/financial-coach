@@ -7,39 +7,34 @@
     "date_reference": "2026-09-06",
     "devise": "EUR"
   },
-
   "offres": [
     {
       "id": "sg_livret_a",
       "nom": "Livret A",
+      "url": "https://particuliers.sg.fr/epargner-placer-son-argent/nos-offres/livret-a",
       "famille": "epargne_precaution",
       "type": "livret_reglemente",
       "risque": "nul",
       "capital_garanti": true,
       "liquidite": "immediate",
-
       "eligibilite": {
         "tout_age": true,
         "condition_revenu": false,
         "nombre_maximum_par_personne": 1
       },
-
       "versement": {
         "minimum": 10,
         "plafond": 22950
       },
-
       "rendement": {
         "taux_net_annuel_pct": 1.7,
         "date_taux": "2026-08-01",
         "taux_reglemente": true
       },
-
       "fiscalite": {
         "impot_revenu": false,
         "prelevements_sociaux": false
       },
-
       "regles_recommandation": {
         "priorite_tres_elevee_si": [
           "constitution_epargne_precaution",
@@ -53,38 +48,33 @@
         ]
       }
     },
-
     {
       "id": "sg_ldds",
       "nom": "Livret de Développement Durable et Solidaire",
+      "url": "https://particuliers.sg.fr/epargner-placer-son-argent/nos-offres/ldds-livret-developpement-durable-solidaire",
       "acronyme": "LDDS",
       "famille": "epargne_precaution",
       "type": "livret_reglemente",
       "risque": "nul",
       "capital_garanti": true,
       "liquidite": "immediate",
-
       "eligibilite": {
         "age_minimum": 18,
         "domicile_fiscal_france": true,
         "nombre_maximum_par_personne": 1
       },
-
       "versement": {
         "minimum_ouverture": 10,
         "plafond": 12000
       },
-
       "rendement": {
         "taux_net_annuel_pct": 1.7,
         "taux_reglemente": true
       },
-
       "fiscalite": {
         "impot_revenu": false,
         "prelevements_sociaux": false
       },
-
       "regles_recommandation": {
         "priorite_si": [
           "livret_a_deja_rempli",
@@ -93,39 +83,34 @@
         ]
       }
     },
-
     {
       "id": "sg_lep",
       "nom": "Livret d'Épargne Populaire",
+      "url": "https://particuliers.sg.fr/epargner-placer-son-argent/nos-offres/lep-livret-epargne-populaire",
       "acronyme": "LEP",
       "famille": "epargne_precaution",
       "type": "livret_reglemente",
       "risque": "nul",
       "capital_garanti": true,
       "liquidite": "immediate",
-
       "eligibilite": {
         "majeur": true,
         "domicile_fiscal_france": true,
         "condition_revenu": true,
         "nombre_maximum_par_personne": 1
       },
-
       "versement": {
         "minimum_ouverture": 30,
         "plafond": 10000
       },
-
       "rendement": {
         "taux_net_annuel_pct": 2.5,
         "taux_reglemente": true
       },
-
       "fiscalite": {
         "impot_revenu": false,
         "prelevements_sociaux": false
       },
-
       "regles_recommandation": {
         "priorite_tres_elevee_si": [
           "client_eligible_LEP",
@@ -139,36 +124,31 @@
         "raison": "Rémunération nette supérieure sous réserve d'éligibilité."
       }
     },
-
     {
       "id": "sg_livret_jeune",
       "nom": "Livret Jeune",
+      "url": "https://particuliers.sg.fr/epargner-placer-son-argent/nos-offres/livret-jeune",
       "famille": "epargne_jeune",
       "type": "livret_reglemente",
       "risque": "nul",
       "capital_garanti": true,
       "liquidite": "immediate",
-
       "eligibilite": {
         "age_minimum": 12,
         "age_maximum": 25,
         "residence_france": true
       },
-
       "versement": {
         "minimum": 10,
         "plafond": 1600
       },
-
       "rendement": {
         "taux_net_annuel_pct": 1.7
       },
-
       "fiscalite": {
         "impot_revenu": false,
         "prelevements_sociaux": false
       },
-
       "regles_recommandation": {
         "priorite_si": [
           "age_entre_12_et_25",
@@ -177,34 +157,29 @@
         ]
       }
     },
-
     {
       "id": "sg_compte_sur_livret",
       "nom": "Compte Sur Livret",
+      "url": "https://particuliers.sg.fr/epargner-placer-son-argent/nos-offres/csl-compte-sur-livret",
       "acronyme": "CSL",
       "famille": "epargne_liquide",
       "type": "livret_non_reglemente",
       "risque": "nul",
       "capital_garanti": true,
       "liquidite": "immediate",
-
       "eligibilite": {
         "toute_personne_physique": true
       },
-
       "versement": {
         "plafond": null
       },
-
       "rendement": {
         "taux": "taux_SG_en_vigueur",
         "brut": true
       },
-
       "fiscalite": {
         "imposable": true
       },
-
       "regles_recommandation": {
         "priorite_si": [
           "livrets_reglementes_remplis",
@@ -218,31 +193,27 @@
         ]
       }
     },
-
     {
       "id": "sg_livret_epargne_plus",
       "nom": "Livret Épargne Plus SG",
+      "url": "https://particuliers.sg.fr/epargner-placer-son-argent/nos-offres/livret-epargne-plus",
       "famille": "epargne_liquide",
       "type": "livret_non_reglemente",
       "risque": "nul",
       "capital_garanti": true,
       "liquidite": "immediate",
-
       "versement": {
         "minimum": 10,
         "plafond": null
       },
-
       "rendement": {
         "taux_standard_brut_pct": 0.2,
         "prime_fidelite_brute_pct": 0.2,
         "prime_apres_mois": 6
       },
-
       "fiscalite": {
         "imposable": true
       },
-
       "regles_recommandation": {
         "priorite_si": [
           "livrets_reglementes_remplis",
@@ -251,10 +222,10 @@
         ]
       }
     },
-
     {
       "id": "bfm_livret_avenir",
       "nom": "Livret BFM Avenir",
+      "url": "https://particuliers.sg.fr/epargner-placer-son-argent/nos-offres/livret-bfm-avenir",
       "famille": "epargne_fonction_publique",
       "type": "livret_non_reglemente",
       "distributeur": "SG",
@@ -262,24 +233,20 @@
       "risque": "nul",
       "capital_garanti": true,
       "liquidite": "immediate",
-
       "eligibilite": {
         "agent_secteur_public": true,
         "ou_ayant_droit_bfm": true,
         "compte_sg": true
       },
-
       "versement": {
         "minimum": 10,
         "plafond": null
       },
-
       "rendement": {
         "jusqua_3000_eur_brut_pct": 1.7,
         "au_dela_brut_pct": 0.4,
         "date_taux": "2026-09-01"
       },
-
       "avantage_associe": {
         "produit": "Prêt BFM Avenir",
         "condition_interets_acquis_minimum": 75,
@@ -288,7 +255,6 @@
         "pret_duree_maximum_mois": 48,
         "taeg_fixe_indicatif_pct": 2.99
       },
-
       "regles_recommandation": {
         "priorite_si": [
           "client_fonction_publique",
@@ -296,28 +262,25 @@
         ]
       }
     },
-
     {
       "id": "sg_cel",
       "nom": "Compte Épargne Logement",
+      "url": "https://particuliers.sg.fr/epargner-placer-son-argent/nos-offres/cel-compte-epargne-logement",
       "acronyme": "CEL",
       "famille": "epargne_logement",
       "type": "epargne_reglementee",
       "risque": "nul",
       "capital_garanti": true,
       "liquidite": "disponible",
-
       "versement": {
         "initial_minimum": 300,
         "minimum_supplementaire": 75,
         "plafond": 15300
       },
-
       "avantage": {
         "droits_a_pret_immobilier": true,
         "taux_pret_depuis_2026_08_01_pct": 2.75
       },
-
       "regles_recommandation": {
         "priorite_si": [
           "projet_immobilier",
@@ -326,16 +289,15 @@
         ]
       }
     },
-
     {
       "id": "sg_pel",
       "nom": "Plan Épargne Logement",
+      "url": "https://particuliers.sg.fr/epargner-placer-son-argent/nos-offres/pel-plan-epargne-logement",
       "acronyme": "PEL",
       "famille": "epargne_logement",
       "type": "epargne_reglementee",
       "risque": "nul",
       "capital_garanti": true,
-
       "versement": {
         "initial_minimum": 225,
         "minimum_mensuel": 45,
@@ -343,17 +305,14 @@
         "minimum_semestriel": 270,
         "plafond_reglementaire": 61200
       },
-
       "horizon": {
         "orientation": "moyen_long_terme",
         "duree_versements_maximum_annees": 10,
         "cloture_automatique_annee": 15
       },
-
       "avantage": {
         "droits_a_pret_immobilier": true
       },
-
       "regles_recommandation": {
         "priorite_si": [
           "projet_achat_immobilier_futur",
@@ -364,44 +323,38 @@
         ]
       }
     },
-
     {
       "id": "sg_compte_a_terme",
       "nom": "Compte à Terme SG",
+      "url": "https://particuliers.sg.fr/epargner-placer-son-argent/nos-offres/compte-a-terme",
       "acronyme": "CAT",
       "famille": "epargne_a_terme",
       "type": "depot_a_terme",
       "risque": "nul",
       "capital_garanti": true,
-
       "eligibilite": {
         "personne_physique": true,
         "compte_a_vue_sg": true
       },
-
       "versement": {
         "unique": true,
         "minimum_selon_formule": 7500,
         "minimum_autres_formules": 8000,
         "maximum_exclusif": 600000
       },
-
       "duree": {
         "minimum_mois": 1,
         "maximum_mois": 36
       },
-
       "rendement": {
         "garanti": true,
         "fixe_a_souscription": true,
         "taux_public": false
       },
-
       "retrait_anticipe": {
         "possible": true,
         "penalites_possibles": true
       },
-
       "regles_recommandation": {
         "priorite_si": [
           "capital_disponible >= 7500",
@@ -414,40 +367,34 @@
         ]
       }
     },
-
     {
       "id": "sg_erable_essentiel",
       "nom": "Érable Essentiel",
+      "url": "https://particuliers.sg.fr/epargner-placer-son-argent/nos-offres/assurance-vie/contrat-erable-essentiel",
       "famille": "assurance_vie",
       "type": "assurance_vie",
-
       "cible": [
         "epargnant_debutant",
         "epargne_progressive",
         "projet_moyen_long_terme"
       ],
-
       "versement": {
         "programme_minimum_mensuel": 25,
         "niveau_initiative_accessible_des": 50,
         "niveau_integrale_accessible_encours": 15000
       },
-
       "supports": [
         "fonds_euros",
         "unites_de_compte"
       ],
-
       "risque": {
         "fonds_euros": "capital_garanti_net_des_frais",
         "unites_compte": "risque_perte_capital"
       },
-
       "liquidite": {
         "rachat_partiel": true,
         "rachat_total": true
       },
-
       "regles_recommandation": {
         "priorite_si": [
           "epargne_long_terme",
@@ -457,26 +404,22 @@
         ]
       }
     },
-
     {
       "id": "sg_sequoia",
       "nom": "Séquoia",
+      "url": "https://particuliers.sg.fr/epargner-placer-son-argent/nos-offres/assurance-vie/contrat-sequoia",
       "famille": "assurance_vie",
       "type": "assurance_vie_multisupport",
-
       "positionnement": "diversification_et_gestion_modulable",
-
       "supports": [
         "fonds_euros",
         "unites_de_compte"
       ],
-
       "gestion": [
         "gestion_libre",
         "alliage_gestion",
         "gestion_sous_mandat_selon_encours"
       ],
-
       "regles_recommandation": {
         "priorite_si": [
           "patrimoine_plus_important",
@@ -485,15 +428,13 @@
         ]
       }
     },
-
     {
       "id": "sg_ebene",
       "nom": "Ébène",
+      "url": "https://particuliers.sg.fr/epargner-placer-son-argent/nos-offres/assurance-vie/contrat-ebene",
       "famille": "assurance_vie",
       "type": "assurance_vie_premium",
-
       "positionnement": "gestion_patrimoniale_haut_de_gamme",
-
       "regles_recommandation": {
         "priorite_si": [
           "client_patrimonial",
@@ -503,26 +444,22 @@
         ]
       }
     },
-
     {
       "id": "sg_per_acacia",
       "nom": "PER Acacia",
+      "url": "https://particuliers.sg.fr/epargner-placer-son-argent/nos-offres/assurance-vie/per-acacia",
       "famille": "epargne_retraite",
       "type": "plan_epargne_retraite",
-
       "objectif": [
         "preparation_retraite",
         "optimisation_fiscale"
       ],
-
       "risque": {
         "unites_compte": "perte_capital_possible"
       },
-
       "fiscalite": {
         "versements_deductibles_revenu_imposable_sous_conditions": true
       },
-
       "disponibilite": {
         "en_principe_jusqua_retraite": "bloquee",
         "deblocage_anticipe": [
@@ -530,13 +467,11 @@
           "cas_exceptionnels_reglementaires"
         ]
       },
-
       "sortie": [
         "capital",
         "rente",
         "capital_et_rente"
       ],
-
       "regles_recommandation": {
         "priorite_si": [
           "objectif_retraite",
@@ -549,35 +484,29 @@
         ]
       }
     },
-
     {
       "id": "sg_pea",
       "nom": "Plan d'Épargne en Actions",
+      "url": "https://particuliers.sg.fr/epargner-placer-son-argent/nos-offres/pea-plan-epargne-actions",
       "acronyme": "PEA",
       "famille": "investissement_bourse",
       "type": "enveloppe_fiscale_actions",
-
       "risque": "perte_capital_possible",
       "capital_garanti": false,
-
       "versement": {
         "initial_minimum": 100,
         "plafond": 150000
       },
-
       "horizon_recommande": {
         "minimum_annees": 5
       },
-
       "supports": [
         "actions_eligibles",
         "OPC_eligibles"
       ],
-
       "fiscalite": {
         "avantageuse_apres_5_ans": true
       },
-
       "regles_recommandation": {
         "priorite_si": [
           "horizon >= 5_ans",
@@ -591,30 +520,25 @@
         ]
       }
     },
-
     {
       "id": "sg_pea_pme",
       "nom": "PEA-PME",
+      "url": "https://particuliers.sg.fr/epargner-placer-son-argent/nos-offres/pea-pme-plan-epargne-actions-entreprises",
       "famille": "investissement_bourse",
       "type": "enveloppe_fiscale_actions_pme_eti",
-
       "risque": "perte_capital_possible",
       "capital_garanti": false,
-
       "versement": {
         "initial_minimum": 100,
         "plafond": 225000
       },
-
       "objectif": [
         "investissement_PME",
         "investissement_ETI_europeennes"
       ],
-
       "horizon_recommande": {
         "minimum_annees": 5
       },
-
       "regles_recommandation": {
         "priorite_si": [
           "profil_dynamique",
@@ -623,26 +547,22 @@
         ]
       }
     },
-
     {
       "id": "sg_cto",
       "nom": "Compte Titres Ordinaire",
+      "url": "https://particuliers.sg.fr/epargner-placer-son-argent/nos-offres/cto-compte-titres-ordinaire",
       "acronyme": "CTO",
       "famille": "investissement_bourse",
       "type": "compte_titres",
-
       "risque": "perte_capital_possible",
       "capital_garanti": false,
-
       "eligibilite": {
         "resident_union_europeenne_ou_suisse": true
       },
-
       "versement": {
         "minimum": 0,
         "plafond": null
       },
-
       "supports": [
         "actions",
         "obligations",
@@ -650,13 +570,11 @@
         "titres_internationaux",
         "autres_instruments_financiers_eligibles"
       ],
-
       "gestion": [
         "autonome",
         "alliage_gestion",
         "gestion_sous_mandat"
       ],
-
       "regles_recommandation": {
         "priorite_si": [
           "PEA_non_adapte_aux_actifs_recherches",

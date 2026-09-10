@@ -6,43 +6,87 @@
     "date_reference": "2026-09-06",
     "devise": "EUR"
   },
-
   "produits": {
-      "id": "sg_assurance_emprunteur_immobilier",
-      "nom": "Assurance Emprunteur Immobilier SG",
-      "famille": "assurance_emprunteur",
-      "assureur_principal": "Sogecap",
-
-      "objectif": [
-        "proteger_emprunteur",
-        "proteger_famille",
-        "garantir_remboursement_credit"
-      ],
-
-      "obligation": {
-        "obligatoire_legalement": false,
-        "generalement_exigee_par_sg_pour_octroi_credit": true
+    "id": "sg_assurance_emprunteur_immobilier",
+    "nom": "Assurance Emprunteur Immobilier SG",
+    "url": "https://particuliers.sg.fr/emprunter/pret-credit-immobilier/assurance-emprunteur",
+    "famille": "assurance_emprunteur",
+    "assureur_principal": "Sogecap",
+    "objectif": [
+      "proteger_emprunteur",
+      "proteger_famille",
+      "garantir_remboursement_credit"
+    ],
+    "obligation": {
+      "obligatoire_legalement": false,
+      "generalement_exigee_par_sg_pour_octroi_credit": true
+    },
+    "tarification": {
+      "cotisation_constante": true,
+      "tarif_personnalise": true
+    },
+    "formules": [
+      {
+        "id": "sg_ade_residence_principale_secondaire",
+        "nom": "Résidence principale ou secondaire",
+        "url": "https://particuliers.sg.fr/emprunter/pret-credit-immobilier/assurance-emprunteur",
+        "cible": [
+          "residence_principale",
+          "residence_secondaire"
+        ],
+        "eligibilite_indicative": {
+          "age_adhesion_maximum": 64
+        },
+        "garanties": [
+          "deces",
+          "PTIA",
+          "ITT",
+          "ITP",
+          "IPT",
+          "IPP",
+          "aide_a_la_famille"
+        ],
+        "options": [
+          "perte_emploi"
+        ]
       },
-
-      "tarification": {
-        "cotisation_constante": true,
-        "tarif_personnalise": true
+      {
+        "id": "sg_ade_investissement_locatif",
+        "nom": "Investissement locatif",
+        "url": "https://particuliers.sg.fr/emprunter/pret-credit-immobilier/assurance-emprunteur",
+        "cible": [
+          "investisseur_locatif"
+        ],
+        "garanties_principales": [
+          "deces",
+          "PTIA"
+        ]
       },
-
-      "formules": [
-        {
-          "id": "sg_ade_residence_principale_secondaire",
-          "nom": "Résidence principale ou secondaire",
-
-          "cible": [
-            "residence_principale",
-            "residence_secondaire"
-          ],
-
-          "eligibilite_indicative": {
-            "age_adhesion_maximum": 64
-          },
-
+      {
+        "id": "sg_ade_senior",
+        "nom": "Assurance Emprunteur Senior",
+        "url": "https://particuliers.sg.fr/emprunter/pret-credit-immobilier/assurance-emprunteur",
+        "cible": [
+          "emprunteur_senior"
+        ],
+        "eligibilite_indicative": {
+          "age_adhesion": "65_ans_ou_plus"
+        },
+        "garanties_principales": [
+          "deces",
+          "PTIA"
+        ]
+      },
+      {
+        "id": "sg_ade_bfm",
+        "nom": "Assurance Emprunteur BFM",
+        "url": "https://particuliers.sg.fr/emprunter/pret-credit-immobilier/assurance-emprunteur",
+        "cible": [
+          "fonctionnaire",
+          "agent_secteur_public"
+        ],
+        "partenaire": "Banque Française Mutualiste",
+        "residence_principale": {
           "garanties": [
             "deces",
             "PTIA",
@@ -51,148 +95,82 @@
             "IPT",
             "IPP",
             "aide_a_la_famille"
-          ],
-
-          "options": [
-            "perte_emploi"
           ]
         },
-
-        {
-          "id": "sg_ade_investissement_locatif",
-          "nom": "Investissement locatif",
-
-          "cible": [
-            "investisseur_locatif"
-          ],
-
-          "garanties_principales": [
+        "investissement_locatif_ou_senior": {
+          "garanties": [
             "deces",
             "PTIA"
           ]
         },
-
-        {
-          "id": "sg_ade_senior",
-          "nom": "Assurance Emprunteur Senior",
-
-          "cible": [
-            "emprunteur_senior"
-          ],
-
-          "eligibilite_indicative": {
-            "age_adhesion": "65_ans_ou_plus"
-          },
-
-          "garanties_principales": [
-            "deces",
-            "PTIA"
-          ]
-        },
-
-        {
-          "id": "sg_ade_bfm",
-          "nom": "Assurance Emprunteur BFM",
-
-          "cible": [
-            "fonctionnaire",
-            "agent_secteur_public"
-          ],
-
-          "partenaire": "Banque Française Mutualiste",
-
-          "residence_principale": {
-            "garanties": [
-              "deces",
-              "PTIA",
-              "ITT",
-              "ITP",
-              "IPT",
-              "IPP",
-              "aide_a_la_famille"
-            ]
-          },
-
-          "investissement_locatif_ou_senior": {
-            "garanties": [
-              "deces",
-              "PTIA"
-            ]
-          },
-
-          "specificites": [
-            "prise_en_compte_metiers_a_risque"
-          ]
-        }
-      ],
-
-      "garanties": {
-        "deces": {
-          "description": "Remboursement du capital restant dû selon la quotité assurée."
-        },
-        "PTIA": {
-          "nom": "Perte Totale et Irréversible d'Autonomie"
-        },
-        "ITT": {
-          "nom": "Incapacité Temporaire Totale de Travail"
-        },
-        "ITP": {
-          "nom": "Incapacité Temporaire Partielle de Travail"
-        },
-        "IPT": {
-          "nom": "Invalidité Permanente Totale"
-        },
-        "IPP": {
-          "nom": "Invalidité Permanente Partielle"
-        },
-        "aide_a_la_famille": {
-          "description": "Couverture de certains arrêts de travail pour s'occuper d'un enfant gravement malade."
-        },
-        "perte_emploi": {
-          "optionnelle": true
-        }
-      },
-
-      "quotite": {
-        "description": "Pourcentage du capital assuré pour chaque emprunteur.",
-        "exemple_couple": {
-          "emprunteur_1_pct": 50,
-          "emprunteur_2_pct": 50,
-          "couverture_totale_pct": 100
-        },
-        "couverture_renforcee_possible": {
-          "emprunteur_1_pct": 100,
-          "emprunteur_2_pct": 100,
-          "couverture_totale_pct": 200
-        }
-      },
-
-      "delegation_assurance": {
-        "possible": true,
-        "changement_en_cours_de_pret": true,
-        "condition": "garanties_equivalentes_aux_exigences_SG",
-        "delai_reponse_sg_jours_ouvres": 10
-      },
-
-      "souscription": {
-        "en_ligne": true,
-        "signature_electronique": true,
-        "formalites_medicales_si_necessaire": true
-      },
-
-      "regles_recommandation": {
-        "si_credit_residence_principale": [
-          "proposer_assurance_emprunteur_residence_principale"
-        ],
-        "si_investissement_locatif": [
-          "proposer_assurance_emprunteur_investissement_locatif"
-        ],
-        "si_age_65_ou_plus": [
-          "verifier_offre_senior"
-        ],
-        "si_fonctionnaire": [
-          "verifier_assurance_BFM"
+        "specificites": [
+          "prise_en_compte_metiers_a_risque"
         ]
       }
+    ],
+    "garanties": {
+      "deces": {
+        "description": "Remboursement du capital restant dû selon la quotité assurée."
+      },
+      "PTIA": {
+        "nom": "Perte Totale et Irréversible d'Autonomie"
+      },
+      "ITT": {
+        "nom": "Incapacité Temporaire Totale de Travail"
+      },
+      "ITP": {
+        "nom": "Incapacité Temporaire Partielle de Travail"
+      },
+      "IPT": {
+        "nom": "Invalidité Permanente Totale"
+      },
+      "IPP": {
+        "nom": "Invalidité Permanente Partielle"
+      },
+      "aide_a_la_famille": {
+        "description": "Couverture de certains arrêts de travail pour s'occuper d'un enfant gravement malade."
+      },
+      "perte_emploi": {
+        "optionnelle": true
+      }
+    },
+    "quotite": {
+      "description": "Pourcentage du capital assuré pour chaque emprunteur.",
+      "exemple_couple": {
+        "emprunteur_1_pct": 50,
+        "emprunteur_2_pct": 50,
+        "couverture_totale_pct": 100
+      },
+      "couverture_renforcee_possible": {
+        "emprunteur_1_pct": 100,
+        "emprunteur_2_pct": 100,
+        "couverture_totale_pct": 200
+      }
+    },
+    "delegation_assurance": {
+      "possible": true,
+      "changement_en_cours_de_pret": true,
+      "condition": "garanties_equivalentes_aux_exigences_SG",
+      "delai_reponse_sg_jours_ouvres": 10
+    },
+    "souscription": {
+      "en_ligne": true,
+      "signature_electronique": true,
+      "formalites_medicales_si_necessaire": true
+    },
+    "regles_recommandation": {
+      "si_credit_residence_principale": [
+        "proposer_assurance_emprunteur_residence_principale"
+      ],
+      "si_investissement_locatif": [
+        "proposer_assurance_emprunteur_investissement_locatif"
+      ],
+      "si_age_65_ou_plus": [
+        "verifier_offre_senior"
+      ],
+      "si_fonctionnaire": [
+        "verifier_assurance_BFM"
+      ]
     }
+  }
 }

@@ -9,8 +9,6 @@ import java.util.List;
 import java.util.Map;
 
 public interface AIService {
-    AIModels.Classification classifyUserRequest(String message, AIModels.AIProvider provider);
-
     /**
      * Premier appel IA (compréhension) : classe le périmètre, l'intention, le type de
      * projet, le montant et l'objet. Retourne une structure JSON. Ne sélectionne aucun produit.

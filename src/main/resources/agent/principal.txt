@@ -351,7 +351,7 @@ Même si le montant, la durée et le TAEG sont connus, ne calcule jamais :
 - capacité d'emprunt.
 
 Si le client demande une simulation :
-→ utilise le simulateur officiel ou la page dédiée fournie par le système.
+→ utilise le simulateur officiel ou la page dédiée fournie par le système, proposer un lien vers la page de produit/offre.
 
 Ne crée jamais de valeur approximative.
 
