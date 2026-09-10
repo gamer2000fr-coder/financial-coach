@@ -40,10 +40,11 @@ const MIN_SILENCE_SECONDS = 2
 const MAX_SILENCE_SECONDS = 10
 
 const suggestions = [
-  'Est-ce que je peux acheter un ordinateur à 1 500 € ?',
-  'Analyse mes dépenses des 3 derniers mois.',
+  'Quel est le solde de mon compte et mes dernières opérations ?',
   'Combien puis-je épargner chaque mois ?',
-  'Est-ce que mon niveau de crédit est raisonnable ?',
+  'Est-ce que je peux acheter une voiture à 8 700 € ?',
+  'Combien puis-je emprunter pour mon projet immobilier ?',
+  'Quelle assurance habitation me faut-il ?',
 ]
 
 const providerLabels: Record<AIProvider, string> = {
@@ -64,19 +65,33 @@ function newMessageId(): string {
   return `msg-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 }
 
-function renderInline(text: string, key: string): ReactNode[] {
-  // Découpe **gras**, *italique* et `code` en segments React (aucun HTML brut => pas de XSS).
-  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g)
+function renderInline(text: string, key: string, depth = 0): ReactNode[] {
+  // Découpe **gras**, *italique*, `code` et [URL|nom|url] en segments React (aucun HTML brut => pas de XSS).
+  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\[URL\|[^|\]]+\|[^\]]+\])/gi)
   return parts.map((part, index) => {
     const k = `${key}-${index}`
-    if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
-      return <strong key={k}>{part.slice(2, -2)}</strong>
+    // Lien au format imposé par le prompt : [URL|nom du lien|https://...]
+    const link = /^\[URL\|([^|\]]+)\|([^\]]+)\]$/i.exec(part)
+    if (link) {
+      const label = link[1].trim()
+      const url = link[2].trim()
+      // Sécurité : on n'accepte que http(s) — sinon on n'affiche que le libellé.
+      if (/^https?:\/\//i.test(url)) {
+        return (
+          <a key={k} href={url} target="_blank" rel="noopener noreferrer">{label}</a>
+        )
+      }
+      return label
     }
-    if (part.startsWith('`') && part.endsWith('`') && part.length > 2) {
+    // Rendu récursif pour que les liens restent cliquables même dans du gras/italique.
+    if (depth < 3 && part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+      return <strong key={k}>{renderInline(part.slice(2, -2), k, depth + 1)}</strong>
+    }
+    if (depth < 3 && part.startsWith('`') && part.endsWith('`') && part.length > 2) {
       return <code key={k}>{part.slice(1, -1)}</code>
     }
-    if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
-      return <em key={k}>{part.slice(1, -1)}</em>
+    if (depth < 3 && part.startsWith('*') && part.endsWith('*') && part.length > 2) {
+      return <em key={k}>{renderInline(part.slice(1, -1), k, depth + 1)}</em>
     }
     return part
   })
@@ -94,6 +109,7 @@ function renderMessageContent(id: string, content: string): ReactNode[] {
 
 function stripMarkdown(text: string): string {
   return text
+    .replace(/\[URL\|([^|\]]+)\|[^\]]+\]/gi, '$1') // lien [URL|nom|url] -> nom (pour la synthèse vocale)
     .replace(/\*\*/g, '')
     .replace(/\*/g, '')
     .replace(/`/g, '')

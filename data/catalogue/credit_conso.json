@@ -457,6 +457,7 @@
       "regles_recommandation": {
         "priorite_si": [
           "client_eligible_bfm",
+          "bfm_eligible à true",
           "besoin >= 1500"
         ],
         "comparaison_obligatoire_avec": [
