@@ -84,3 +84,43 @@ export interface ConversationData {
   summary?: string | null
   messages: ConversationMessage[]
 }
+
+export type InterestLevel = 'HIGH' | 'MEDIUM' | 'LOW' | 'REJECTED'
+
+export interface ProductOfInterest {
+  productId: string
+  name: string
+  category?: string | null
+  interestLevel: InterestLevel
+  interestReason?: string | null
+  productUrl?: string | null
+}
+
+export interface SuiviEmailContent {
+  subject: string
+  body: string
+}
+
+export interface SuiviConversationSummary {
+  mainProject?: string | null
+  otherProjects?: string[] | null
+  importantCustomerPreferences?: string[] | null
+}
+
+export type ClosureStatus = 'SENT' | 'PREPARED' | 'MAIL_UNAVAILABLE' | 'SEND_FAILED' | 'NO_CONVERSATION'
+
+/** Dossier de suivi produit à la clôture d'une conversation (email conseiller + brouillon client joint). */
+export interface ConversationClosure {
+  sessionId: string
+  status: ClosureStatus
+  advisorName?: string | null
+  advisorAddress?: string | null
+  attachmentName?: string | null
+  sentTo?: string[] | null
+  conversationSummary?: SuiviConversationSummary | null
+  productsOfInterest?: ProductOfInterest[] | null
+  rejectedProducts?: string[] | null
+  advisorEmail?: SuiviEmailContent | null
+  preparedCustomerEmail?: SuiviEmailContent | null
+  warnings?: string[] | null
+}

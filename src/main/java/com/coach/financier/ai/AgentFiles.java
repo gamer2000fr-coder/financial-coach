@@ -24,6 +24,8 @@ import java.util.List;
  */
 public final class AgentFiles {
     public static final String GENERIC_THEME = "generic";
+    /** Fichier du prompt de l'agent de SUIVI (synthèse de fin de conversation). */
+    public static final String SUIVI_PROMPT_FILE = "suivi.txt";
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private AgentFiles() {
@@ -102,6 +104,25 @@ public final class AgentFiles {
     public static String mainSystemPrompt() {
         return systemPromptFor(GENERIC_THEME);
     }
+
+    /**
+     * Prompt système de l'agent de SUIVI ({@code ./agent/suivi.txt} puis classpath) : utilisé pour
+     * la synthèse de fin de conversation (dossier conseiller + brouillon client). Source UNIQUE
+     * partagée entre {@link RemoteAIService} (envoi réel) et {@code ConversationClosureService} (logs).
+     */
+    public static String suiviSystemPrompt() {
+        return readPromptOrDefault(SUIVI_PROMPT_FILE, FALLBACK_SUIVI_PROMPT);
+    }
+
+    /** Filet de sécurité MINIMAL si {@code suivi.txt} est absent (le vrai prompt vit dans ./agent). */
+    private static final String FALLBACK_SUIVI_PROMPT =
+            "Tu prépares un dossier de suivi pour un conseiller bancaire à la fin d'une conversation. "
+            + "Réponds UNIQUEMENT en JSON valide avec les champs : conversationSummary "
+            + "{mainProject, otherProjects[], importantCustomerPreferences[]}, productsOfInterest[] "
+            + "{productId, name, category, interestLevel (HIGH|MEDIUM|LOW|REJECTED), interestReason, productUrl}, "
+            + "advisorEmail {subject, body}, preparedCustomerEmail {subject, body}. "
+            + "Liens uniquement au format [URL|nom du lien|url] et uniquement des URLs fournies. "
+            + "Le brouillon client n'est JAMAIS envoyé automatiquement.";
 
     /**
      * Lit un fichier d'agent depuis {@code ./agent} (système de fichiers), puis le

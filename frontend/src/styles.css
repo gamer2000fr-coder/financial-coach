@@ -299,6 +299,46 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   .balance-value { font-size:27px; }
 }
 
+/* ---- Fin de conversation (dossier de suivi conseiller) ---- */
+.close-conversation-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  align-self: flex-end;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid #1c1c1c;
+  background: #1c1c1c;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.close-conversation-button:hover:not(:disabled) { background: #333; }
+.close-conversation-button:disabled { opacity: .55; cursor: default; }
+.closure-error { margin-top: 4px; }
+.closure-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid #cfe3d2;
+  background: #f2faf4;
+  color: #1f4d2b;
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  font-size: 13px;
+}
+.closure-banner.mail_unavailable,
+.closure-banner.prepared { border-color: #f0e0b8; background: #fdf9ee; color: #6b5313; }
+.closure-banner.send_failed { border-color: #efc6c6; background: #fff0f0; color: #9c1c1c; }
+.closure-head { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.closure-meta { display: flex; flex-wrap: wrap; gap: 14px; color: #4b5563; font-size: 12px; }
+.closure-project, .closure-products { margin: 0; }
+.closure-note { margin: 0; font-size: 12px; opacity: .85; }
+.closure-warnings { margin: 2px 0 0; padding-left: 18px; font-size: 12px; }
+
 /* ---- Page Logs (traces des appels IA) ---- */
 .logs-shell {
   max-width: 960px;

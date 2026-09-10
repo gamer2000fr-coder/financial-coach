@@ -4,6 +4,7 @@ import com.coach.financier.model.AIModels;
 import com.coach.financier.model.ConversationModels;
 import com.coach.financier.model.FinancialSummary;
 import com.coach.financier.model.IntentClassification;
+import com.coach.financier.model.SuiviModels;
 
 import java.util.List;
 import java.util.Map;
@@ -26,4 +27,12 @@ public interface AIService {
                              Map<String, Object> additionalData,
                              List<ConversationModels.Message> history,
                              AIModels.AIProvider provider);
+
+    /**
+     * Appel IA de FIN DE CONVERSATION : l'agent de synthèse analyse l'historique complet et
+     * prépare (1) l'email du conseiller et (2) un brouillon d'email client (jamais envoyé
+     * automatiquement). Le contexte est exactement celui décrit par le dossier de suivi
+     * (historique, contexte client, contexte conseiller, produits, URLs utiles).
+     */
+    SuiviModels.SuiviResult summarizeConversation(Map<String, Object> context, AIModels.AIProvider provider);
 }

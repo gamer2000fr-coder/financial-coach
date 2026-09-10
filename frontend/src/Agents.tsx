@@ -108,8 +108,9 @@ export default function Agents() {
         <p className="prompt-hint">
           Chaque agent possède son propre prompt système. L&rsquo;agent <strong>générique</strong>{' '}
           inclut le contenu de l&rsquo;<strong>agent principal</strong> via la balise{' '}
-          <code>[agent_principal]</code>. La sauvegarde est prise en compte{' '}
-          <strong>immédiatement</strong>, sans redémarrer le serveur.
+          <code>[agent_principal]</code>. L&rsquo;<strong>agent de suivi</strong> est utilisé à la fin
+          d&rsquo;une conversation (dossier conseiller + brouillon d&rsquo;email client). La sauvegarde est prise
+          en compte <strong>immédiatement</strong>, sans redémarrer le serveur.
         </p>
 
         {loading ? (

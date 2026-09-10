@@ -1,28 +1,30 @@
 package com.coach.financier.ai;
 
 import com.coach.financier.model.AIModels;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 @Component
 public class AIServiceFactory {
+    /**
+     * Repli utilisé UNIQUEMENT si l'appelant ne fournit aucun fournisseur. En usage normal, le
+     * fournisseur est choisi dans l'IHM et transmis à chaque appel (échanges ET clôture).
+     */
+    private static final AIModels.AIProvider FALLBACK_PROVIDER = AIModels.AIProvider.MOCK;
+
     private final OpenAIService openAIService;
     private final DeepSeekService deepSeekService;
     private final MockAIService mockAIService;
-    private final AIModels.AIProvider defaultProvider;
 
     public AIServiceFactory(OpenAIService openAIService,
                             DeepSeekService deepSeekService,
-                            MockAIService mockAIService,
-                            @Value("${app.ai.default-provider:MOCK}") String defaultProvider) {
+                            MockAIService mockAIService) {
         this.openAIService = openAIService;
         this.deepSeekService = deepSeekService;
         this.mockAIService = mockAIService;
-        this.defaultProvider = parse(defaultProvider);
     }
 
     public AIService get(AIModels.AIProvider provider) {
-        AIModels.AIProvider effective = provider == null ? defaultProvider : provider;
+        AIModels.AIProvider effective = provider == null ? FALLBACK_PROVIDER : provider;
         return switch (effective) {
             case GPT -> openAIService;
             case DEEPSEEK -> deepSeekService;
@@ -30,10 +32,6 @@ public class AIServiceFactory {
         };
     }
 
-    public AIModels.AIProvider defaultProvider() { return defaultProvider; }
-
-    private static AIModels.AIProvider parse(String value) {
-        try { return AIModels.AIProvider.valueOf(value.toUpperCase()); }
-        catch (Exception e) { return AIModels.AIProvider.MOCK; }
-    }
+    /** Fournisseur de repli (l'IHM transmet normalement le fournisseur choisi). */
+    public AIModels.AIProvider defaultProvider() { return FALLBACK_PROVIDER; }
 }

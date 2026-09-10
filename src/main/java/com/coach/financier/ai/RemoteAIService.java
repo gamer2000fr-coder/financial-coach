@@ -4,6 +4,7 @@ import com.coach.financier.model.AIModels;
 import com.coach.financier.model.ConversationModels;
 import com.coach.financier.model.FinancialSummary;
 import com.coach.financier.model.IntentClassification;
+import com.coach.financier.model.SuiviModels;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.MediaType;
@@ -104,6 +105,36 @@ public abstract class RemoteAIService implements AIService {
         String summary = node.path("conversationSummary").asText("");
         JsonNode synthesis = node.path("financialSynthesis").isObject() ? node.path("financialSynthesis") : null;
         return new AIModels.AIAnswer(status, answer, dataRequest, update, summary, synthesis);
+    }
+
+    @Override
+    public SuiviModels.SuiviResult summarizeConversation(Map<String, Object> context, AIModels.AIProvider provider) {
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new IllegalStateException("Clé API absente pour le fournisseur " + providerName);
+        }
+        // Agent de synthèse dédié (rédaction du dossier de suivi conseiller + brouillon client).
+        String system = AgentFiles.suiviSystemPrompt();
+        String user;
+        try {
+            user = objectMapper.writeValueAsString(context == null ? Map.of() : context);
+        } catch (Exception e) {
+            throw new IllegalStateException("Contexte de synthèse non sérialisable", e);
+        }
+        String content = call(system, user);
+        try {
+            SuiviModels.SuiviResult result = objectMapper.readValue(content, SuiviModels.SuiviResult.class);
+            return result == null ? emptySuivi() : result;
+        } catch (Exception e) {
+            throw new IllegalStateException("Réponse de synthèse invalide: " + content, e);
+        }
+    }
+
+    private static SuiviModels.SuiviResult emptySuivi() {
+        return new SuiviModels.SuiviResult(
+                new SuiviModels.ConversationSummary("", List.of(), List.of()),
+                List.of(),
+                new SuiviModels.EmailContent("", ""),
+                new SuiviModels.EmailContent("", ""));
     }
 
     private String call(String system, String user) {

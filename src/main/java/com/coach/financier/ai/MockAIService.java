@@ -7,9 +7,11 @@ import com.coach.financier.model.FinancialIntent;
 import com.coach.financier.model.FinancialSummary;
 import com.coach.financier.model.IntentClassification;
 import com.coach.financier.model.ProjectType;
+import com.coach.financier.model.SuiviModels;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -163,6 +165,273 @@ public class MockAIService implements AIService {
                 + money(financialSummary.savingsBalance()) + " €.\n\n"
                 + "Pour une réponse IA détaillée, configurez OPENAI_API_KEY ou DEEPSEEK_API_KEY et choisissez le fournisseur correspondant.";
         return new AIModels.AIAnswer(AIModels.AIStatus.ANSWER, answer, null, Map.of(), "Analyse financière calculée côté backend.", null);
+    }
+
+    /**
+     * Mode démo (aucun appel LLM) : synthèse DÉTERMINISTE construite uniquement à partir du
+     * contexte fourni. Elle respecte les mêmes règles que l'agent réel : pas d'invention,
+     * produits refusés exclus, brouillon client jamais présenté comme déjà envoyé.
+     */
+    @Override
+    public SuiviModels.SuiviResult summarizeConversation(Map<String, Object> context, AIModels.AIProvider provider) {
+        Map<String, Object> root = asMap(context);
+        List<Map<String, Object>> history = asListOfMaps(root.get("conversationHistory"));
+        List<Map<String, Object>> products = asListOfMaps(root.get("products"));
+        Map<String, Object> customerContext = asMap(root.get("customerContext"));
+        Map<String, Object> advisorContext = asMap(root.get("advisorContext"));
+        Map<String, Object> usefulUrls = asMap(root.get("usefulUrls"));
+        List<Map<String, Object>> projects = asListOfMaps(customerContext.get("currentProjects"));
+
+        List<String> userTexts = new ArrayList<>();
+        List<String> assistantTexts = new ArrayList<>();
+        for (Map<String, Object> message : history) {
+            String content = str(message.get("content"));
+            if (content == null) continue;
+            if ("user".equalsIgnoreCase(str(message.get("role")))) userTexts.add(content);
+            else assistantTexts.add(content);
+        }
+
+        String mainProject = "Projet non précisé";
+        List<String> otherProjects = new ArrayList<>();
+        if (!projects.isEmpty()) {
+            mainProject = describeProject(projects.get(0));
+            for (int i = 1; i < projects.size(); i++) {
+                otherProjects.add(describeProject(projects.get(i)));
+            }
+        }
+
+        List<String> preferences = new ArrayList<>();
+        String normalizedUser = normalize(String.join(" \n ", userTexts));
+        if (normalizedUser.contains("epargne") || normalizedUser.contains("preserver")) {
+            preferences.add("Souhaite préserver une partie de son épargne.");
+        }
+        if (normalizedUser.contains("apport") || normalizedUser.contains("comptant")) {
+            preferences.add("Semble ouvert à un financement partiel (apport, paiement comptant).");
+        }
+        if (normalizedUser.contains("mensualite") || normalizedUser.contains("par mois")) {
+            preferences.add("Attention portée au montant de la mensualité.");
+        }
+
+        List<SuiviModels.ProductOfInterest> interests = new ArrayList<>();
+        for (Map<String, Object> product : products) {
+            String id = str(product.get("id"));
+            String name = str(product.get("name"));
+            if (name == null || name.isBlank()) continue;
+            String category = str(product.get("family"));
+            String url = str(product.get("productUrl"));
+            boolean rejected = userTexts.stream()
+                    .anyMatch(text -> mentions(text, name, id) && isRejection(text));
+            boolean highUser = userTexts.stream().anyMatch(text -> mentions(text, name, id));
+            boolean mediumAssistant = assistantTexts.stream().anyMatch(text -> mentions(text, name, id));
+            String level;
+            String reason;
+            if (rejected) {
+                level = "REJECTED";
+                reason = "Le client a explicitement écarté cette offre.";
+            } else if (highUser) {
+                level = "HIGH";
+                reason = "Le client a demandé des précisions, comparé ou montré un intérêt explicite.";
+            } else if (mediumAssistant) {
+                level = "MEDIUM";
+                reason = "Offre recommandée par le coach, cohérente avec le projet.";
+            } else {
+                level = "LOW";
+                reason = "Offre chargée dans le contexte mais non discutée avec le client.";
+            }
+            interests.add(new SuiviModels.ProductOfInterest(id, name, category, level, reason, url));
+        }
+
+        String customerName = str(customerContext.get("customerName"));
+        String customerReference = str(customerContext.get("customerReference"));
+        String advisorName = str(advisorContext.get("advisorName"));
+        String appointmentUrl = str(usefulUrls.get("advisorAppointment"));
+
+        String advisorEmail = buildAdvisorEmail(mainProject, otherProjects, preferences, interests,
+                customerName, customerReference, advisorName);
+        String customerEmail = buildCustomerEmail(mainProject, interests, customerName, advisorName, appointmentUrl);
+
+        return new SuiviModels.SuiviResult(
+                new SuiviModels.ConversationSummary(mainProject, otherProjects, preferences),
+                interests,
+                new SuiviModels.EmailContent("Suivi client — " + mainProject, advisorEmail),
+                new SuiviModels.EmailContent("Votre projet : " + mainProject, customerEmail));
+    }
+
+    private String buildAdvisorEmail(String mainProject, List<String> otherProjects, List<String> preferences,
+                                     List<SuiviModels.ProductOfInterest> interests, String customerName,
+                                     String customerReference, String advisorName) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Bonjour").append(advisorName == null ? "" : " " + advisorName).append(",\n\n");
+        sb.append("Voici la synthèse du suivi client");
+        if (customerName != null && !customerName.isBlank()) {
+            sb.append(" ").append(customerName);
+        }
+        if (customerReference != null && !customerReference.isBlank()) {
+            sb.append(" (réf. ").append(customerReference).append(")");
+        }
+        sb.append(".\n\n");
+        sb.append("Projet du client\n").append(mainProject).append("\n\n");
+        if (!otherProjects.isEmpty()) {
+            sb.append("Autres sujets évoqués\n");
+            for (String project : otherProjects) sb.append("- ").append(project).append('\n');
+            sb.append('\n');
+        }
+        if (!preferences.isEmpty()) {
+            sb.append("Préférences importantes\n");
+            for (String preference : preferences) sb.append("- ").append(preference).append('\n');
+            sb.append('\n');
+        }
+        sb.append("Produits / offres d'intérêt\n");
+        boolean any = false;
+        for (SuiviModels.ProductOfInterest interest : interests) {
+            if ("LOW".equals(interest.interestLevel()) || "REJECTED".equals(interest.interestLevel())) continue;
+            any = true;
+            sb.append("- ").append(interest.name());
+            if (interest.category() != null) sb.append(" (").append(interest.category()).append(')');
+            sb.append(" — intérêt ").append(interest.interestLevel()).append(" : ").append(interest.interestReason());
+            if (interest.productUrl() != null) {
+                sb.append(" [URL|Voir l'offre|").append(interest.productUrl()).append(']');
+            }
+            sb.append('\n');
+        }
+        if (!any) sb.append("- Aucun produit n'a été clairement demandé ; voir les échanges.\n");
+        sb.append('\n');
+        List<String> rejected = interests.stream()
+                .filter(i -> "REJECTED".equals(i.interestLevel())).map(SuiviModels.ProductOfInterest::name).toList();
+        if (!rejected.isEmpty()) {
+            sb.append("Points restant à confirmer\n- Le client a écarté : ")
+                    .append(String.join(", ", rejected)).append(". Ne pas reproposer sans échange.\n\n");
+        }
+        sb.append("Suivi conseillé\n- Reprendre contact avec le client pour confirmer son besoin et vérifier l'éligibilité, ")
+                .append("puis réaliser un devis ou une simulation sur les outils officiels.\n\n");
+        sb.append("Vous trouverez en pièce jointe un brouillon d'email préparé à destination du client, basé sur les ")
+                .append("besoins et centres d'intérêt identifiés pendant l'échange. Merci de le vérifier et de l'adapter ")
+                .append("si nécessaire avant tout envoi. Le contenu n'a pas encore été envoyé au client.");
+        return sb.toString();
+    }
+
+    private String buildCustomerEmail(String mainProject, List<SuiviModels.ProductOfInterest> interests,
+                                      String customerName, String advisorName, String appointmentUrl) {
+        StringBuilder sb = new StringBuilder();
+        String firstName = null;
+        if (customerName != null && !customerName.isBlank()) {
+            firstName = customerName.trim().split("\\s+")[0];
+        }
+        sb.append("Bonjour").append(firstName == null ? "" : " " + firstName).append(",\n\n");
+        sb.append("Suite à votre échange avec notre Coach Financier au sujet de ").append(mainProject)
+                .append(", voici les solutions susceptibles de vous intéresser :\n\n");
+        for (SuiviModels.ProductOfInterest interest : interests) {
+            if (!"HIGH".equals(interest.interestLevel()) && !"MEDIUM".equals(interest.interestLevel())) continue;
+            sb.append("- ").append(interest.name());
+            if (interest.interestReason() != null) sb.append(" : ").append(interest.interestReason());
+            if (interest.productUrl() != null) {
+                sb.append(" [URL|En savoir plus|").append(interest.productUrl()).append(']');
+            }
+            sb.append('\n');
+        }
+        sb.append('\n');
+        if (appointmentUrl != null && !appointmentUrl.isBlank()) {
+            sb.append("Pour en discuter, vous pouvez [URL|prendre rendez-vous avec votre conseiller|")
+                    .append(appointmentUrl).append("].\n\n");
+        } else {
+            sb.append("N'hésitez pas à contacter votre conseiller pour en discuter.\n\n");
+        }
+        sb.append("Bien cordialement,\n");
+        sb.append(advisorName == null || advisorName.isBlank() ? "Votre conseiller" : advisorName);
+        return sb.toString();
+    }
+
+    private static String describeProject(Map<String, Object> project) {
+        String object = str(project.get("object"));
+        String type = str(project.get("type"));
+        Object amount = project.get("amount");
+        StringBuilder sb = new StringBuilder();
+        if (object != null && !object.isBlank()) {
+            sb.append(object);
+        } else if (type != null) {
+            sb.append(type.replace('_', ' ').toLowerCase(java.util.Locale.ROOT));
+        }
+        if (amount != null) {
+            if (sb.length() > 0) sb.append(" — ");
+            sb.append(amount).append(" €");
+        }
+        return sb.length() == 0 ? "Projet non précisé" : sb.toString();
+    }
+
+    /** Un texte mentionne-t-il le produit ? (nom complet ou mots-clés distinctifs) */
+    private static boolean mentions(String text, String productName, String productId) {
+        String haystack = normalize(text);
+        String name = normalize(productName);
+        if (name.length() >= 4 && haystack.contains(name)) {
+            return true;
+        }
+        for (String token : signatureTokens(productName, productId)) {
+            if (haystack.contains(token)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static final java.util.Set<String> STOPWORDS = java.util.Set.of(
+            "sg", "bfm", "de", "du", "des", "la", "le", "les", "et", "en", "au", "aux", "un", "une",
+            "pour", "avec", "sur", "assurance", "credit", "pret", "livret", "compte", "plan", "contrat",
+            "offre", "formule", "tous", "toutes", "votre", "nos", "plus");
+
+    private static List<String> signatureTokens(String productName, String productId) {
+        List<String> tokens = new ArrayList<>();
+        collectTokens(tokens, productName);
+        collectTokens(tokens, productId == null ? null : productId.replace('_', ' '));
+        return tokens;
+    }
+
+    private static void collectTokens(List<String> tokens, String value) {
+        if (value == null) return;
+        for (String token : normalize(value).split("[^a-z0-9]+")) {
+            if (token.length() >= 4 && !STOPWORDS.contains(token) && !tokens.contains(token)) {
+                tokens.add(token);
+            }
+        }
+    }
+
+    private static boolean isRejection(String text) {
+        String value = normalize(text);
+        return containsAny(value, "pas interesse", "pas intéressé", "non merci", "je refuse", "refuse cette",
+                "trop cher", "sans interet", "sans intérêt", "finalement pas");
+    }
+
+    private static String normalize(String value) {
+        if (value == null) return "";
+        return java.text.Normalizer.normalize(value, java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "")
+                .toLowerCase(java.util.Locale.ROOT);
+    }
+
+    private static Map<String, Object> asMap(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            Map<String, Object> result = new java.util.LinkedHashMap<>();
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                result.put(String.valueOf(entry.getKey()), entry.getValue());
+            }
+            return result;
+        }
+        return Map.of();
+    }
+
+    private static List<Map<String, Object>> asListOfMaps(Object value) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        if (value instanceof List<?> list) {
+            for (Object item : list) {
+                if (item instanceof Map<?, ?>) {
+                    result.add(asMap(item));
+                }
+            }
+        }
+        return result;
+    }
+
+    private static String str(Object value) {
+        return value == null ? null : String.valueOf(value);
     }
 
     private String money(double value) { return String.format(java.util.Locale.FRANCE, "%.2f", value); }

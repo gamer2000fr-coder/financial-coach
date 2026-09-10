@@ -126,7 +126,6 @@ app.ai.openai.model: ${OPENAI_MODEL:gpt-4o-mini}
 app.ai.deepseek.base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
 app.ai.deepseek.api-key: ${DEEPSEEK_API_KEY:}
 app.ai.deepseek.model: ${DEEPSEEK_MODEL:deepseek-chat}
-app.ai.default-provider: ${AI_PROVIDER:MOCK}
 app.ai.synthesis-file: ${SYNTHESIS_FILE:./data/synthese_financier.json}
 cascade: true          # activation de la jointure des fichiers cascade
 ```
@@ -376,7 +375,7 @@ flowchart LR
 | Réseau / clé API | Aucun | Requis (`OPENAI_API_KEY`, `DEEPSEEK_API_KEY`) |
 | Simulation / calculs | Identiques (Java) | Identiques (Java) |
 
-> L'écran choisit **DeepSeek par défaut** ; le backend conserve `MOCK` comme fournisseur de secours si aucun n'est transmis (`default-provider: ${AI_PROVIDER:MOCK}`).
+> Le fournisseur est **choisi dans l'IHM** et transmis à chaque appel (`provider`) : échanges avec l'IA **et** clôture de conversation. Le backend ne le lit plus dans `application.yml` ; il ne retombe sur `MOCK` que si aucun fournisseur n'est transmis par l'appelant.
 
 ---
 
@@ -384,7 +383,6 @@ flowchart LR
 
 Backend :
 ```powershell
-$env:AI_PROVIDER = "DEEPSEEK"   # MOCK | GPT | DEEPSEEK
 $env:DEEPSEEK_MODEL = "deepseek-chat"
 $env:DEEPSEEK_API_KEY = "sk-..."  # clé DeepSeek (ou OPENAI_API_KEY pour GPT)
 # lancer l'app Spring Boot (IDE ou mvnw spring-boot:run) → http://localhost:9797

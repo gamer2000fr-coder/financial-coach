@@ -20,13 +20,15 @@ import {
   Wallet,
   X,
 } from 'lucide-react'
-import { API_BASE_URL, fetchFinancialSummary, sendChat } from './api'
-import type { AIProvider, ChatMessage, FinancialSummary } from './types'
+import { API_BASE_URL, closeConversation, fetchFinancialSummary, sendChat } from './api'
+import type { AIProvider, ChatMessage, ClosureStatus, ConversationClosure, FinancialSummary } from './types'
 
 const SESSION_STORAGE_KEY = 'financial-coach-session-id'
 const HISTORY_STORAGE_KEY = 'financial-coach-chat-history'
 const PROVIDER_STORAGE_KEY = 'financial-coach-provider'
 const GUARD_STORAGE_KEY = 'financial-coach-guard'
+/** Suivi de fin de conversation (dossier conseiller) : DÉSACTIVÉ par défaut. */
+const SUIVI_STORAGE_KEY = 'financial-coach-suivi'
 const ADVANCED_STORAGE_KEY = 'financial-coach-advanced'
 const VOICE_STORAGE_KEY = 'financial-coach-voice'
 const VOICE_RATE_STORAGE_KEY = 'financial-coach-voice-rate'
@@ -38,6 +40,12 @@ const DEFAULT_WAKE_WORD = 'Chloé'
 const DEFAULT_SILENCE_SECONDS = 5
 const MIN_SILENCE_SECONDS = 2
 const MAX_SILENCE_SECONDS = 10
+
+/**
+ * Nombre minimal d'échanges client ↔ IA avant de déclencher la clôture de la conversation
+ * (1 échange = 1 message client suivi de la réponse du coach → on compte les messages client).
+ */
+const MIN_EXCHANGES_TO_CLOSE = 2
 
 const suggestions = [
   'Quel est le solde de mon compte et mes dernières opérations ?',
@@ -215,8 +223,15 @@ function App() {
   const [loading, setLoading] = useState(false)
   const [summary, setSummary] = useState<FinancialSummary | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [closing, setClosing] = useState(false)
+  const [closure, setClosure] = useState<ConversationClosure | null>(null)
+  const [closeError, setCloseError] = useState<string | null>(null)
+  /** Session déjà clôturée : évite un 2e dossier si l'on re-clique (bouton dédié puis « Nouveau chat »). */
+  const closedSessionRef = useRef<string | null>(null)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [guardEnabled, setGuardEnabled] = useState(() => localStorage.getItem(GUARD_STORAGE_KEY) !== 'false')
+  // Suivi (dossier de suivi conseiller à la clôture) : activé uniquement si explicitement mis à 'true'.
+  const [suiviEnabled, setSuiviEnabled] = useState(() => localStorage.getItem(SUIVI_STORAGE_KEY) === 'true')
   const [advanced, setAdvanced] = useState(() => localStorage.getItem(ADVANCED_STORAGE_KEY) === 'true')
   const [listening, setListening] = useState(false)
   const [speechSupported] = useState<boolean>(
@@ -271,6 +286,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem(GUARD_STORAGE_KEY, String(guardEnabled))
   }, [guardEnabled])
+
+  useEffect(() => {
+    localStorage.setItem(SUIVI_STORAGE_KEY, String(suiviEnabled))
+  }, [suiviEnabled])
 
   useEffect(() => {
     localStorage.setItem(ADVANCED_STORAGE_KEY, advanced ? 'true' : 'false')
@@ -658,12 +677,70 @@ function App() {
     }
   }
 
+  /**
+   * POC : « Nouveau chat » clôture AUSSI la conversation, en ARRIÈRE-PLAN (fire-and-forget).
+   * Le backend prépare le dossier de suivi et envoie UN SEUL email (au conseiller) avec le
+   * brouillon d'email client en pièce jointe. On n'attend pas la réponse et on ne bloque pas l'IHM.
+   * Déclenché uniquement si au moins MIN_EXCHANGES_TO_CLOSE échanges client ↔ IA ont eu lieu.
+   */
+  function closeInBackground() {
+    // Suivi désactivé dans l'IHM : aucun dossier n'est préparé ni envoyé.
+    if (!suiviEnabled) return
+    if (closedSessionRef.current === sessionId) return
+    const exchanges = messages.filter((message) => message.role === 'user').length
+    if (exchanges < MIN_EXCHANGES_TO_CLOSE) return
+    closedSessionRef.current = sessionId
+    void closeConversation(sessionId, { send: true, provider }).catch(() => {
+      // Fire-and-forget : un échec (backend indisponible, session inconnue, mail non configuré...)
+      // ne doit pas empêcher le passage à une nouvelle conversation.
+    })
+  }
+
   function startNewConversation() {
+    closeInBackground()
     const newId = newSessionId()
     setSessionId(newId)
     setMessages(welcomeMessages())
     setInput('')
     setError(null)
+    setClosure(null)
+    setCloseError(null)
+  }
+
+  /**
+   * Clôture la conversation : le backend prépare le dossier de suivi et envoie UN SEUL email,
+   * au conseiller, avec le brouillon d'email client en pièce jointe. Rien n'est envoyé au client.
+   */
+  async function closeAndSend() {
+    if (!suiviEnabled) return
+    if (closing || loading || closedSessionRef.current === sessionId) return
+    setClosing(true)
+    setCloseError(null)
+    setClosure(null)
+    try {
+      const result = await closeConversation(sessionId, { send: true, provider })
+      closedSessionRef.current = sessionId
+      setClosure(result)
+    } catch (err) {
+      setCloseError(err instanceof Error ? err.message : 'Une erreur inattendue est survenue.')
+    } finally {
+      setClosing(false)
+    }
+  }
+
+  function closureStatusLabel(status: ClosureStatus): string {
+    switch (status) {
+      case 'SENT':
+        return 'Dossier de suivi envoyé au conseiller'
+      case 'PREPARED':
+        return 'Dossier préparé (envoi désactivé)'
+      case 'MAIL_UNAVAILABLE':
+        return 'Dossier préparé — service mail indisponible'
+      case 'NO_CONVERSATION':
+        return 'Aucune conversation côté serveur — aucun dossier préparé'
+      default:
+        return 'Échec de l’envoi au conseiller'
+    }
   }
 
   return (
@@ -737,6 +814,17 @@ function App() {
                   onChange={(event) => setGuardEnabled(event.target.checked)}
                 />
                 <span>Contrôle hors-sujet</span>
+              </label>
+              <label
+                className="guard-toggle"
+                title="À la fin d'une conversation, préparer le dossier de suivi et l'envoyer au conseiller (le brouillon d'email client est joint, jamais envoyé au client)"
+              >
+                <input
+                  type="checkbox"
+                  checked={suiviEnabled}
+                  onChange={(event) => setSuiviEnabled(event.target.checked)}
+                />
+                <span>Suivi conseiller</span>
               </label>
               <label
                 className="guard-toggle"
@@ -822,6 +910,17 @@ function App() {
             />
             <span>Contrôle hors-sujet</span>
           </label>
+          <label
+            className="guard-toggle"
+            title="Préparer et envoyer le dossier de suivi au conseiller à la clôture"
+          >
+            <input
+              type="checkbox"
+              checked={suiviEnabled}
+              onChange={(event) => setSuiviEnabled(event.target.checked)}
+            />
+            <span>Suivi conseiller</span>
+          </label>
           <button onClick={startNewConversation} type="button"><Plus size={17} /> Nouvelle conversation</button>
           <div className="mobile-provider">
             <Bot size={17} />
@@ -837,7 +936,57 @@ function App() {
               <p className="eyebrow">CONVERSATION</p>
               <h1>Comment puis-je vous aider ?</h1>
             </div>
+            {suiviEnabled && (
+              <button
+                className="close-conversation-button"
+                type="button"
+                onClick={closeAndSend}
+                disabled={closing || loading}
+                title="Générer le dossier de suivi et l'envoyer au conseiller. Le brouillon d'email client est joint : il n'est jamais envoyé automatiquement."
+              >
+                <Send size={16} />
+                <span>{closing ? 'Préparation…' : 'Terminer et envoyer au conseiller'}</span>
+              </button>
+            )}
           </div>
+
+          {closeError && (
+            <div className="error-banner closure-error">
+              <CircleAlert size={16} />
+              <span>{closeError}</span>
+              <button type="button" onClick={() => setCloseError(null)}><X size={15} /></button>
+            </div>
+          )}
+
+          {closure && (
+            <div className={`closure-banner ${closure.status.toLowerCase()}`}>
+              <div className="closure-head">
+                <Send size={16} />
+                <strong>{closureStatusLabel(closure.status)}</strong>
+              </div>
+              <div className="closure-meta">
+                <span>Conseiller : {closure.advisorAddress || '—'}</span>
+                <span>Pièce jointe : {closure.attachmentName || '—'}</span>
+              </div>
+              {closure.conversationSummary?.mainProject && (
+                <p className="closure-project">Projet : {closure.conversationSummary.mainProject}</p>
+              )}
+              {closure.productsOfInterest && closure.productsOfInterest.length > 0 && (
+                <p className="closure-products">
+                  Produits d’intérêt :{' '}
+                  {closure.productsOfInterest.map((product) => `${product.name} (${product.interestLevel})`).join(', ')}
+                </p>
+              )}
+              <p className="closure-note">
+                Le brouillon d’email client est joint au mail du conseiller. Aucun email n’a été envoyé au client.
+              </p>
+              {closure.warnings && closure.warnings.length > 0 && (
+                <ul className="closure-warnings">
+                  {closure.warnings.map((warning) => <li key={warning}>{warning}</li>)}
+                </ul>
+              )}
+            </div>
+          )}
 
           <div className="suggestions">
             {suggestions.map((suggestion) => (

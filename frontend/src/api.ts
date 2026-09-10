@@ -1,4 +1,11 @@
-import type { AiLog, AIProvider, ChatResponse, ConversationData, FinancialSummary } from './types'
+import type {
+  AiLog,
+  AIProvider,
+  ChatResponse,
+  ConversationClosure,
+  ConversationData,
+  FinancialSummary,
+} from './types'
 
 function resolveApiBaseUrl(): string {
   if (typeof window === 'undefined') return 'http://localhost:9797/api'
@@ -74,6 +81,32 @@ export async function fetchLogAnswer(id: number): Promise<string> {
 
 export async function fetchConversation(sessionId: string): Promise<ConversationData> {
   return apiFetch<ConversationData>(`/conversations/${encodeURIComponent(sessionId)}`)
+}
+
+export interface CloseConversationOptions {
+  /** false = prépare le dossier sans l'envoyer (dry-run). Défaut : true. */
+  send?: boolean
+  /** Fournisseur IA choisi dans l'IHM (comme pour les échanges). */
+  provider?: AIProvider
+  /** txt | html | eml */
+  attachmentFormat?: string
+  /** Destinataire conseiller (sinon config backend). */
+  advisorEmail?: string
+  advisorName?: string
+}
+
+/**
+ * Clôture la conversation : génère le dossier de suivi, envoie l'email au CONSEILLER
+ * uniquement et joint le brouillon d'email client. Rien n'est envoyé au client.
+ */
+export async function closeConversation(
+  sessionId: string,
+  options?: CloseConversationOptions,
+): Promise<ConversationClosure> {
+  return apiFetch<ConversationClosure>(`/conversations/${encodeURIComponent(sessionId)}/close`, {
+    method: 'POST',
+    body: JSON.stringify(options ?? {}),
+  })
 }
 
 export interface AgentEntry {

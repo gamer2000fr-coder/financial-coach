@@ -4,6 +4,24 @@ server:
 spring:
   application:
     name: financial-coach-backend
+  # --- Envoi de mails (Gmail) ---
+  # Renseigner MAIL_USERNAME (adresse Gmail) et CLE_GOOGLE_COACH_FINANCIER (mot de passe d'application Gmail,
+  # PAS le mot de passe du compte — voir https://myaccount.google.com/apppasswords).
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:coach.financier.pay@gmail.com}
+    password: ${CLE_GOOGLE_COACH_FINANCIER:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
 
 app:
   data:
@@ -11,6 +29,28 @@ app:
     dir: ${DATA_DIR:./data}
     # Fichier bancaire consolidé dans le répertoire /data (racine du projet).
     banking-file: ${BANKING_FILE:./data/banking_demo_normalized.json}
+  # Conseiller destinataire du dossier de suivi de fin de conversation (SEUL destinataire automatique).
+  # Par défaut : le compte mail configuré (utile pour tester la démo en local).
+  advisor:
+    name: ${ADVISOR_NAME:Votre conseiller}
+    email: ${ADVISOR_EMAIL:${MAIL_USERNAME:coach.financier.pay@gmail.com}}
+  # Nom du client (facultatif : le fichier bancaire ne contient qu'une référence).
+  customer:
+    name: ${CUSTOMER_NAME:}
+  # Dossier de suivi de fin de conversation.
+  suivi:
+    # Format de la pièce jointe (brouillon d'email client) : txt | html | eml.
+    attachment-format: ${SUIVI_ATTACHMENT_FORMAT:txt}
+    # Lien de prise de rendez-vous inséré dans le brouillon client (facultatif ; vide = aucun lien).
+    advisor-appointment-url: ${ADVISOR_APPOINTMENT_URL:https://particuliers.sg.fr/vos-rendez-vous}
+    # Email conseiller envoyé en HTML (liens cliquables) ; false = texte brut.
+    advisor-mail-html: ${SUIVI_ADVISOR_MAIL_HTML:true}
+  mail:
+    # Active/désactive l'envoi de mails (permet de démarrer sans configuration mail).
+    enabled: ${MAIL_ENABLED:true}
+    # Expéditeur affiché. Par défaut : le compte Gmail configuré (MAIL_USERNAME).
+    from: ${MAIL_FROM:${MAIL_USERNAME:}}
+    from-name: ${MAIL_FROM_NAME:Coach financier}
   ai:
     openai:
       base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
@@ -19,8 +59,8 @@ app:
     deepseek:
       base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
       api-key: ${DEEPSEEK_API_KEY:}
-      model: ${DEEPSEEK_MODEL:deepseek-flash}
-    default-provider: ${AI_PROVIDER:MOCK}
+      model: ${DEEPSEEK_MODEL:deepseek-chat}
+    default-provider: ${AI_PROVIDER:DEEPSEEK}
     synthesis-file: ${SYNTHESIS_FILE:./data/synthese_financier.json}
 
 logging:

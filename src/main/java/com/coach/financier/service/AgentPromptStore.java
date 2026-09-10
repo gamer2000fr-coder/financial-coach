@@ -17,19 +17,25 @@ import java.util.Map;
 
 /**
  * Édition des prompts d'agents (./agent/&lt;file&gt;) pour la page « Agents » :
- * l'« agent principal » (principal.txt), l'agent générique et les agents spécialisés
- * déclarés dans agents.json. Lecture fichiersystem puis classpath ; écriture fichiersystem
- * + copie classpath — le contenu est relu à chaque appel IA (prise en compte immédiate).
+ * l'« agent principal » (principal.txt), l'agent générique, les agents spécialisés
+ * déclarés dans agents.json, et l'« agent de suivi » (suivi.txt, synthèse de fin de conversation).
+ * Lecture fichiersystem puis classpath ; écriture fichiersystem + copie classpath — le contenu est
+ * relu à chaque appel IA (prise en compte immédiate).
  */
 @Component
 public class AgentPromptStore {
     public static final String PRINCIPAL_KEY = "principal";
     public static final String PRINCIPAL_FILE = "principal.txt";
+    /** Agent de synthèse de FIN DE CONVERSATION (dossier conseiller + brouillon client). */
+    public static final String SUIVI_KEY = "suivi";
     private static final String GENERIC_THEME = "generic";
 
     /**
-     * Entrées éditables de la page : générique (défaut), agent principal, puis les agents
-     * spécialisés (ordre d'agents.json). Chaque entrée : {key, libelle, file}.
+     * Entrées éditables de la page : générique (défaut), agent principal, agent de suivi, puis les
+     * agents spécialisés (ordre d'agents.json). Chaque entrée : {key, libelle, file}.
+     * <p>
+     * L'agent de suivi n'est PAS déclaré dans agents.json : il n'est pas sélectionnable comme agent
+     * de coach (il n'intervient qu'à la clôture, via {@code AgentFiles.suiviSystemPrompt()}).
      */
     public List<Map<String, String>> entries() {
         List<Map<String, String>> result = new ArrayList<>();
@@ -44,6 +50,7 @@ public class AgentPromptStore {
             result.add(entry(generic.getTheme(), generic.getLibelle(), generic.getPrompt()));
         }
         result.add(entry(PRINCIPAL_KEY, "Agent principal", PRINCIPAL_FILE));
+        result.add(entry(SUIVI_KEY, "Agent de suivi (fin de conversation)", AgentFiles.SUIVI_PROMPT_FILE));
         for (AgentDefinition agent : agents) {
             if (GENERIC_THEME.equalsIgnoreCase(agent.getTheme())) {
                 continue;

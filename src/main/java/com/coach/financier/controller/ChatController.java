@@ -146,6 +146,9 @@ public class ChatController {
                 compatibleProducts.add(product.toCompactMap());
             }
         }
+        // Mémorise, pour le dossier de suivi de fin de conversation, les offres réellement
+        // présentées au client (et non tout le catalogue).
+        conversation.addDiscussedProducts(compatibleProducts);
 
         // Agent actif : générique par défaut ; l'agent spécialisé du thème prend la main dès que la
         // demande est clairement rattachée à un produit (crédit conso/immo, épargne, assurance...).
