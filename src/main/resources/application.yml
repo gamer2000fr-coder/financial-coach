@@ -45,6 +45,31 @@ app:
     advisor-appointment-url: ${ADVISOR_APPOINTMENT_URL:https://particuliers.sg.fr/vos-rendez-vous}
     # Email conseiller envoyé en HTML (liens cliquables) ; false = texte brut.
     advisor-mail-html: ${SUIVI_ADVISOR_MAIL_HTML:true}
+  # --- Module Marketing Intelligence (POC, AUCUNE base de données : fichiers JSONL/JSON) ---
+  # Les événements sont extraits lors du MÊME appel IA que le dossier de suivi (champ marketingEvents)
+  # puis stockés anonymisés dans <dir>/events/, agrégés par le batch dans <dir>/aggregates/
+  # et interprétés par l'agent `agent/marketing.txt` dans <dir>/reports/.
+  marketing:
+    enabled: ${MARKETING_ENABLED:true}
+    # Autorise/identifie les données de démonstration (les événements portent demo=true).
+    demo-mode: ${MARKETING_DEMO_MODE:false}
+    dir: ${MARKETING_DIR:./data/marketing}
+    # Sel de pseudonymisation des identifiants clients (jamais de données personnelles sur disque).
+    hash-salt: ${MARKETING_HASH_SALT:coach-financier-poc}
+    # Bornes des tranches de montant (configurables, §7) : 0-2000, 2000-5000, ... puis 30000_PLUS.
+    amount-bounds: ${MARKETING_AMOUNT_BOUNDS:2000,5000,10000,15000,30000}
+    extractor-version: ${MARKETING_EXTRACTOR_VERSION:marketing-events-v1}
+    prompt-version: ${MARKETING_PROMPT_VERSION:marketing-extractor-v1}
+    # Poids du SCORE d'intérêt (§17) : calculés par le code, jamais par l'IA.
+    score:
+      recommended: ${MARKETING_SCORE_RECOMMENDED:1}
+      interest-low: ${MARKETING_SCORE_INTEREST_LOW:0}
+      interest-medium: ${MARKETING_SCORE_INTEREST_MEDIUM:2}
+      interest-high: ${MARKETING_SCORE_INTEREST_HIGH:3}
+      comparison: ${MARKETING_SCORE_COMPARISON:2}
+      subscription: ${MARKETING_SCORE_SUBSCRIPTION:4}
+      appointment: ${MARKETING_SCORE_APPOINTMENT:5}
+      rejected: ${MARKETING_SCORE_REJECTED:-5}
   mail:
     # Active/désactive l'envoi de mails (permet de démarrer sans configuration mail).
     enabled: ${MAIL_ENABLED:true}

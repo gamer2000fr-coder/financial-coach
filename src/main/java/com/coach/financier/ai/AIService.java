@@ -4,6 +4,7 @@ import com.coach.financier.model.AIModels;
 import com.coach.financier.model.ConversationModels;
 import com.coach.financier.model.FinancialSummary;
 import com.coach.financier.model.IntentClassification;
+import com.coach.financier.model.MarketingModels;
 import com.coach.financier.model.SuiviModels;
 
 import java.util.List;
@@ -35,4 +36,11 @@ public interface AIService {
      * (historique, contexte client, contexte conseiller, produits, URLs utiles).
      */
     SuiviModels.SuiviResult summarizeConversation(Map<String, Object> context, AIModels.AIProvider provider);
+
+    /**
+     * Appel IA de l'ANALYSTE MARKETING ({@code agent/marketing.txt}) : l'IA INTERPRÈTE des statistiques
+     * déjà calculées par le backend (agrégats fournis). Elle ne reçoit aucune conversation brute et ne
+     * calcule aucun chiffre. Le rapport est ensuite stocké dans {@code data/marketing/reports}.</n     */
+    MarketingModels.MarketingReport analyzeMarketing(MarketingModels.MarketingAggregates aggregates,
+                                                     AIModels.AIProvider provider);
 }

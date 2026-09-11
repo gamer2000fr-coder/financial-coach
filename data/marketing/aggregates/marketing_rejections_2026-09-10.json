@@ -1,0 +1,19 @@
+[ {
+  "reasonCategory" : "DOES_NOT_WANT_CREDIT",
+  "productId" : null,
+  "productName" : null,
+  "count" : 1,
+  "share" : 0.3333
+}, {
+  "reasonCategory" : "CONDITIONS",
+  "productId" : null,
+  "productName" : null,
+  "count" : 1,
+  "share" : 0.3333
+}, {
+  "reasonCategory" : "PREFERS_CASH",
+  "productId" : null,
+  "productName" : null,
+  "count" : 1,
+  "share" : 0.3333
+} ]

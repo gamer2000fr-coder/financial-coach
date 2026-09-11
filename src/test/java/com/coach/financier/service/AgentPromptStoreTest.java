@@ -42,4 +42,29 @@ class AgentPromptStoreTest {
         assertTrue(content.contains("BROUILLON"), "Le prompt de suivi doit décrire le brouillon d'email client");
         assertTrue(content.contains("conseiller"));
     }
+
+    @Test
+    void listsTheMarketingAgentAndItsPromptIsEditable() {
+        Map<String, String> marketing = store.entries().stream()
+                .filter(entry -> AgentPromptStore.MARKETING_KEY.equals(entry.get("key")))
+                .findFirst()
+                .orElse(null);
+
+        assertNotNull(marketing, "L'agent analyste marketing doit apparaître dans la liste déroulante");
+        assertEquals("Agent analyste marketing", marketing.get("libelle"));
+        assertEquals("marketing.txt", marketing.get("file"));
+
+        // La clé doit résoudre le fichier éditable ./agent/marketing.txt
+        String fileName = store.fileNameOf(AgentPromptStore.MARKETING_KEY);
+        assertEquals("marketing.txt", fileName);
+
+        String content = store.read(AgentPromptStore.MARKETING_KEY);
+        assertNotNull(content);
+        assertTrue(content.length() > 100, "Le prompt marketing doit être un vrai prompt (pas le repli vide)");
+
+        // Il ne doit PAS être déclaré dans agents.json (il n'est jamais un agent de coach).
+        assertTrue(com.coach.financier.ai.AgentFiles.agents().stream()
+                        .noneMatch(agent -> AgentPromptStore.MARKETING_KEY.equalsIgnoreCase(agent.getTheme())),
+                "marketing ne doit pas être un thème d'agent de coach (agents.json)");
+    }
 }

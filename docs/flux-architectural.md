@@ -1,6 +1,7 @@
 # Flux complet du coach financier (POC)
 
-> Version : 2026-09-08 · Repose sur le modèle « agents spécialisés par thème » + filtrage métier Java.
+> Version : 2026-09-11 · Repose sur le modèle « agents spécialisés par thème » + filtrage métier Java,
+> complété par la **fin de conversation (dossier de suivi conseiller)** et le **module Marketing Intelligence**.
 
 ## 1. Principe général : 3 couches
 
@@ -99,6 +100,9 @@ sequenceDiagram
 | Choix de l'offre finale | l'agent choisit parmi le menu en appliquant les règles des fiches | LLM (fiches + cascade + compatibleProducts) |
 | Calcul mensualité | annuité constante si montant+durée+TAEG connus (sinon rien) | `CreditSimulationService` |
 | Logs / historique | prompt, agent, debug `[AGENT]`, réponse, conversation | `AILogService`, `LogsController`, `ConversationController` |
+| **Fin de conversation** | déclenchement (case suivi + ≥ 2 échanges), synthèse, validation produits/URLs, envoi au **seul** conseiller | `App.tsx` (bouton) → `ConversationClosureService` → `MailService` |
+| **Statistiques marketing** | types d'événements extraits, agrégats, scores, tranches de montant | IA (`suivi.txt`) **propose** → Java (`MarketingExtractionService`, `MarketingAnalyticsService`) **calcule et stocke** |
+| **Rapport marketing** | rédaction à partir des **agrégats déjà calculés** | agent analyste `marketing.txt` (`analyzeMarketing`) |
 
 ---
 
@@ -118,6 +122,10 @@ sequenceDiagram
 
 Les prompts/agents sont éditables dans la page **Agents** (`#/agents`) et relus à chaque appel (sauvegarde immédiate).
 
+Deux prompts **ne sont pas des agents de coach** (ils n'apparaissent donc pas dans `agents.json`, mais restent éditables sur la page **Agents**) :
+- **`suivi.txt`** — agent de **fin de conversation** : produit le dossier de suivi conseiller (+ brouillon client + événements marketing). Appelé uniquement par `ConversationClosureService` (`AgentFiles.suiviSystemPrompt()`).
+- **`marketing.txt`** — agent **analyste marketing** : rédige le rapport à partir des agrégats déjà calculés. Appelé uniquement par `MarketingReportService` (`AgentFiles.marketingSystemPrompt()`).
+
 ---
 
 ## 6. Les deux catalogues produits (pourquoi deux fichiers ?)
@@ -128,3 +136,70 @@ Les prompts/agents sont éditables dans la page **Agents** (`#/agents`) et relus
 | `catalogue/*.json` (fiches) + `cascade/*.txt` | **Connaissances** : offres détaillées, tarifs, règles d'éligibilité → servent à l'**IA** (recommandation/pédagogie) | agent actif (`providedData`) + catalogue data.json |
 
 Ce n'est **pas un doublon** : `products.json` = « ce qui est présentable » (Java décide), les fiches = « que recommander et pourquoi » (IA choisit dans le menu). Les deux partagent les mêmes `id` pour rester alignés.
+
+---
+
+## 7. Fin de conversation et module Marketing
+
+### 7.1 Principe commun : « l'IA prépare, Java décide et calcule »
+
+Les deux dispositifs prolongent le même contrat que le chat : **l'IA comprend et rédige, Java filtre, valide et calcule, le conseiller humain reste décisionnaire**.
+
+- **Fin de conversation** → un **seul** email automatique, au **conseiller**, avec le **brouillon client en pièce jointe** (jamais envoyé au client).
+- **Marketing** → l'IA ne fait que **proposer des événements** et **interpréter des agrégats** ; tous les chiffres (KPI, taux, scores, tendances) sont calculés par le code, sur des fichiers (JSONL/JSON), **sans base de données**.
+
+### 7.2 Clôture de conversation (`POST /api/conversations/{id}/close`)
+
+```mermaid
+sequenceDiagram
+    participant FE as Frontend (chat)
+    participant CC as ConversationController
+    participant CS as ConversationClosureService
+    participant AI as AIService (suivi.txt / Mock)
+    participant MX as MarketingEventStore<br/>(+ Extraction)
+    participant MA as MailService (SMTP)
+
+    FE->>CC: close(sessionId, provider) — fire-and-forget
+    CC->>CS: close(sessionId, request)
+    alt session inconnue (backend redémarré)
+        CS-->>FE: 200 status = NO_CONVERSATION (aucun envoi)
+    else session connue
+        CS->>CS: contexte IA (historique, synthèse, produits candidats, URLs utiles)
+        CS->>AI: summarizeConversation(context)
+        AI-->>CS: SuiviResult (résumé, produits + niveaux, brouillon client, marketingEvents)
+        Note over CS: En cas d'échec IA → trace [SUIVI] status=ERROR puis 502
+        CS->>CS: validation Java (produits candidats, URLs officielles, REJECTED retirés)
+        CS->>CS: EmailAttachmentBuilder → email_client_prepare_<date>.eml
+        CS->>MA: sendWithAttachments(to = CONSEILLER, + brouillon client)
+        MA-->>CS: OK / exception SMTP (origine tracée)
+        CS->>MX: persistance des événements marketing (dédupliqués, anonymisés)
+        CS-->>FE: CloseConversationResponse (status, advisor, attachment, warnings)
+        CS->>CS: trace Logs [SUIVI] (mailStatus, mailSent, mailTarget, mailError, marketingEvents=N)
+    end
+```
+
+Statuts possibles : `SENT`, `PREPARED` (dry-run `send=false`), `MAIL_UNAVAILABLE`, `SEND_FAILED`, `NO_CONVERSATION`. Le **client n'est jamais destinataire** ; le brouillon qui lui est destiné reste une **pièce jointe** du mail conseiller.
+
+### 7.3 Chaîne Marketing (extraction → stockage → agrégats → interprétation)
+
+```mermaid
+flowchart TD
+    CLOSE["Clôture de conversation"] --> DRAFTS["marketingEvents (agent suivi.txt)"]
+    DRAFTS --> EXTRACT["MarketingExtractionService<br/>UUID, horodatage, versions,<br/>client pseudonymisé, PII masquées"]
+    EXTRACT --> STORE["MarketingEventStore<br/>events/marketing_events_&lt;date&gt;.jsonl<br/>(append + dédoublonnage eventId)"]
+    STORE --> AGG["MarketingAnalyticsService<br/>KPI, taux, scores, séries, tendances,<br/>cross-sell, refus, besoins non couverts"]
+    AGG --> API["MarketingController<br/>/api/marketing/*"]
+    AGG --> BATCH["MarketingBatchService<br/>aggregates/*.json (idempotent)"]
+    AGG --> REPORT["MarketingReportService<br/>agent marketing.txt (interprétation)"]
+    REPORT --> RJSON["reports/marketing_report_&lt;date&gt;.json"]
+    API --> PAGE["Page #/marketing<br/>(KPI, tableaux, rapport IA, CSV)"]
+    RJSON --> PAGE
+    DEMO["MarketingDemoDataService<br/>(demo=true, rejouable)"] --> STORE
+```
+
+Règles structurantes :
+- **Le LLM ne calcule aucun chiffre** : il reçoit les agrégats sérialisés et renvoie une interprétation (`MarketingReport`).
+- **Aucune donnée personnelle sur disque** : identifiant client = SHA-256 salé (`customer_hash_…`) et, dans les motifs, les emails et téléphones détectés sont remplacés par `[masqué]`.
+- **Aucun SGBD** : JSONL (événements) + JSON (agrégats, rapports) ; Parquet écarté volontairement (POC).
+- **API à la demande** vs **batch** : la page interroge l'API pour la période choisie ; le batch fige les mêmes agrégats en fichiers quotidiens (réexécutable sans doublon).
+- **Traçabilité** : chaque génération de rapport mentionne le prompt utilisé (`promptVersion`, `model`, `aiGenerated`).

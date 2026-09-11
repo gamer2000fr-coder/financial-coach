@@ -124,3 +124,217 @@ export interface ConversationClosure {
   preparedCustomerEmail?: SuiviEmailContent | null
   warnings?: string[] | null
 }
+
+// ------------------------------------------------------------------ Marketing Intelligence (#/marketing)
+
+export type MarketingPeriod = 'today' | 'yesterday' | '7d' | '30d' | 'custom'
+
+export interface MarketingOverview {
+  conversationCount: number
+  sessionsWithInterest: number
+  uniqueCustomers: number
+  highInterestCount: number
+  subscriptionIntentCount: number
+  appointmentRequestCount: number
+  unmetNeedCount: number
+  missingInformationCount: number
+  coachQualityIssueCount: number
+}
+
+export interface MarketingProductMetric {
+  productId: string
+  productName: string
+  productFamily?: string | null
+  recommendedSessions: number
+  interestedSessions: number
+  uniqueInterestedCustomers: number
+  highCount: number
+  mediumCount: number
+  lowCount: number
+  rejectedCount: number
+  comparisonCount: number
+  subscriptionIntentCount: number
+  appointmentRequestCount: number
+  interestRate?: number | null
+  score: number
+  previousInterestedSessions?: number | null
+  evolutionPercent?: number | null
+}
+
+export interface MarketingProductCount {
+  productId: string
+  productName: string
+  count: number
+}
+
+export interface MarketingProjectMetric {
+  projectType: string
+  volume: number
+  share?: number | null
+  amountRanges: Record<string, number>
+  interestCount: number
+  rejectedCount: number
+  unmetNeedCount: number
+  topProducts: MarketingProductCount[]
+  previousVolume?: number | null
+  evolutionPercent?: number | null
+}
+
+export interface MarketingRejectionMetric {
+  reasonCategory: string
+  productId?: string | null
+  productName?: string | null
+  count: number
+  share?: number | null
+}
+
+export interface MarketingCrossSellMetric {
+  sourceProductId: string
+  sourceProductName: string
+  targetProductId: string
+  targetProductName: string
+  commonSessions: number
+  sourceSessions: number
+  rate?: number | null
+}
+
+export interface MarketingUnmetNeedMetric {
+  projectType?: string | null
+  reasonCategory?: string | null
+  reason?: string | null
+  count: number
+  averageConfidence?: number | null
+}
+
+export interface MarketingMissingInfoMetric {
+  productId: string
+  productName: string
+  reasonCategory: string
+  count: number
+}
+
+export interface MarketingDailyPoint {
+  date: string
+  conversationCount: number
+  interestCount: number
+  highInterestCount: number
+  subscriptionIntentCount: number
+  appointmentRequestCount: number
+}
+
+export interface MarketingTrendMetric {
+  entityType: string
+  entityId: string
+  entityName: string
+  current: number
+  previous: number
+  evolutionPercent?: number | null
+}
+
+export interface MarketingAggregates {
+  dateFrom: string
+  dateTo: string
+  overview: MarketingOverview
+  products: MarketingProductMetric[]
+  projects: MarketingProjectMetric[]
+  rejections: MarketingRejectionMetric[]
+  crossSell: MarketingCrossSellMetric[]
+  unmetNeeds: MarketingUnmetNeedMetric[]
+  missingInformation: MarketingMissingInfoMetric[]
+  series: MarketingDailyPoint[]
+  trends: MarketingTrendMetric[]
+  demo: boolean
+  invalidEventLines: number
+  generatedAt: string
+}
+
+export interface MarketingReportItem {
+  title?: string | null
+  description?: string | null
+  importance?: string | null
+}
+
+export interface MarketingMainTrend {
+  type?: string | null
+  entityType?: string | null
+  entityId?: string | null
+  entityName?: string | null
+  observation?: string | null
+}
+
+export interface MarketingRecommendationPerformance {
+  productId?: string | null
+  productName?: string | null
+  observation?: string | null
+}
+
+export interface MarketingFrictionItem {
+  category?: string | null
+  observation?: string | null
+}
+
+export interface MarketingCrossSellInsight {
+  sourceProduct?: string | null
+  targetProduct?: string | null
+  observation?: string | null
+}
+
+export interface MarketingUnmetNeedInsight {
+  projectType?: string | null
+  observation?: string | null
+}
+
+export interface MarketingMissingInfoInsight {
+  productId?: string | null
+  productName?: string | null
+  observation?: string | null
+}
+
+export interface MarketingAlert {
+  level?: string | null
+  title?: string | null
+  description?: string | null
+}
+
+export interface MarketingOpportunity {
+  title?: string | null
+  description?: string | null
+  recommendation?: string | null
+}
+
+export interface MarketingReport {
+  reportDate?: string | null
+  executiveSummary?: MarketingReportItem[] | null
+  mainTrends?: MarketingMainTrend[] | null
+  recommendationPerformance?: MarketingRecommendationPerformance[] | null
+  customerFriction?: MarketingFrictionItem[] | null
+  crossSellInsights?: MarketingCrossSellInsight[] | null
+  unmetNeeds?: MarketingUnmetNeedInsight[] | null
+  missingProductInformation?: MarketingMissingInfoInsight[] | null
+  aiCoachQuality?: { type?: string | null; observation?: string | null }[] | null
+  alerts?: MarketingAlert[] | null
+  opportunities?: MarketingOpportunity[] | null
+  finalSummary?: string | null
+  generatedAt?: string | null
+  model?: string | null
+  aiGenerated?: boolean | null
+  error?: string | null
+}
+
+export interface MarketingStatus {
+  enabled: boolean
+  demoMode: boolean
+  eventsDir: string
+  availableDays: string[]
+  reportDates: string[]
+  amountBounds: number[]
+}
+
+export interface MarketingProductDetail {
+  productId: string
+  metric?: MarketingProductMetric | null
+  rejections: MarketingRejectionMetric[]
+  crossSell: MarketingCrossSellMetric[]
+  dateFrom: string
+  dateTo: string
+}

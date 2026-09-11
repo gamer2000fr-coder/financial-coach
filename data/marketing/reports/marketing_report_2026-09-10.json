@@ -1,0 +1,125 @@
+{
+  "reportDate" : "2026-09-10",
+  "executiveSummary" : [ {
+    "title" : "Volume analysé",
+    "description" : "11 conversation(s) analysée(s), 5 avec intérêt produit, 1 intérêt(s) HIGH.",
+    "importance" : "HIGH"
+  }, {
+    "title" : "Intentions fortes",
+    "description" : "0 intention(s) de souscription et 0 demande(s) de rendez-vous.",
+    "importance" : "HIGH"
+  } ],
+  "mainTrends" : [ {
+    "type" : "DOWN",
+    "entityType" : "PRODUCT",
+    "entityId" : "sg_pret_etudiant_evolutif",
+    "entityName" : "Prêt Étudiant Évolutif",
+    "observation" : "0 vs 3 (-100.0 %)"
+  }, {
+    "type" : "DOWN",
+    "entityType" : "PRODUCT",
+    "entityId" : "sg_credit_expresso",
+    "entityName" : "Crédit Expresso",
+    "observation" : "0 vs 1 (-100.0 %)"
+  }, {
+    "type" : "DOWN",
+    "entityType" : "PRODUCT",
+    "entityId" : "sg_pret_immo_taux_fixe",
+    "entityName" : "Prêt Immobilier à Taux Fixe",
+    "observation" : "0 vs 4 (-100.0 %)"
+  }, {
+    "type" : "UP",
+    "entityType" : "OVERVIEW",
+    "entityId" : "conversations",
+    "entityName" : "Conversations",
+    "observation" : "11 vs 11 (0.0 %)"
+  }, {
+    "type" : "UP",
+    "entityType" : "PRODUCT",
+    "entityId" : "sg_pea",
+    "entityName" : "Plan d'Épargne en Actions (PEA)",
+    "observation" : "1 vs 1 (0.0 %)"
+  } ],
+  "recommendationPerformance" : [ {
+    "productId" : "sg_livret_a",
+    "productName" : "Livret A",
+    "observation" : "Recommandé dans 1 session(s), 2 avec intérêt réel (taux 200.0 %)."
+  }, {
+    "productId" : "sg_auto_tiers",
+    "productName" : "Assurance Auto SG – Tiers",
+    "observation" : "Recommandé dans 3 session(s), 1 avec intérêt réel (taux 33.3 %)."
+  }, {
+    "productId" : "sg_credit_auto_expresso",
+    "productName" : "Crédit Auto Expresso",
+    "observation" : "Recommandé dans 1 session(s), 1 avec intérêt réel (taux 100.0 %)."
+  }, {
+    "productId" : "sg_habitation_confort",
+    "productName" : "Assurance Habitation SG – Confort",
+    "observation" : "Recommandé dans 1 session(s), 1 avec intérêt réel (taux 100.0 %)."
+  }, {
+    "productId" : "sg_pea",
+    "productName" : "Plan d'Épargne en Actions (PEA)",
+    "observation" : "Recommandé dans 2 session(s), 1 avec intérêt réel (taux 50.0 %)."
+  } ],
+  "customerFriction" : [ {
+    "category" : "DOES_NOT_WANT_CREDIT",
+    "observation" : "1 refus (33.3 %)."
+  }, {
+    "category" : "CONDITIONS",
+    "observation" : "1 refus (33.3 %)."
+  }, {
+    "category" : "PREFERS_CASH",
+    "observation" : "1 refus (33.3 %)."
+  } ],
+  "crossSellInsights" : [ {
+    "sourceProduct" : "Assurance Auto SG – Tiers",
+    "targetProduct" : "Plan d'Épargne en Actions (PEA)",
+    "observation" : "1 session(s) communes (100 %) — association à étudier comme piste de parcours."
+  }, {
+    "sourceProduct" : "Assurance Habitation SG – Confort",
+    "targetProduct" : "Livret A",
+    "observation" : "1 session(s) communes (100 %) — association à étudier comme piste de parcours."
+  }, {
+    "sourceProduct" : "Livret A",
+    "targetProduct" : "Assurance Habitation SG – Confort",
+    "observation" : "1 session(s) communes (50 %) — association à étudier comme piste de parcours."
+  }, {
+    "sourceProduct" : "Plan d'Épargne en Actions (PEA)",
+    "targetProduct" : "Assurance Auto SG – Tiers",
+    "observation" : "1 session(s) communes (100 %) — association à étudier comme piste de parcours."
+  } ],
+  "unmetNeeds" : [ ],
+  "missingProductInformation" : [ {
+    "productId" : "UNKNOWN",
+    "productName" : "UNKNOWN",
+    "observation" : "1 question(s) sans réponse (MISSING_COVERAGE_INFORMATION)."
+  } ],
+  "aiCoachQuality" : [ ],
+  "alerts" : [ {
+    "level" : "WATCH",
+    "title" : "Informations produit manquantes",
+    "description" : "1 question(s) sans réponse dans le catalogue."
+  }, {
+    "level" : "WATCH",
+    "title" : "Baisse marquée : Prêt Étudiant Évolutif",
+    "description" : "Variation de -100.0 % — à confirmer sur plusieurs périodes."
+  }, {
+    "level" : "WATCH",
+    "title" : "Baisse marquée : Crédit Expresso",
+    "description" : "Variation de -100.0 % — à confirmer sur plusieurs périodes."
+  }, {
+    "level" : "WATCH",
+    "title" : "Baisse marquée : Prêt Immobilier à Taux Fixe",
+    "description" : "Variation de -100.0 % — à confirmer sur plusieurs périodes."
+  } ],
+  "opportunities" : [ {
+    "title" : "Enrichir la connaissance produit",
+    "description" : "Les questions clients non couvertes par le catalogue fournissent des pistes d'enrichissement.",
+    "recommendation" : "Étudier les informations produit manquantes les plus fréquentes avant toute décision."
+  } ],
+  "finalSummary" : "Rapport généré en mode démo à partir des statistiques agrégées.",
+  "generatedAt" : "2026-09-11T07:46:58.699069900Z",
+  "model" : "MOCK",
+  "aiGenerated" : true,
+  "error" : null
+}

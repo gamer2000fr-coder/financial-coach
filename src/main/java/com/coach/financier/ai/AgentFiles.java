@@ -26,6 +26,8 @@ public final class AgentFiles {
     public static final String GENERIC_THEME = "generic";
     /** Fichier du prompt de l'agent de SUIVI (synthèse de fin de conversation). */
     public static final String SUIVI_PROMPT_FILE = "suivi.txt";
+    /** Fichier du prompt de l'agent ANALYSTE MARKETING (rapport quotidien). */
+    public static final String MARKETING_PROMPT_FILE = "marketing.txt";
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private AgentFiles() {
@@ -113,6 +115,24 @@ public final class AgentFiles {
     public static String suiviSystemPrompt() {
         return readPromptOrDefault(SUIVI_PROMPT_FILE, FALLBACK_SUIVI_PROMPT);
     }
+
+    /**
+     * Prompt système de l'AGENT ANALYSTE MARKETING ({@code ./agent/marketing.txt} puis classpath) :
+     * interprète des statistiques déjà calculées par le backend. Source unique partagée entre
+     * {@link RemoteAIService} et {@code MarketingReportService} (traçabilité).
+     */
+    public static String marketingSystemPrompt() {
+        return readPromptOrDefault(MARKETING_PROMPT_FILE, FALLBACK_MARKETING_PROMPT);
+    }
+
+    /** Filet de sécurité MINIMAL si {@code marketing.txt} est absent (le vrai prompt vit dans ./agent). */
+    private static final String FALLBACK_MARKETING_PROMPT =
+            "Tu es analyste Marketing. Tu reçois des statistiques AGRÉGÉES (aucune conversation brute). "
+            + "Tu ne calcules JAMAIS de chiffre : utilise uniquement ceux fournis, distingue faits et hypothèses, "
+            + "et ne fais aucun profilage individuel. Réponds UNIQUEMENT en JSON avec les champs : reportDate, "
+            + "executiveSummary[], mainTrends[], recommendationPerformance[], customerFriction[], "
+            + "crossSellInsights[], unmetNeeds[], missingProductInformation[], aiCoachQuality[], alerts[], "
+            + "opportunities[], finalSummary.";
 
     /** Filet de sécurité MINIMAL si {@code suivi.txt} est absent (le vrai prompt vit dans ./agent). */
     private static final String FALLBACK_SUIVI_PROMPT =

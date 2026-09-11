@@ -872,6 +872,9 @@ function App() {
               <a className="icon-button logs-link" href="#/agents" target="_blank" rel="noopener noreferrer" title="Agents IA">
                 <FileText size={20} />
               </a>
+              <a className="icon-button logs-link" href="#/marketing" target="_blank" rel="noopener noreferrer" title="Marketing Intelligence">
+                <TrendingUp size={20} />
+              </a>
               <a className="icon-button logs-link" href="#/logs" target="_blank" rel="noopener noreferrer" title="Logs des appels IA">
                 <Settings size={20} />
               </a>

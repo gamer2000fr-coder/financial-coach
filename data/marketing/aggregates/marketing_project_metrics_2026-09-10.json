@@ -1,0 +1,105 @@
+[ {
+  "projectType" : "EDUCATION",
+  "volume" : 5,
+  "share" : 0.4545,
+  "amountRanges" : {
+    "0_2000" : 2,
+    "15000_30000" : 3
+  },
+  "interestCount" : 4,
+  "rejectedCount" : 2,
+  "unmetNeedCount" : 0,
+  "topProducts" : [ {
+    "productId" : "sg_livret_a",
+    "productName" : "Livret A",
+    "count" : 2
+  }, {
+    "productId" : "sg_habitation_confort",
+    "productName" : "Assurance Habitation SG – Confort",
+    "count" : 1
+  }, {
+    "productId" : "sg_credit_auto_expresso",
+    "productName" : "Crédit Auto Expresso",
+    "count" : 1
+  } ],
+  "previousVolume" : 1,
+  "evolutionPercent" : 400.0
+}, {
+  "projectType" : "ELECTRONICS",
+  "volume" : 2,
+  "share" : 0.1818,
+  "amountRanges" : {
+    "30000_PLUS" : 1,
+    "5000_10000" : 1
+  },
+  "interestCount" : 0,
+  "rejectedCount" : 0,
+  "unmetNeedCount" : 0,
+  "topProducts" : [ ],
+  "previousVolume" : 4,
+  "evolutionPercent" : -50.0
+}, {
+  "projectType" : "HOME_WORK",
+  "volume" : 1,
+  "share" : 0.0909,
+  "amountRanges" : {
+    "2000_5000" : 1
+  },
+  "interestCount" : 2,
+  "rejectedCount" : 1,
+  "unmetNeedCount" : 0,
+  "topProducts" : [ {
+    "productId" : "sg_auto_tiers",
+    "productName" : "Assurance Auto SG – Tiers",
+    "count" : 1
+  }, {
+    "productId" : "sg_pea",
+    "productName" : "Plan d'Épargne en Actions (PEA)",
+    "count" : 1
+  } ],
+  "previousVolume" : 1,
+  "evolutionPercent" : 0.0
+}, {
+  "projectType" : "REAL_ESTATE",
+  "volume" : 1,
+  "share" : 0.0909,
+  "amountRanges" : {
+    "15000_30000" : 1
+  },
+  "interestCount" : 0,
+  "rejectedCount" : 0,
+  "unmetNeedCount" : 0,
+  "topProducts" : [ ],
+  "previousVolume" : 3,
+  "evolutionPercent" : -66.67
+}, {
+  "projectType" : "SAVINGS",
+  "volume" : 1,
+  "share" : 0.0909,
+  "amountRanges" : {
+    "15000_30000" : 1
+  },
+  "interestCount" : 0,
+  "rejectedCount" : 0,
+  "unmetNeedCount" : 0,
+  "topProducts" : [ ],
+  "previousVolume" : null,
+  "evolutionPercent" : null
+}, {
+  "projectType" : "VEHICLE",
+  "volume" : 1,
+  "share" : 0.0909,
+  "amountRanges" : {
+    "15000_30000" : 1
+  },
+  "interestCount" : 2,
+  "rejectedCount" : 0,
+  "unmetNeedCount" : 0,
+  "topProducts" : [ {
+    "productId" : "sg_pel",
+    "productName" : "Plan Épargne Logement (PEL)",
+    "count" : 2
+  } ],
+  "previousVolume" : null,
+  "evolutionPercent" : null
+} ]

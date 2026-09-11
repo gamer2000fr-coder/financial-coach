@@ -1,0 +1,13 @@
+[ {
+  "projectType" : "SAVINGS",
+  "reasonCategory" : "NO_SUITABLE_PRODUCT",
+  "reason" : null,
+  "count" : 1,
+  "averageConfidence" : 0.8
+}, {
+  "projectType" : "EDUCATION",
+  "reasonCategory" : "NO_SUITABLE_PRODUCT",
+  "reason" : null,
+  "count" : 1,
+  "averageConfidence" : 0.8
+} ]

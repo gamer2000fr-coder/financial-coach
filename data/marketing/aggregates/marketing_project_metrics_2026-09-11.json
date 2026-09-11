@@ -1,0 +1,160 @@
+[ {
+  "projectType" : "REAL_ESTATE",
+  "volume" : 4,
+  "share" : 0.25,
+  "amountRanges" : {
+    "10000_15000" : 3,
+    "0_2000" : 1
+  },
+  "interestCount" : 1,
+  "rejectedCount" : 0,
+  "unmetNeedCount" : 0,
+  "topProducts" : [ {
+    "productId" : "sg_pret_etudiant_evolutif",
+    "productName" : "Prêt Étudiant Évolutif",
+    "count" : 1
+  } ],
+  "previousVolume" : 1,
+  "evolutionPercent" : 300.0
+}, {
+  "projectType" : "ELECTRONICS",
+  "volume" : 3,
+  "share" : 0.1875,
+  "amountRanges" : {
+    "30000_PLUS" : 1,
+    "0_2000" : 2
+  },
+  "interestCount" : 3,
+  "rejectedCount" : 0,
+  "unmetNeedCount" : 0,
+  "topProducts" : [ {
+    "productId" : "sg_livret_a",
+    "productName" : "Livret A",
+    "count" : 2
+  }, {
+    "productId" : "sg_auto_tous_risques",
+    "productName" : "Assurance Auto SG – Tous Risques",
+    "count" : 1
+  } ],
+  "previousVolume" : 2,
+  "evolutionPercent" : 50.0
+}, {
+  "projectType" : "EDUCATION",
+  "volume" : 2,
+  "share" : 0.125,
+  "amountRanges" : {
+    "15000_30000" : 1,
+    "0_2000" : 1
+  },
+  "interestCount" : 3,
+  "rejectedCount" : 1,
+  "unmetNeedCount" : 1,
+  "topProducts" : [ {
+    "productId" : "sg_auto_tous_risques",
+    "productName" : "Assurance Auto SG – Tous Risques",
+    "count" : 1
+  }, {
+    "productId" : "sg_auto_tiers",
+    "productName" : "Assurance Auto SG – Tiers",
+    "count" : 1
+  }, {
+    "productId" : "sg_pret_etudiant_evolutif",
+    "productName" : "Prêt Étudiant Évolutif",
+    "count" : 1
+  } ],
+  "previousVolume" : 5,
+  "evolutionPercent" : -60.0
+}, {
+  "projectType" : "SAVINGS",
+  "volume" : 2,
+  "share" : 0.125,
+  "amountRanges" : {
+    "15000_30000" : 2
+  },
+  "interestCount" : 2,
+  "rejectedCount" : 0,
+  "unmetNeedCount" : 1,
+  "topProducts" : [ {
+    "productId" : "sg_habitation_confort",
+    "productName" : "Assurance Habitation SG – Confort",
+    "count" : 1
+  }, {
+    "productId" : "sg_auto_tous_risques",
+    "productName" : "Assurance Auto SG – Tous Risques",
+    "count" : 1
+  } ],
+  "previousVolume" : 1,
+  "evolutionPercent" : 100.0
+}, {
+  "projectType" : "TRAVEL",
+  "volume" : 2,
+  "share" : 0.125,
+  "amountRanges" : {
+    "0_2000" : 1,
+    "5000_10000" : 1
+  },
+  "interestCount" : 6,
+  "rejectedCount" : 1,
+  "unmetNeedCount" : 0,
+  "topProducts" : [ {
+    "productId" : "sg_habitation_confort",
+    "productName" : "Assurance Habitation SG – Confort",
+    "count" : 2
+  }, {
+    "productId" : "sg_pret_etudiant_evolutif",
+    "productName" : "Prêt Étudiant Évolutif",
+    "count" : 2
+  }, {
+    "productId" : "sg_pea",
+    "productName" : "Plan d'Épargne en Actions (PEA)",
+    "count" : 1
+  }, {
+    "productId" : "sg_credit_auto_expresso",
+    "productName" : "Crédit Auto Expresso",
+    "count" : 1
+  } ],
+  "previousVolume" : null,
+  "evolutionPercent" : null
+}, {
+  "projectType" : "VEHICLE",
+  "volume" : 2,
+  "share" : 0.125,
+  "amountRanges" : {
+    "2000_5000" : 1
+  },
+  "interestCount" : 3,
+  "rejectedCount" : 0,
+  "unmetNeedCount" : 0,
+  "topProducts" : [ {
+    "productId" : "sg_credit_auto_expresso",
+    "productName" : "Crédit Auto Expresso",
+    "count" : 1
+  }, {
+    "productId" : "sg_auto_tous_risques",
+    "productName" : "Assurance Auto SG – Tous Risques",
+    "count" : 1
+  }, {
+    "productId" : "sg_auto_tous_risques_plus",
+    "productName" : "Assurance Auto SG – Tous Risques+",
+    "count" : 1
+  } ],
+  "previousVolume" : 1,
+  "evolutionPercent" : 100.0
+}, {
+  "projectType" : "HOME_WORK",
+  "volume" : 1,
+  "share" : 0.0625,
+  "amountRanges" : {
+    "10000_15000" : 1
+  },
+  "interestCount" : 1,
+  "rejectedCount" : 1,
+  "unmetNeedCount" : 0,
+  "topProducts" : [ {
+    "productId" : "sg_livret_a",
+    "productName" : "Livret A",
+    "count" : 1
+  } ],
+  "previousVolume" : 1,
+  "evolutionPercent" : 0.0
+} ]

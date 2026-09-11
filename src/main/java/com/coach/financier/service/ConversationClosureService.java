@@ -3,11 +3,13 @@ package com.coach.financier.service;
 import com.coach.financier.ai.AIService;
 import com.coach.financier.ai.AIServiceFactory;
 import com.coach.financier.ai.AgentFiles;
+import com.coach.financier.config.MarketingProperties;
 import com.coach.financier.model.AIModels;
 import com.coach.financier.model.BankProduct;
 import com.coach.financier.model.ConversationModels;
 import com.coach.financier.model.CurrentProject;
 import com.coach.financier.model.FinancialSummary;
+import com.coach.financier.model.MarketingModels;
 import com.coach.financier.model.SuiviModels;
 import com.coach.financier.repository.BankingDataRepository;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -63,6 +65,9 @@ public class ConversationClosureService {
     private final FinancialAnalysisService financialAnalysisService;
     private final AILogService aiLogService;
     private final ObjectMapper objectMapper;
+    private final MarketingProperties marketingProperties;
+    private final MarketingEventStore marketingEventStore;
+    private final MarketingExtractionService marketingExtractionService;
 
     private final String configuredAdvisorName;
     private final String configuredAdvisorEmail;
@@ -81,6 +86,9 @@ public class ConversationClosureService {
                                       FinancialAnalysisService financialAnalysisService,
                                       AILogService aiLogService,
                                       ObjectMapper objectMapper,
+                                      MarketingProperties marketingProperties,
+                                      MarketingEventStore marketingEventStore,
+                                      MarketingExtractionService marketingExtractionService,
                                       @Value("${app.advisor.name:}") String configuredAdvisorName,
                                       @Value("${app.advisor.email:}") String configuredAdvisorEmail,
                                       @Value("${app.customer.name:}") String configuredCustomerName,
@@ -97,6 +105,9 @@ public class ConversationClosureService {
         this.financialAnalysisService = financialAnalysisService;
         this.aiLogService = aiLogService;
         this.objectMapper = objectMapper;
+        this.marketingProperties = marketingProperties;
+        this.marketingEventStore = marketingEventStore;
+        this.marketingExtractionService = marketingExtractionService;
         this.configuredAdvisorName = configuredAdvisorName;
         this.configuredAdvisorEmail = configuredAdvisorEmail;
         this.configuredCustomerName = configuredCustomerName;
@@ -185,6 +196,9 @@ public class ConversationClosureService {
         // 5) Validation backend : produits réels, refus exclus, URLs non inventées.
         Validated validated = validate(result, candidateIds, candidateNames, allowedUrls, warnings);
 
+        // 5bis) Signaux Marketing issus du MÊME appel IA, persistés en JSONL (anonymisés).
+        int marketingEventCount = persistMarketingEvents(conversation, sessionId, provider, result, warnings);
+
         // 6) Pièce jointe générée à partir du brouillon client : destinataire = mail du client
         //    (fiche customer.mail), expéditeur = mail du conseiller (évite « unknown sender »).
         SuiviModels.Attachment attachment = attachmentBuilder.build(format, validated.preparedCustomerEmail(),
@@ -231,7 +245,8 @@ public class ConversationClosureService {
         // 8) Trace dans la page Logs : un enregistrement par appel à l'agent de suivi.
         logSuiviCall(sessionId, conversation, suiviPrompt, context, sentChars, result,
                 candidateProducts.size(), provider, validated, format, attachment.filename(),
-                status, mailService.describeTarget(), mailError, advisorAddress, warnings);
+                status, mailService.describeTarget(), mailError, advisorAddress, warnings,
+                marketingEventCount);
 
         return new SuiviModels.CloseConversationResponse(
                 sessionId, status, advisorName, advisorAddress, attachment.filename(), sentTo,
@@ -357,14 +372,36 @@ public class ConversationClosureService {
      * « parole » de clôture, données envoyées (descriptions), taille de l'historique, caractères,
      * statut, badge agent, prompt complet (visible), bloc de débogage [SUIVI] et réponse JSON.
      */
+    /**
+     * Persiste les signaux Marketing extraits par l'IA de suivi (§3/§4 du module Marketing).
+     * Best effort : un échec d'écriture ne doit jamais empêcher l'envoi du dossier conseiller.
+     */
+    private int persistMarketingEvents(ConversationModels.Conversation conversation, String sessionId,
+                                       AIModels.AIProvider provider, SuiviModels.SuiviResult result,
+                                       List<String> warnings) {
+        if (!marketingProperties.isEnabled() || result == null || result.marketingEvents().isEmpty()) {
+            return 0;
+        }
+        try {
+            List<MarketingModels.MarketingEvent> events = marketingExtractionService.toEvents(
+                    result.marketingEvents(), sessionId, conversation, customerReference(), provider);
+            return marketingEventStore.append(events).size();
+        } catch (Exception e) {
+            warnings.add("Signaux Marketing non persistés : " + e.getMessage());
+            log.warn("Persistance des signaux Marketing impossible (session {}) : {}", sessionId, e.getMessage());
+            return 0;
+        }
+    }
+
     private void logSuiviCall(String sessionId, ConversationModels.Conversation conversation,
                               String systemPrompt, Map<String, Object> context, long charCount,
                               SuiviModels.SuiviResult result, int candidateCount, AIModels.AIProvider provider,
                               Validated validated, String attachmentFormat, String attachmentName,
                               String sendStatus, String mailTarget, String mailError,
-                              String advisorAddress, List<String> warnings) {
+                              String advisorAddress, List<String> warnings, int marketingEventCount) {
         String debug = suiviDebug(provider, conversation.transcript().size(), candidateCount, validated,
-                attachmentFormat, attachmentName, sendStatus, mailTarget, mailError, advisorAddress, warnings);
+                attachmentFormat, attachmentName, sendStatus, mailTarget, mailError, advisorAddress, warnings,
+                marketingEventCount);
 
         aiLogService.log(sessionId, CLOSE_TRACE_MESSAGE, suiviDataSent(conversation, candidateCount),
                 conversation.transcript().size(), charCount, AIModels.AIStatus.ANSWER, List.of(),
@@ -438,7 +475,7 @@ public class ConversationClosureService {
     private static String suiviDebug(AIModels.AIProvider provider, int historyCount, int candidateCount,
                                      Validated validated, String attachmentFormat, String attachmentName,
                                      String sendStatus, String mailTarget, String mailError,
-                                     String advisorAddress, List<String> warnings) {
+                                     String advisorAddress, List<String> warnings, int marketingEventCount) {
         long high = countLevel(validated.products(), SuiviModels.InterestLevel.HIGH);
         long medium = countLevel(validated.products(), SuiviModels.InterestLevel.MEDIUM);
         long low = countLevel(validated.products(), SuiviModels.InterestLevel.LOW);
@@ -454,6 +491,7 @@ public class ConversationClosureService {
         sb.append("  REJECTED=").append(validated.rejectedProducts().size()).append('\n');
         sb.append("attachmentFormat=").append(attachmentFormat).append('\n');
         sb.append("attachmentName=").append(attachmentName).append('\n');
+        sb.append("marketingEvents=").append(marketingEventCount).append('\n');
         sb.append("mailStatus=").append(sendStatus).append('\n');
         sb.append("mailSent=").append("SENT".equals(sendStatus)).append('\n');
         sb.append("mailTarget=").append(nullToEmpty(mailTarget)).append('\n');

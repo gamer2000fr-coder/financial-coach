@@ -42,14 +42,17 @@ Empêcher structurellement l'IA de recommander ou de mentionner un produit banca
 | F13 | Réglages avancés | Interrupteur « Avancé » : fournisseur IA, audio, garde-fou hors-sujet, accès Logs/Agents |
 | F14 | Audio | Micro 🎤 (dictée, Web Speech API) et lecture vocale 🔊 / synthèse des réponses |
 | F15 | Rendu Markdown | Gras / italique / code des réponses IA affichés proprement |
+| F16 | Fin de conversation | Clôture → **un seul email automatique : au conseiller**, avec le **brouillon d'email client en pièce jointe** (jamais envoyé au client) |
+| F17 | Marketing Intelligence | Analyse des conversations (intérêts, refus, cross-sell, besoins non couverts) + rapport IA, sans base de données |
 
 ### 2.1 Pages / écrans (frontend React, routage par hash, pas de react-router)
 
 | Route | Page | Contenu |
 |---|---|---|
-| `#/` | **Chat coach** | Conversation + panneau « Vue d'ensemble » (solde, revenus, dépenses, crédits, taux). Interrupteur « Avancé » : fournisseur IA (GPT/DeepSeek/Mock), Audio, garde-fou hors-sujet, accès Logs & Agents (nouveaux onglets) |
+| `#/` | **Chat coach** | Conversation + panneau « Vue d'ensemble » (solde, revenus, dépenses, crédits, taux). Interrupteur « Avancé » : fournisseur IA (GPT/DeepSeek/Mock), Audio, garde-fou hors-sujet, case **« Suivi conseiller »**, accès Logs / Agents / Marketing (nouveaux onglets). Bouton d'en-tête : « Terminer et envoyer au conseiller » (suivi activé) ou « Nouvelle conversation » (suivi désactivé) |
 | `#/logs` | **Logs des appels IA** | Traces : statut, session, agent utilisé, message client, caractères, données envoyées/demandées, boutons « Voir le prompt », « Voir le filtrage », « Voir la réponse », « Historique » |
-| `#/agents` | **Agents IA** | Édition des prompts par agent : générique (défaut), agent principal, 6 agents spécialisés. Injecté à chaque appel |
+| `#/agents` | **Agents IA** | Édition des prompts par agent : générique (défaut), agent principal, agent de suivi, agent analyste marketing, 6 agents spécialisés. Injecté à chaque appel |
+| `#/marketing` | **Marketing Intelligence** | KPI, top produits, projets, « recommandé vs intérêt », refus, cross-sell, besoins non couverts, infos manquantes, rapport IA du jour, export CSV |
 
 ---
 
@@ -164,6 +167,37 @@ Principes :
 - le **sous-thème assurance** (auto / habitation / emprunteur) est déduit du message + du projet courant ;
 - le prompt système de l'agent actif = **gabarit générique** (`generic.txt`) + contenu de l'**agent principal** (balise `[agent_principal]`) + prompt de l'agent spécialisé (balise `[agent]`).
 
+### 3.6 Fin de conversation — dossier de suivi
+
+Principe : **« l'IA prépare → le conseiller contrôle → le conseiller décide → le conseiller envoie »**.
+
+```mermaid
+flowchart TD
+    A[Bouton du chat<br/>« Terminer et envoyer au conseiller »] --> B{Suivi activé ?}
+    B -- Non --> Z[Bouton = « Nouvelle conversation »<br/>simple vidage du chat]
+    B -- Oui --> C{≥ 2 échanges client ?}
+    C -- Non --> Z
+    C -- Oui --> D[POST /api/conversations/{id}/close<br/>fire-and-forget]
+    D --> E[Agent de suivi suivi.txt<br/>synthèse + produits + brouillon client]
+    E --> F[Validation backend<br/>produits/URLs réels, refus retirés]
+    F --> G[Email au CONSEILLER<br/>+ brouillon client en pièce jointe]
+    F --> H[Événements marketing<br/>persistés en JSONL]
+```
+
+- **Un seul email automatique** : au conseiller. Le brouillon destiné au client est **joint** (`.eml`/`.html`/`.txt`), jamais envoyé.
+- Déclenchement **sans attente** (l'IHM n'affiche ni chargement ni bannière de résultat) et **une seule fois par session**.
+- Cas particuliers : suivi désactivé, moins de 2 échanges, ou session inconnue (backend redémarré) → **aucun envoi** ; l'échec d'envoi est tracé dans l'écran **Logs** (bloc `[SUIVI]` : `mailStatus`, `mailSent`, `mailTarget`, `mailError`).
+
+### 3.7 Page Marketing Intelligence (`#/marketing`)
+
+Objectif : comprendre, à partir des **conversations**, ce que les clients cherchent, ce qui bloque et ce qui pourrait être proposé — sans base de données et **sans laisser l'IA calculer les chiffres**.
+
+- Le **code** calcule toutes les statistiques et tous les scores ; l'**IA** (agent `agent/marketing.txt`) ne fait qu'**interpréter** les agrégats déjà calculés.
+- Ce qui est mesuré : intérêt par produit, produits « recommandés mais non intéressants » vs « intéressants », projets, refus (motif), associations de produits (cross-sell), besoins non couverts, informations manquantes, demandes de RDV.
+- **Aucune donnée personnelle** : l'identifiant client est pseudonymisé (hash), les emails/téléphones présents dans les motifs sont masqués.
+- Filtres proposés : période (aujourd'hui, hier, 7 j, 30 j, personnalisée), produit, famille, projet, niveau d'intérêt.
+- Boutons d'administration : export **CSV**, régénération du **rapport IA** du jour, **données de démonstration** (30 jours d'événements synthétiques marqués `demo=true`).
+
 ---
 
 ## 4. Règles de filtrage métier (règles produit)
@@ -224,6 +258,8 @@ Le jeu de données simule **14 mois (07/2025 → 08/2026)** d'un compte courant 
 
 Toutes les données sont **fictives** et servent uniquement la démonstration.
 
+**Données de démonstration Marketing** : la page `#/marketing` propose un bouton **« Données de démo »** qui génère un historique synthétique (période et volume réglables, valeurs reproductibles à l'identique). Ces événements sont marqués `demo=true` — le bandeau de la page et le champ `demo` des agrégats permettent de ne pas les confondre avec de vraies conversations. Pour repartir d'une base propre, supprimer le répertoire `data/marketing`.
+
 ---
 
 ## 7. Critères d'acceptation (rappel)
@@ -243,10 +279,30 @@ Toutes les données sont **fictives** et servent uniquement la démonstration.
 13. Le contexte envoyé au LLM reste compact ;
 14. Scénarios voiture / travaux / immobilier / ambigu passent.
 
+### 7.1 Suivi de fin de conversation
+
+15. À la clôture, **un seul** email est envoyé : au **conseiller** ;
+16. Le brouillon destiné au client est **en pièce jointe** et n'est jamais envoyé par le système ;
+17. Aucun produit refusé, aucune URL inventée ne figure dans le dossier ni dans le brouillon ;
+18. Suivi désactivé, moins de 2 échanges ou session inconnue → **aucun envoi** (sans erreur visible pour le client) ;
+19. L'issue de l'envoi (envoyé / non envoyé + origine de l'erreur) est lisible dans l'écran **Logs**.
+
+### 7.2 Module Marketing
+
+20. Toutes les statistiques sont calculées par le backend, jamais par l'IA ;
+21. Aucune base de données : le stockage est fait de fichiers (JSONL + JSON) ;
+22. Aucune donnée personnelle sur disque (identifiant client pseudonymisé, emails/téléphones masqués) ;
+23. La page `#/marketing` restitue KPI, top produits, projets, « recommandé vs intérêt », refus, cross-sell, besoins non couverts, informations manquantes et rapport IA ;
+24. Les filtres de période (aujourd'hui / hier / 7 j / 30 j / personnalisée) et les filtres produit/projet recalculent l'ensemble de la page ;
+25. Un rapport IA par jour est généré à partir des agrégats déjà calculés ;
+26. Le batch quotidien est **réexécutable** sans créer de doublons (événements comme fichiers).
+
 ---
 
 ## 8. Limites connues (POC)
 - Fournisseur par défaut **côté backend** : Mode démo (MOCK) — classification enrichie réelle uniquement avec GPT/DeepSeek configuré ; l'écran choisit DeepSeek par défaut ;
 - Clés API **externalisées** via variables d'environnement (`OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, …) — aucune clé en dur ;
-- Logs et conversations **en mémoire** (perdus au redémarrage) ;
-- Un seul « projet courant » géré (le remplacement est accepté pour le POC).
+- Logs et conversations **en mémoire** (perdus au redémarrage) → une clôture après redémarrage ne produit aucun dossier (`NO_CONVERSATION`) ;
+- Un seul « projet courant » géré (le remplacement est accepté pour le POC) ;
+- Marketing : les événements ne sont produits qu'à la **clôture** d'une conversation ; les jeux de démonstration (`demo=true`) et les données réelles cohabitent dans `data/marketing` (le bandeau de la page le signale) ;
+- Marketing : pas de ventilation par agence/segment ni d'export Excel — export **CSV** uniquement.

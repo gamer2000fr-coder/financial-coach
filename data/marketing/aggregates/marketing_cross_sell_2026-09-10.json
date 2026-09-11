@@ -1,0 +1,33 @@
+[ {
+  "sourceProductId" : "sg_auto_tiers",
+  "sourceProductName" : "Assurance Auto SG – Tiers",
+  "targetProductId" : "sg_pea",
+  "targetProductName" : "Plan d'Épargne en Actions (PEA)",
+  "commonSessions" : 1,
+  "sourceSessions" : 1,
+  "rate" : 1.0
+}, {
+  "sourceProductId" : "sg_habitation_confort",
+  "sourceProductName" : "Assurance Habitation SG – Confort",
+  "targetProductId" : "sg_livret_a",
+  "targetProductName" : "Livret A",
+  "commonSessions" : 1,
+  "sourceSessions" : 1,
+  "rate" : 1.0
+}, {
+  "sourceProductId" : "sg_livret_a",
+  "sourceProductName" : "Livret A",
+  "targetProductId" : "sg_habitation_confort",
+  "targetProductName" : "Assurance Habitation SG – Confort",
+  "commonSessions" : 1,
+  "sourceSessions" : 2,
+  "rate" : 0.5
+}, {
+  "sourceProductId" : "sg_pea",
+  "sourceProductName" : "Plan d'Épargne en Actions (PEA)",
+  "targetProductId" : "sg_auto_tiers",
+  "targetProductName" : "Assurance Auto SG – Tiers",
+  "commonSessions" : 1,
+  "sourceSessions" : 1,
+  "rate" : 1.0
+} ]

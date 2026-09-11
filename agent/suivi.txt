@@ -453,7 +453,22 @@ Structure obligatoire :
   "preparedCustomerEmail": {
     "subject": "",
     "body": ""
-  }
+  },
+
+  "marketingEvents": [
+    {
+      "eventType": "PRODUCT_INTEREST",
+      "projectType": "VEHICLE",
+      "productId": "",
+      "productName": "",
+      "productFamily": "",
+      "interestLevel": "HIGH",
+      "reasonCategory": "DETAIL_REQUEST",
+      "reason": "",
+      "advisorFollowUpRecommended": true,
+      "confidence": 0.9
+    }
+  ]
 }
 ```
 
@@ -470,6 +485,31 @@ Règles de remplissage :
   (`products.productUrl` ou `usefulUrls`). N'invente jamais d'URL.
 * `advisorEmail` doit terminer par la mention de la pièce jointe (brouillon client à vérifier avant envoi).
 * `preparedCustomerEmail` est un VRAI email client : il ne contient que les produits `HIGH` et `MEDIUM`.
+
+### `marketingEvents` — signaux Marketing (même appel, pas de confidentialité)
+
+En plus du dossier conseiller, extrais des SIGNAUX Marketing ANONYMES à partir de la conversation.
+
+Types autorisés : `PROJECT_DETECTED`, `PRODUCT_RECOMMENDED`, `PRODUCT_INTEREST`, `PRODUCT_REJECTED`,
+`PRODUCT_COMPARISON`, `SUBSCRIPTION_INTEREST`, `APPOINTMENT_INTEREST`, `ADVISOR_HANDOFF`,
+`UNMET_NEED`, `MISSING_PRODUCT_INFORMATION`.
+
+* `projectType` : `VEHICLE`, `REAL_ESTATE`, `HOME_WORK`, `ELECTRONICS`, `FURNITURE`, `TRAVEL`,
+  `EDUCATION`, `CASH_NEED`, `SAVINGS`, `BUDGET`, `OTHER`, `UNKNOWN`.
+* `productId` / `productName` / `productFamily` : uniquement des produits du champ `products`.
+* `interestLevel` : `LOW` | `MEDIUM` | `HIGH` (uniquement pour `PRODUCT_INTEREST`).
+* `reasonCategory` :
+  * intérêt : `DETAIL_REQUEST`, `PRICE_REQUEST`, `RATE_REQUEST`, `COVERAGE_REQUEST`, `COMPARISON`,
+    `SUBSCRIPTION_REQUEST`, `QUOTE_REQUEST`, `ADVISOR_REQUEST`, `OTHER` ;
+  * refus : `PRICE`, `RATE`, `PREFERS_CASH`, `DOES_NOT_WANT_CREDIT`, `INSUFFICIENT_COVERAGE`,
+    `DURATION`, `CONDITIONS`, `COMPETITOR`, `NOT_NEEDED`, `TOO_COMPLEX`, `OTHER` ;
+  * `UNMET_NEED` : `NO_SUITABLE_PRODUCT` ;
+  * `MISSING_PRODUCT_INFORMATION` : `MISSING_COVERAGE_INFORMATION`, `MISSING_PRICING_INFORMATION`,
+    `MISSING_CONDITIONS_INFORMATION`.
+* Distingue `PRODUCT_RECOMMENDED` (le coach a proposé) de `PRODUCT_INTEREST` (le client s'intéresse).
+* Ne calcule AUCUN chiffre, score, pourcentage ou tranche de montant : le backend s'en charge.
+* AUCUNE donnée personnelle : ni nom, ni email, ni téléphone, ni adresse, ni identifiant client.
+* Si aucun signal fiable : renvoie `[]`.
 
 Ne retourne aucun texte en dehors du JSON.
 

@@ -123,7 +123,8 @@ class ConversationClosureServiceTest {
                         "INSURANCE_AUTO", "REJECTED", "Le client a écarté cette offre.", null)),
                 new SuiviModels.EmailContent("Suivi client", "Email conseiller."),
                 new SuiviModels.EmailContent("Votre projet",
-                        "Bonjour,\n- Assurance Auto SG – Tous Risques : offre recommandée.\n- Crédit Auto : à étudier.\nCordialement."));
+                        "Bonjour,\n- Assurance Auto SG – Tous Risques : offre recommandée.\n- Crédit Auto : à étudier.\nCordialement."),
+                List.of());
 
         AIService ai = mock(AIService.class);
         when(ai.summarizeConversation(any(), any())).thenReturn(aiResult);
@@ -260,8 +261,16 @@ class ConversationClosureServiceTest {
     private ConversationClosureService service() {
         return new ConversationClosureService(conversationService, aiServiceFactory, productUrlIndex,
                 productCatalogueService, new EmailAttachmentBuilder(), mailService, bankingDataRepository,
-                financialAnalysisService, aiLogService, testObjectMapper(), "Conseiller SG", ADVISOR,
-                "Jean Martin", "txt", "https://particuliers.sg.fr/vos-rendez-vous", true);
+                financialAnalysisService, aiLogService, testObjectMapper(), marketingProperties(),
+                mock(MarketingEventStore.class), mock(MarketingExtractionService.class),
+                "Conseiller SG", ADVISOR, "Jean Martin", "txt", "https://particuliers.sg.fr/vos-rendez-vous", true);
+    }
+
+    /** Configuration marketing par défaut (module activé, aucun événement persisté dans les tests). */
+    private static com.coach.financier.config.MarketingProperties marketingProperties() {
+        return new com.coach.financier.config.MarketingProperties(true, false, "./target/marketing-test", "salt",
+                "2000,5000,10000,15000,30000", "marketing-events-v1", "marketing-extractor-v1",
+                1, 0, 2, 3, 2, 4, 5, -5);
     }
 
     /** ObjectMapper aligné sur JacksonConfig (module java.time pour sérialiser Instant, LocalDate...). */

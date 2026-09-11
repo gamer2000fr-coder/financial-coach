@@ -1,7 +1,7 @@
 # Coach financier — Document technique
 
 > Architecture détaillée, flux, données et API du POC
-> Version : 2026-09-09
+> Version : 2026-09-11
 
 ---
 
@@ -10,15 +10,17 @@
 ```mermaid
 flowchart TB
     subgraph Frontend [Frontend React + Vite (port 9898)]
-        UI[App.tsx · Logs.tsx · Agents.tsx]
+        UI[App.tsx · Logs.tsx · Agents.tsx · Marketing.tsx]
         API[api.ts]
     end
     subgraph Backend [Backend Spring Boot (port 9797)]
         CTRL[Controllers /api/*]
         ORCH[ChatController]
         AI[AIServiceFactory → RemoteAIService / MockAIService]
-        AGENTS[Agents: générique + principal + 6 spécialisés]
+        AGENTS[Agents: générique + principal + 6 spécialisés<br/>+ agents suivi et analyste marketing]
         METIER[Services métier Java]
+        CLOSE[ConversationClosureService + MailService]
+        MKT[Marketing: extraction, store, analyse, batch, rapport]
         LOG[AILogService]
     end
     subgraph Data [Système de fichiers ./data]
@@ -26,14 +28,20 @@ flowchart TB
         BANK[banking_demo_normalized.json]
         CAT[catalogue/*.json + cascade/*.txt]
         TX[transaction/*.json]
+        MKTFS[marketing/events/*.jsonl · aggregates/*.json · reports/*.json]
     end
     UI --> API
     API --> CTRL
     CTRL --> ORCH
+    CTRL --> CLOSE
+    CTRL --> MKT
     ORCH --> AGENTS
     AGENTS --> AI
     AI --> METIER
     METIER --> DATA
+    CLOSE --> AI
+    CLOSE --> MKT
+    MKT --> MKTFS
     ORCH --> LOG
 ```
 
@@ -50,7 +58,9 @@ controller/
   FinancialController     # GET /api/financial-summary, /api/banking-data
   LogsController          # GET /api/logs, GET /api/logs/{id}/prompt, /{id}/answer, /stats, DELETE /api/logs
   AgentPromptController   # GET /api/agents, GET/PUT /api/agents/{key}/prompt
-  ConversationController  # GET /api/conversations/{sessionId}
+  ConversationController  # GET /api/conversations/{sessionId}, POST /api/conversations/{sessionId}/close
+  MailController          # GET /api/mail/status
+  MarketingController     # GET/POST /api/marketing/**
   HealthController        # /api/health
 service/
   ConversationService          # sessions en mémoire (sessionId → Conversation)
@@ -58,25 +68,39 @@ service/
   FinancialSynthesisStore      # lecture de synthese_financier.json (FS puis classpath)
   DataRequestService           # catalogue data.json + fetch des fichiers + cascade + whitelist restreinte
   ProductCatalogueService      # lecture products.json + filtrage produits compatible
+  ProductUrlIndex              # index id → URL officielle des produits (whitelist anti-invention)
   ProjectProductMappingService # mapping déterministe ProjectType → ProductFamily
   CreditSimulationService      # calcul déterministe de mensualité (TAEG)
   AILogService                 # tampon en mémoire des traces (500 max)
   AgentPromptStore             # édition prompts agents (./agent/<file> + copie classpath)
+  ConversationClosureService   # FIN DE CONVERSATION : dossier de suivi conseiller (+ événements marketing)
+  EmailAttachmentBuilder       # brouillon d'email client → pièce jointe (.eml/.html/.txt)
+  UrlLinkRenderer              # rendu/litage des liens [URL|nom|url] (texte + HTML)
+  MailService                  # envoi SMTP (multipart) + diagnostic d'indisponibilité
+  AnonymousIdService           # pseudonymisation client (SHA-256 salé)
+  MarketingEventStore          # événements JSONL par jour (append + dédoublonnage)
+  MarketingExtractionService   # brouillons IA → événements enrichis (PII masquées)
+  MarketingAnalyticsService    # agrégats DÉTERMINISTES (KPI, scores, tendances, cross-sell)
+  MarketingBatchService        # batch quotidien (fichiers d'agrégats + rapport), idempotent
+  MarketingReportStore         # lecture/écriture des rapports JSON
+  MarketingReportService       # génération du rapport via l'agent analyste marketing
+  MarketingDemoDataService     # jeu de démonstration déterministe (demo=true)
 repository/
   BankingDataRepository        # charge banking_demo_normalized.json (FS puis classpath)
 ai/
-  AIService (interface)        # classifyUserRequest, classifyIntent, answer
+  AIService (interface)        # classifyUserRequest, classifyIntent, answer, summarizeConversation, analyzeMarketing
   RemoteAIService (abstrait)   # implémentation LLM réelle (OpenAI/DeepSeek)
   OpenAIService / DeepSeekService
   MockAIService                # mode démo (déterministe, sans réseau)
   AIServiceFactory             # sélection GPT / DEEPSEEK / MOCK
   AgentFiles                   # agents.json + prompts système par agent (./agent puis classpath)
 config/
-  JacksonConfig  WebConfig
+  JacksonConfig  WebConfig  MarketingProperties
 model/
   AIModels, ChatModels, FinancialSummary, BankingModels, ConversationModels
   IntentClassification, CurrentProject, ProjectType, FinancialIntent, AgentDefinition,
   ProductFamily, ConfidenceLevel, BankProduct, CreditSimulation(Request), LogEntry
+  SuiviModels, MarketingModels
 ```
 
 ### 2.2 Rôles des services
@@ -93,6 +117,14 @@ model/
 | `AILogService` | Journal des appels IA (consultable par l'UI) |
 | `AgentPromptStore` | Édition des prompts d'agents (page « Agents ») + copie classpath |
 | `AgentFiles` | Lecture de `agents.json` et du prompt système de l'agent actif |
+| `ConversationClosureService` | **Fin de conversation** : construit le dossier de suivi (agent `suivi.txt`), valide les produits/URLs, envoie **un seul** email au conseiller avec le brouillon client en pièce jointe, journalise la tentative, puis persiste les événements marketing |
+| `EmailAttachmentBuilder` / `UrlLinkRenderer` | Pièce jointe (`.eml`/`.html`/`.txt`) et rendu des liens `[URL|nom|url]` |
+| `MailService` | Envoi SMTP multipart + `unavailabilityReason()` / `describeTarget()` (origine des erreurs) |
+| `MarketingAnalyticsService` | **Tous les calculs** du module marketing (KPI, scores, taux, tendances, cross-sell) |
+| `MarketingEventStore` | Stockage file : JSONL par jour, dédoublonné, tolérant aux lignes invalides |
+| `MarketingBatchService` | Agrégats quotidiens en fichiers + rapport (réexécutable sans doublon) |
+| `MarketingReportService` | Rapport IA du jour (`agent/marketing.txt`) à partir des agrégats déjà calculés |
+| `MarketingDemoDataService` | Jeu de démonstration déterministe (`demo=true`), pour la page Marketing |
 
 ---
 
@@ -110,7 +142,10 @@ Tous les fichiers sont lus **depuis le système de fichiers `./data`** (racine d
 | `synthese_financier.json` | Synthèse mensuelle + globale |
 | `transaction/transactions_YYYY_MM.json` | Transactions mensuelles |
 | `agent/agents.json` | Déclaration des agents `[{id, libelle, theme, prompt, data[]}]` |
-| `agent/*.txt` | Prompts : `generic.txt` (gabarit), `principal.txt` (agent principal), `classifieur.txt`, 6 prompts spécialisés (+ copies dans `src/main/resources/agent`) |
+| `agent/*.txt` | Prompts : `generic.txt` (gabarit), `principal.txt` (agent principal), `classifieur.txt`, `suivi.txt`, `marketing.txt`, 6 prompts spécialisés (+ copies dans `src/main/resources/agent`) |
+| `marketing/events/marketing_events_<date>.jsonl` | Événements marketing (1 par ligne, append-only, dédoublonnés par `eventId`) |
+| `marketing/aggregates/*.json` | Agrégats figés du jour (batch) |
+| `marketing/reports/marketing_report_<date>.json` | Rapport IA du jour |
 
 > Les **fiches produits** (`catalogue/*.json`) documentent des familles via la table `catalogueDocFamilies` (ex. `credit_immo` → MORTGAGE/HOME_IMPROVEMENT_LOAN). C'est ce qui permet la **restriction du catalogue** en contexte financement.
 
@@ -128,6 +163,27 @@ app.ai.deepseek.api-key: ${DEEPSEEK_API_KEY:}
 app.ai.deepseek.model: ${DEEPSEEK_MODEL:deepseek-chat}
 app.ai.synthesis-file: ${SYNTHESIS_FILE:./data/synthese_financier.json}
 cascade: true          # activation de la jointure des fichiers cascade
+# --- Fin de conversation (dossier de suivi) ---
+app.advisor.name: ${ADVISOR_NAME:Votre conseiller}
+app.advisor.email: ${ADVISOR_EMAIL:<MAIL_USERNAME>}   # SEUL destinataire automatique
+app.customer.name: ${CUSTOMER_NAME:}
+app.suivi.attachment-format: ${SUIVI_ATTACHMENT_FORMAT:eml}      # txt | html | eml
+app.suivi.advisor-appointment-url: ${ADVISOR_APPOINTMENT_URL:…}  # lien de RDV du brouillon client
+app.suivi.advisor-mail-html: ${SUIVI_ADVISOR_MAIL_HTML:true}
+app.mail.enabled: ${MAIL_ENABLED:true}
+app.mail.from: ${MAIL_FROM:${MAIL_USERNAME:}}
+spring.mail.host: ${MAIL_HOST:smtp.gmail.com}
+spring.mail.port: ${MAIL_PORT:587}
+spring.mail.username: ${MAIL_USERNAME:…}
+spring.mail.password: ${CLE_GOOGLE_COACH_FINANCIER:}             # mot de passe d'application Gmail
+# --- Module Marketing Intelligence (fichiers, sans base de données) ---
+app.marketing.enabled: ${MARKETING_ENABLED:true}
+app.marketing.demo-mode: ${MARKETING_DEMO_MODE:false}
+app.marketing.dir: ${MARKETING_DIR:./data/marketing}
+app.marketing.hash-salt: ${MARKETING_HASH_SALT:…}
+app.marketing.amount-bounds: ${MARKETING_AMOUNT_BOUNDS:2000,5000,10000,15000,30000}
+app.marketing.extractor-version / prompt-version: ${…}
+app.marketing.score.*: ${…}                                      # poids du score d'intérêt
 ```
 
 - Clés API : `OPENAI_API_KEY`, `DEEPSEEK_API_KEY` — **aucune clé en dur** (variables d'environnement).
@@ -148,8 +204,12 @@ cascade: true          # activation de la jointure des fichiers cascade
 | GET | `/api/logs/stats` | Compteur de traces |
 | DELETE | `/api/logs` | Vider les logs |
 | GET | `/api/conversations/{sessionId}` | Historique complet d'une conversation `{sessionId, summary, messages[]}` |
-| GET | `/api/agents` | Liste des agents éditables `[{key, libelle, file}]` |
+| POST | `/api/conversations/{sessionId}/close` | **Fin de conversation** : dossier de suivi + email au conseiller (body optionnel `{advisorEmail, advisorName, attachmentFormat, send, provider}` ; `send=false` = dry-run) |
+| GET | `/api/mail/status` | État de l'envoi mail `{enabled, available, from, target, reason}` |
+| GET | `/api/agents` | Liste des agents éditables `[{key, libelle, file}]` (dont `suivi` et `marketing`) |
 | GET/PUT | `/api/agents/{key}/prompt` | Lire / écrire le prompt d'un agent |
+| GET | `/api/marketing/status`, `/overview`, `/products`, `/products/{id}`, `/projects`, `/trends`, `/rejections`, `/cross-sell`, `/unmet-needs`, `/missing-information`, `/reports/daily`, `/export/products.csv` | **Module Marketing** : lecture (paramètres `period=today\|yesterday\|7d\|30d\|custom`, `from`, `to`, filtres produit/famille/projet/événement) |
+| POST | `/api/marketing/reports/daily/regenerate`, `/batch`, `/demo-data` | Génération du rapport IA, batch quotidien (agrégats + rapport), jeu de démonstration |
 | GET | `/api/health` | Healthcheck (expose le fournisseur par défaut) |
 
 ### Exemple — POST /api/chat
@@ -314,6 +374,15 @@ flowchart LR
 - Les fichiers sont **relus à chaque appel IA** → une sauvegarde est prise en compte immédiatement, sans redémarrage.
 - Écriture (page Agents) : `AgentPromptStore.write` met à jour `agent/<file>` **et** la copie classpath.
 
+### 9.4 Agents hors conversation (éditables mais non sélectionnables comme coach)
+
+| Clé page Agents | Fichier | Utilisé par | Entrée / sortie |
+|---|---|---|---|
+| `suivi` | `suivi.txt` | `ConversationClosureService` | Contexte de la conversation → `SuiviResult` (résumé, produits d'intérêt, brouillon client, `marketingEvents`) |
+| `marketing` | `marketing.txt` | `MarketingReportService` | Agrégats **déjà calculés** → `MarketingReport` (interprétation rédactionnelle) |
+
+Ils ne figurent **pas** dans `agents.json` (donc jamais sélectionnables comme agent de coach) mais apparaissent dans `AgentPromptStore.entries()` après « Agent principal » (`SUIVI_KEY`, `MARKETING_KEY`), et sont éditables dans la page **Agents**.
+
 ### Cascade produit
 Quand l'IA demande un JSON `/data/catalogue/*.json` et que `cascade=true`, `DataRequestService.fetch` joint automatiquement `/data/catalogue/cascade/<même_nom>.txt` (arbres de décision) en plus de la fiche. Les données de chaque agent (`data[]` = fiche + cascade) sont par ailleurs injectées **d'office** dans `providedData`.
 
@@ -325,6 +394,7 @@ Quand l'IA demande un JSON `/data/catalogue/*.json` et que `cascade=true`, `Data
 - `AILogService` : tampon **500** traces, en mémoire, `log(...)`, `latest()`, `promptOf(id)`, `answerOf(id)`, `clear()`.
 - `charCount` = longueur du prompt système + payload utilisateur JSON (compté côté `ChatController`).
 - `debug` = bloc `[INTENT] / [PRODUCT_FILTER] / [COACH]` généré par `buildDebugLog` (classification + familles autorisées + compteurs catalogue avant/après + nb produits compatibles + nb crédits existants + agent actif). Aucune donnée bancaire sensible.
+- **Trace de clôture (`[SUIVI]`)** : `ConversationClosureService` écrit une trace par clôture — `clientMessage` = « Clôture de conversation — dossier de suivi », `agent` = « Agent de suivi (suivi.txt) », statut `ANSWER` (ou `ERROR` si l'appel IA a échoué, tracé **avant** de relancer l'erreur), `debug` = provider, compteurs HIGH/MEDIUM/LOW/REJECTED, format/nom de la pièce jointe, **`mailStatus`, `mailSent`, `mailTarget`, `mailError`**, conseiller, warnings, **`marketingEvents=N`**. C'est là qu'on lit l'**origine** d'un mail non envoyé (service indisponible, expéditeur/mot de passe manquant, ou exception SMTP + cause racine).
 - Frontend : polling `GET /api/logs` toutes les 2 s ; boutons dépliables « Voir le prompt » (lazy `GET /api/logs/{id}/prompt`), « Voir le filtrage » (`debug` embarqué), « Voir la réponse » (lazy `GET /api/logs/{id}/answer`) et « Historique » (lazy `GET /api/conversations/{sessionId}`).
 
 ---
@@ -334,13 +404,14 @@ Quand l'IA demande un JSON `/data/catalogue/*.json` et que `cascade=true`, `Data
 ### 11.1 Structure
 ```
 frontend/src/
-  main.tsx       # routage par hash : #/logs, #/agents, sinon App
-  App.tsx        # page coach (chat + vue d'ensemble + réglages avancés/audio)
+  main.tsx       # routage par hash : #/logs, #/agents, #/marketing, sinon App
+  App.tsx        # page coach (chat + vue d'ensemble + réglages avancés/audio + bouton de clôture)
   Logs.tsx       # page logs (polling, prompt/filtrage/réponse/historique)
-  Agents.tsx     # page édition des prompts d'agents
+  Agents.tsx     # page édition des prompts d'agents (dont suivi.txt et marketing.txt)
+  Marketing.tsx  # page marketing (KPI, produits, projets, refus, rapport IA, CSV)
   api.ts         # client API (fetch, API_BASE_URL dynamique)
   types.ts       # types partagés
-  styles.css     # classes préfixées (logs-*, agent-*, …)
+  styles.css     # classes préfixées (logs-*, agent-*, mkt-*, …)
   vite-env.d.ts  # référence vite/client
 ```
 
@@ -350,8 +421,10 @@ frontend/src/
 flowchart LR
     A[App] --> B[fetchFinancialSummary]
     A --> C[sendChat]
+    A --> F[closeConversation]
     L[Logs] --> D[fetchLogs / clearLogs / fetchLogPrompt / fetchLogAnswer / fetchConversation]
     G[Agents] --> E[fetchAgents / fetchAgentPrompt / saveAgentPrompt]
+    M[Marketing] --> N[fetchMarketingOverview / fetchMarketingProduct / fetchMarketingReport / regenerateMarketingReport / generateMarketingDemoData]
 ```
 
 ### 11.3 Points notables
@@ -372,8 +445,10 @@ flowchart LR
 |---|---|---|
 | Classification d'intention | Heuristique mots-clés | LLM via `classifieur.txt` |
 | Réponse coach | Message générique (mode démo) | LLM via le prompt de l'agent actif (`generic.txt` + `principal.txt` + spécialisé) |
+| Synthèse de fin de conversation | **Déterministe** : niveaux d'intérêt déduits des messages (HIGH si le client cite le produit, MEDIUM si le coach, LOW sinon, REJECTED si refus explicite) + brouillon client | LLM via `suivi.txt` |
+| Rapport marketing | **Déterministe** : rapport construit à partir des agrégats | LLM via `marketing.txt` (interprétation) |
 | Réseau / clé API | Aucun | Requis (`OPENAI_API_KEY`, `DEEPSEEK_API_KEY`) |
-| Simulation / calculs | Identiques (Java) | Identiques (Java) |
+| Simulation / calculs / statistiques | Identiques (Java) | Identiques (Java) |
 
 > Le fournisseur est **choisi dans l'IHM** et transmis à chaque appel (`provider`) : échanges avec l'IA **et** clôture de conversation. Le backend ne le lit plus dans `application.yml` ; il ne retombe sur `MOCK` que si aucun fournisseur n'est transmis par l'appelant.
 
@@ -385,6 +460,14 @@ Backend :
 ```powershell
 $env:DEEPSEEK_MODEL = "deepseek-chat"
 $env:DEEPSEEK_API_KEY = "sk-..."  # clé DeepSeek (ou OPENAI_API_KEY pour GPT)
+# Fin de conversation (mail) — mot de passe d'APPLICATION Gmail
+$env:MAIL_USERNAME = "coach.financier.pay@gmail.com"
+$env:CLE_GOOGLE_COACH_FINANCIER = "xxxx xxxx xxxx xxxx"
+$env:ADVISOR_EMAIL = "conseiller@agence.fr"   # SEUL destinataire automatique
+# Marketing (facultatif — valeurs par défaut dans application.yml)
+$env:MARKETING_ENABLED = "true"
+$env:MARKETING_DIR = "./data/marketing"
+$env:MARKETING_HASH_SALT = "sel-de-poc"
 # lancer l'app Spring Boot (IDE ou mvnw spring-boot:run) → http://localhost:9797
 ```
 Frontend :
@@ -401,3 +484,149 @@ cd frontend; npm install; npm run dev   # http://localhost:9898 (host 0.0.0.0 �
 - Clés API **externalisées** via variables d'environnement (`OPENAI_API_KEY`, `DEEPSEEK_API_KEY`) — aucune clé en dur dans `application.yml`.
 - L'écran exige un **contexte sécurisé** (HTTPS ou localhost) pour certaines API navigateur (micro/lecture vocale, `crypto.randomUUID`) ; un repli est prévu pour l'accès HTTP par IP.
 - Un seul `currentProject` par session (le POC remplace plutôt que de gérer plusieurs projets).
+
+---
+
+## 15. Fin de conversation — dossier de suivi conseiller
+
+### 15.1 Principe et contrat
+
+**« L'IA prépare → le conseiller contrôle → le conseiller décide → le conseiller envoie. »**
+
+- **Un seul email automatique** : au **conseiller** (`app.advisor.email`).
+- Le **brouillon d'email destiné au client** est produit par l'IA puis **joint** au mail conseiller (`.eml` par défaut, sinon `.html`/`.txt`) — il n'est **jamais** envoyé au client par le système.
+- Contrat : `POST /api/conversations/{sessionId}/close` → `CloseConversationResponse` (`status`, `advisor`, `attachment`, `summary`, `productsOfInterest`, `preparedCustomerEmail`, `warnings`).
+
+### 15.2 Déclenchement côté IHM
+
+- **Un seul bouton** dans l'en-tête du chat (pastille rouge SG), toujours visible, à deux états selon la case **« Suivi conseiller »** (état persisté `localStorage['financial-coach-suivi']`, **désactivé par défaut**) :
+  - **activé** → « Terminer et envoyer au conseiller » : clôture puis vidage du chat ;
+  - **désactivé** → « Nouvelle conversation » : simple vidage, **aucun appel réseau**.
+- **Fire-and-forget** : l'IHM n'attend pas la réponse (ni chargement, ni bannière de résultat) ; les erreurs sont visibles dans la console et dans l'écran **Logs**.
+- Conditions avant appel : **≥ 2 messages client** (`MIN_EXCHANGES_TO_CLOSE`) et **une seule clôture par session** (`closedSessionRef`).
+
+### 15.3 Pipeline backend (`ConversationClosureService.close`)
+
+1. **Session inconnue** (backend redémarré, sessions en mémoire) → **200 `status=NO_CONVERSATION`**, aucun dossier, aucun envoi (+ `log.warn`).
+2. **Construction du contexte IA** : `conversationHistory` (rôle/contenu/horodatage), `customerContext` (nom, référence client, synthèse financière — jamais les transactions brutes, projets), `advisorContext`, `products` (candidats enrichis : id, nom, famille, URL officielle via `ProductUrlIndex`), `usefulUrls` (lien de RDV conseiller).
+3. **Appel IA de synthèse** : `AIService.summarizeConversation(context, provider)` — prompt système `agent/suivi.txt` (Remote) ou synthèse déterministe (Mock). En sortie : `SuiviResult` (résumé, produits d'intérêt avec niveau HIGH/MEDIUM/LOW/REJECTED, `preparedCustomerEmail`, et **`marketingEvents`**).
+4. **Validation Java** (`Validated`) : produits restreints aux candidats réellement présentés ; URLs limitées à la whitelist officielle (les autres neutralisées par `UrlLinkRenderer.sanitize`) ; produits **REJECTED retirés** ainsi que les lignes du brouillon client qui les mentionnent ; mention « pièce jointe » garantie.
+5. **Pièce jointe** : `EmailAttachmentBuilder.build(format, preparedCustomerEmail, EmailAddresses(customer, advisor))` → `email_client_prepare_<yyyyMMdd>.<ext>`.
+6. **Envoi** : `MailService.sendWithAttachments(...)` vers le **seul** conseiller (sujet + corps HTML/texte rappelant que le client n'est pas destinataire).
+7. **Journalisation** (`[SUIVI]`) puis **persistance des événements marketing** (best effort, `marketingEvents=N`).
+
+### 15.4 Un seul destinataire automatique
+
+| Champ | Valeur |
+|---|---|
+| `To` du mail automatique | `app.advisor.email` (défaut = compte `MAIL_USERNAME`) |
+| `From` / `To` du **brouillon joint** | `From` = adresse du conseiller, `To` = `customer.mail` du fichier bancaire (`data/banking_demo_normalized.json`) ; champ laissé **vide** si l'adresse est absente ou invalide |
+
+### 15.5 Statuts renvoyés
+
+| Statut | Signification |
+|---|---|
+| `SENT` | Dossier construit **et** mail conseiller envoyé |
+| `PREPARED` | Dossier construit, envoi désactivé (`send=false`, dry-run) |
+| `MAIL_UNAVAILABLE` | Service mail désactivé ou mal configuré (`MailService.unavailabilityReason()`) |
+| `SEND_FAILED` | Exception SMTP (le dossier reste renvoyé et journalisé) |
+| `NO_CONVERSATION` | Session inconnue (aucun contre-courrier, pas de 404) |
+
+En cas d'**échec de l'appel IA**, la trace `[SUIVI]` est écrite **avant** l'erreur (`status=ERROR`, `mailStatus=AI_FAILED`) puis un **502** est renvoyé — sans quoi l'incident serait invisible.
+
+### 15.6 Observabilité
+
+Voir §10 : une trace par clôture contient `mailStatus`, `mailSent`, `mailTarget`, `mailError` (cause racine SMTP), `advisor`, `warnings` et `marketingEvents=N`, plus le prompt système `suivi.txt` et le `SuiviResult` complet (`answer`).
+
+### 15.7 Configuration
+
+`app.advisor.{name,email}`, `app.customer.name`, `app.suivi.{attachment-format, advisor-appointment-url, advisor-mail-html}`, `spring.mail.*` (`MAIL_USERNAME`, mot de passe d'application `CLE_GOOGLE_COACH_FINANCIER`), `app.mail.{enabled,from,from-name}`. Le fournisseur IA n'a **pas** de valeur par défaut en configuration : il est transmis par l'IHM à chaque appel (`AIServiceFactory.FALLBACK_PROVIDER = MOCK` uniquement en repli technique).
+
+### 15.8 Limites assumées
+
+- Conversations et produit courant **en mémoire** → après redémarrage, la clôture renvoie `NO_CONVERSATION` (comportement assumé, pas une erreur).
+- La qualité du dossier repose sur le prompt `agent/suivi.txt` (éditable depuis la page **Agents**).
+- Le POC n'envoie jamais en deux temps (relance du conseiller depuis l'IHM) : le conseiller ouvre son mail et transfère le brouillon.
+
+---
+
+## 16. Module Marketing Intelligence (POC, sans base de données)
+
+### 16.1 Principe
+
+« **Le code calcule, l'IA interprète.** » Aucun moteur analytique externe, aucun SGBD : le stockage est fait de **fichiers** (JSONL pour les événements, JSON pour les agrégats et rapports). Parquet a été écarté volontairement (dépendances Hadoop/parquet-mr inutiles à ce stade).
+
+Trois temps :
+
+1. **Extraction** — à chaque clôture de conversation, l'appel IA de suivi renvoie en plus un tableau `marketingEvents` (`SuiviResult.marketingEvents`). `MarketingExtractionService` enrichit ces brouillons (identifiant d'événement, horodatage, client pseudonymisé, versions d'extracteur/prompt, modèle, marqueur `demo`) et masque les données personnelles.
+2. **Stockage** — `MarketingEventStore` ajoute une ligne JSONL par événement dans `events/marketing_events_YYYY-MM-DD.jsonl` (dédoublonnage par `eventId`, écriture en `CREATE`/`APPEND`, une ligne invalide est ignorée et comptée).
+3. **Agrégation & interprétation** — `MarketingAnalyticsService` calcule les agrégats **à la demande** pour la fenêtre demandée ; `MarketingBatchService` pré-calcule les mêmes agrégats en fichiers quotidiens et `MarketingReportService` fait rédiger le rapport par l'agent `agent/marketing.txt`.
+
+### 16.2 Fichiers créés (`data/marketing`, configurable via `app.marketing.dir`)
+
+| Chemin | Contenu |
+|---|---|
+| `events/marketing_events_<AAAA-MM-JJ>.jsonl` | 1 événement par ligne (append-only, dédoublonné par `eventId`) |
+| `aggregates/marketing_{overview,product_metrics,project_metrics,rejections,cross_sell,unmet_needs,missing_info,series}_<date>.json` | Agrégats figés du jour (batch, écrasement idempotent) |
+| `reports/marketing_report_<date>.json` | Rapport IA du jour (résumé, tendances, frictions, opportunités…) |
+
+### 16.3 Schéma d'un événement
+
+```json
+{
+  "eventId": "…uuid…", "eventType": "PRODUCT_INTEREST", "timestamp": "2026-09-11T10:22:41",
+  "sessionId": "…", "anonymousCustomerId": "customer_hash_1f3c…",
+  "projectType": "VEHICLE", "projectAmountRange": "10000_15000",
+  "productId": "sg_auto_tous_risques", "productName": "Assurance Auto…", "productFamily": "INSURANCE_AUTO",
+  "interestLevel": "HIGH", "reasonCategory": "DETAIL_REQUEST", "reason": "[masqué] je veux être rappelé",
+  "advisorFollowUpRecommended": true, "confidence": 0.9,
+  "extractorVersion": "marketing-events-v1", "promptVersion": "marketing-extractor-v1",
+  "model": "MOCK", "createdAt": "2026-09-11T10:22:42", "demo": false
+}
+```
+
+Types : `PROJECT_DETECTED`, `PRODUCT_RECOMMENDED`, `PRODUCT_INTEREST`, `PRODUCT_REJECTED`, `PRODUCT_COMPARISON`, `SUBSCRIPTION_INTEREST`, `APPOINTMENT_INTEREST`, `ADVISOR_HANDOFF`, `UNMET_NEED`, `MISSING_PRODUCT_INFORMATION`, et les indicateurs qualité (`COACH_*`, comptés séparément, non imputés au client).
+
+### 16.4 Endpoints
+
+| Méthode | Chemin | Rôle |
+|---|---|---|
+| GET | `/api/marketing/status` | État du module (activé, mode démo, jours disponibles, bornes de montant) |
+| GET | `/api/marketing/overview` | KPI + produits + projets + séries + tendances |
+| GET | `/api/marketing/products`, `/products/{productId}` | Classement produits / détail d'un produit |
+| GET | `/api/marketing/projects`, `/trends`, `/rejections`, `/cross-sell`, `/unmet-needs`, `/missing-information` | Vues analytiques |
+| GET | `/api/marketing/reports/daily` | Rapport IA (204 si aucun rapport) |
+| GET | `/api/marketing/export/products.csv` | Export CSV (`;` + BOM UTF-8) |
+| POST | `/api/marketing/reports/daily/regenerate` | Régénérer le rapport (paramètre `provider`) |
+| POST | `/api/marketing/batch` | Batch quotidien (agrégats + rapport) |
+| POST | `/api/marketing/demo-data` | Jeu de démonstration déterministe (`days`, `sessionsPerDay`) |
+
+Toutes les lectures acceptent `period` (`today`, `yesterday`, `7d`, `30d`, `custom`) avec `from`/`to`, plus `productId`, `productFamily`, `projectType`, `interestLevel`, `eventType`.
+
+### 16.5 Règles de calcul (côté code uniquement)
+
+- **Taux d'intérêt** = sessions intéressées / sessions où le produit a été recommandé, **plafonné à 100 %** ; `null` si le produit n'a jamais été recommandé (aucune division par zéro).
+- **Score d'intérêt** = somme pondérée configurable (`app.marketing.score.*`) : recommandation +1, intérêt moyen +2, intérêt fort +3, comparaison +2, intention de souscription +4, demande de RDV +5, refus −5.
+- **Évolutions** : période précédente de **même longueur** ; `null` si la base précédente est nulle ou absente.
+- **Cross-sell** : nombre de sessions où deux produits sont associés, rapporté au nombre de sessions intéressées par le produit source.
+- **Client unique** : `anonymousCustomerId` = SHA-256(sel + identifiant client) tronqué → aucun identifiant en clair sur disque.
+
+### 16.6 Frontend
+
+`Marketing.tsx` (route `#/marketing`, lien `TrendingUp` dans l'en-tête du chat) : en-tête + filtres de période, 7 cartes KPI, histogramme jour par jour, classement des produits, tableau « recommandé vs intérêt », projets, refus, cross-sell, besoins non couverts, informations manquantes, rapport IA (avec avertissement « rapport généré par IA »), tableau triable/filtrable et tiroir de détail produit. Types dans `types.ts`, appels dans `api.ts`, styles `.mkt-*` dans `styles.css`.
+
+### 16.7 Commandes utiles
+
+```powershell
+# Batch du jour + rapport IA (MOCK par défaut)
+curl -X POST http://localhost:9797/api/marketing/batch
+# Jeu de démonstration (30 jours) puis lecture des KPI
+curl -X POST "http://localhost:9797/api/marketing/demo-data?days=30&sessionsPerDay=8"
+curl "http://localhost:9797/api/marketing/overview?period=30d"
+```
+
+### 16.8 Limites assumées
+
+- Les conversations vivent **en mémoire** : une session perdue (redémarrage) ne produit pas d'événement.
+- Les événements de démonstration (`demo=true`) et réels cohabitent : le bandeau de la page le signale ; filtrer/supprimer `data/marketing` avant toute lecture sérieuse.
+- L'extraction dépend de la qualité du prompt `agent/marketing.txt` (le taux de `confidence` faible est conservé, pas corrigé).

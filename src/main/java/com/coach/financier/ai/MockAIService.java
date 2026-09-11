@@ -11,6 +11,7 @@ import com.coach.financier.model.SuiviModels;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -254,7 +255,47 @@ public class MockAIService implements AIService {
                 new SuiviModels.ConversationSummary(mainProject, otherProjects, preferences),
                 interests,
                 new SuiviModels.EmailContent("Suivi client — " + mainProject, advisorEmail),
-                new SuiviModels.EmailContent("Votre projet : " + mainProject, customerEmail));
+                new SuiviModels.EmailContent("Votre projet : " + mainProject, customerEmail),
+                marketingDrafts(projects, interests));
+    }
+
+    /**
+     * Signaux Marketing déterministes (mode démo, §6) : projet détecté, produits recommandés,
+     * intérêts (HIGH/MEDIUM) et refus. Les identifiants techniques et la tranche de montant sont
+     * ajoutés ensuite par le backend. Aucune donnée personnelle.
+     */
+    private static List<com.coach.financier.model.MarketingModels.MarketingEventDraft> marketingDrafts(
+            List<Map<String, Object>> projects, List<SuiviModels.ProductOfInterest> interests) {
+        List<com.coach.financier.model.MarketingModels.MarketingEventDraft> drafts = new ArrayList<>();
+        for (Map<String, Object> project : projects) {
+            String type = str(project.get("type"));
+            if (type != null && !type.isBlank()) {
+                drafts.add(new com.coach.financier.model.MarketingModels.MarketingEventDraft(
+                        com.coach.financier.model.MarketingModels.PROJECT_DETECTED,
+                        type, null, null, null, null, null, null, null, null, 0.9));
+            }
+        }
+        for (SuiviModels.ProductOfInterest interest : interests) {
+            String level = interest.interestLevel();
+            com.coach.financier.model.MarketingModels.MarketingEventDraft recommended =
+                    new com.coach.financier.model.MarketingModels.MarketingEventDraft(
+                            com.coach.financier.model.MarketingModels.PRODUCT_RECOMMENDED,
+                            null, null, interest.productId(), interest.name(), interest.category(),
+                            null, null, "Offre présentée par le coach.", null, 0.8);
+            drafts.add(recommended);
+            if ("REJECTED".equals(level)) {
+                drafts.add(new com.coach.financier.model.MarketingModels.MarketingEventDraft(
+                        com.coach.financier.model.MarketingModels.PRODUCT_REJECTED,
+                        null, null, interest.productId(), interest.name(), interest.category(),
+                        null, "OTHER", interest.interestReason(), null, 0.8));
+            } else if ("HIGH".equals(level) || "MEDIUM".equals(level)) {
+                drafts.add(new com.coach.financier.model.MarketingModels.MarketingEventDraft(
+                        com.coach.financier.model.MarketingModels.PRODUCT_INTEREST,
+                        null, null, interest.productId(), interest.name(), interest.category(),
+                        level, "DETAIL_REQUEST", interest.interestReason(), true, 0.85));
+            }
+        }
+        return drafts;
     }
 
     private String buildAdvisorEmail(String mainProject, List<String> otherProjects, List<String> preferences,
@@ -432,6 +473,113 @@ public class MockAIService implements AIService {
 
     private static String str(Object value) {
         return value == null ? null : String.valueOf(value);
+    }
+
+    /**
+     * Mode démo : rapport Marketing DÉTERMINISTE construit à partir des agrégats fournis.
+     * Aucun chiffre n'est inventé — seules les valeurs déjà calculées par le backend sont reprises,
+     * et faits/hypothèses sont distingués comme le demande le prompt analyste.
+     */
+    @Override
+    public com.coach.financier.model.MarketingModels.MarketingReport analyzeMarketing(
+            com.coach.financier.model.MarketingModels.MarketingAggregates aggregates,
+            AIModels.AIProvider provider) {
+        List<com.coach.financier.model.MarketingModels.ReportItem> summary = new ArrayList<>();
+        List<com.coach.financier.model.MarketingModels.MainTrend> mainTrends = new ArrayList<>();
+        List<com.coach.financier.model.MarketingModels.RecommendationPerformance> recommendations = new ArrayList<>();
+        List<com.coach.financier.model.MarketingModels.FrictionItem> friction = new ArrayList<>();
+        List<com.coach.financier.model.MarketingModels.CrossSellInsight> crossSell = new ArrayList<>();
+        List<com.coach.financier.model.MarketingModels.UnmetNeedInsight> unmetNeeds = new ArrayList<>();
+        List<com.coach.financier.model.MarketingModels.MissingInfoInsight> missingInfo = new ArrayList<>();
+        List<com.coach.financier.model.MarketingModels.MarketingAlert> alerts = new ArrayList<>();
+        List<com.coach.financier.model.MarketingModels.MarketingOpportunity> opportunities = new ArrayList<>();
+
+        String reportDate = LocalDate.now().toString();
+        if (aggregates != null) {
+            reportDate = aggregates.dateTo() == null ? reportDate : aggregates.dateTo();
+            com.coach.financier.model.MarketingModels.MarketingOverview overview = aggregates.overview();
+            if (overview != null) {
+                summary.add(item("Volume analysé", overview.conversationCount() + " conversation(s) analysée(s), "
+                        + overview.sessionsWithInterest() + " avec intérêt produit, "
+                        + overview.highInterestCount() + " intérêt(s) HIGH.", "HIGH"));
+                summary.add(item("Intentions fortes", overview.subscriptionIntentCount()
+                        + " intention(s) de souscription et " + overview.appointmentRequestCount()
+                        + " demande(s) de rendez-vous.", "HIGH"));
+                if (overview.unmetNeedCount() > 0) {
+                    summary.add(item("Besoins non couverts", overview.unmetNeedCount()
+                            + " besoin(s) exprimé(s) sans offre clairement adaptée.", "HIGH"));
+                    alerts.add(new com.coach.financier.model.MarketingModels.MarketingAlert("IMPORTANT",
+                            "Besoins non couverts", overview.unmetNeedCount()
+                            + " besoin(s) sans solution adaptée sur la période."));
+                }
+                if (overview.missingInformationCount() > 0) {
+                    alerts.add(new com.coach.financier.model.MarketingModels.MarketingAlert("WATCH",
+                            "Informations produit manquantes", overview.missingInformationCount()
+                            + " question(s) sans réponse dans le catalogue."));
+                }
+                opportunities.add(new com.coach.financier.model.MarketingModels.MarketingOpportunity(
+                        "Enrichir la connaissance produit",
+                        "Les questions clients non couvertes par le catalogue fournissent des pistes d'enrichissement.",
+                        "Étudier les informations produit manquantes les plus fréquentes avant toute décision."));
+            }
+            for (com.coach.financier.model.MarketingModels.TrendMetric trend : aggregates.trends()) {
+                if (mainTrends.size() >= 5 || trend.evolutionPercent() == null) continue;
+                boolean up = trend.evolutionPercent() >= 0;
+                mainTrends.add(new com.coach.financier.model.MarketingModels.MainTrend(up ? "UP" : "DOWN",
+                        trend.entityType(), trend.entityId(), trend.entityName(),
+                        trend.current() + " vs " + trend.previous() + " (" + trend.evolutionPercent() + " %)"));
+                if (Math.abs(trend.evolutionPercent()) >= 50) {
+                    alerts.add(new com.coach.financier.model.MarketingModels.MarketingAlert("WATCH",
+                            (up ? "Hausse" : "Baisse") + " marquée : " + trend.entityName(),
+                            "Variation de " + trend.evolutionPercent() + " % — à confirmer sur plusieurs périodes."));
+                }
+            }
+            for (com.coach.financier.model.MarketingModels.ProductMetric product : aggregates.products()) {
+                if (recommendations.size() >= 5 || product.recommendedSessions() == 0) continue;
+                String rate = product.interestRate() == null ? "non calculable"
+                        : Math.round(product.interestRate() * 1000) / 10.0 + " %";
+                recommendations.add(new com.coach.financier.model.MarketingModels.RecommendationPerformance(
+                        product.productId(), product.productName(),
+                        "Recommandé dans " + product.recommendedSessions() + " session(s), "
+                        + product.interestedSessions() + " avec intérêt réel (taux " + rate + ")."));
+            }
+            for (com.coach.financier.model.MarketingModels.RejectionMetric rejection : aggregates.rejections()) {
+                if (friction.size() >= 4) break;
+                friction.add(new com.coach.financier.model.MarketingModels.FrictionItem(rejection.reasonCategory(),
+                        rejection.count() + " refus" + (rejection.share() == null ? ""
+                                : " (" + Math.round(rejection.share() * 1000) / 10.0 + " %)") + "."));
+            }
+            for (com.coach.financier.model.MarketingModels.CrossSellMetric pair : aggregates.crossSell()) {
+                if (crossSell.size() >= 4) break;
+                crossSell.add(new com.coach.financier.model.MarketingModels.CrossSellInsight(
+                        pair.sourceProductName(), pair.targetProductName(),
+                        pair.commonSessions() + " session(s) communes"
+                                + (pair.rate() == null ? "" : " (" + Math.round(pair.rate() * 100) + " %)")
+                                + " — association à étudier comme piste de parcours."));
+            }
+            for (com.coach.financier.model.MarketingModels.UnmetNeedMetric need : aggregates.unmetNeeds()) {
+                if (unmetNeeds.size() >= 4) break;
+                unmetNeeds.add(new com.coach.financier.model.MarketingModels.UnmetNeedInsight(need.projectType(),
+                        need.count() + " occurrence(s) — " + String.valueOf(need.reason())));
+            }
+            for (com.coach.financier.model.MarketingModels.MissingInfoMetric info : aggregates.missingInformation()) {
+                if (missingInfo.size() >= 4) break;
+                missingInfo.add(new com.coach.financier.model.MarketingModels.MissingInfoInsight(
+                        info.productId(), info.productName(),
+                        info.count() + " question(s) sans réponse (" + info.reasonCategory() + ")."));
+            }
+        }
+
+        return new com.coach.financier.model.MarketingModels.MarketingReport(
+                reportDate, summary, mainTrends, recommendations, friction, crossSell, unmetNeeds, missingInfo,
+                List.of(), alerts.size() > 8 ? alerts.subList(0, 8) : alerts, opportunities,
+                "Rapport généré en mode démo à partir des statistiques agrégées.",
+                java.time.Instant.now().toString(), "MOCK", Boolean.TRUE, null);
+    }
+
+    private static com.coach.financier.model.MarketingModels.ReportItem item(String title, String description,
+                                                                             String importance) {
+        return new com.coach.financier.model.MarketingModels.ReportItem(title, description, importance);
     }
 
     private String money(double value) { return String.format(java.util.Locale.FRANCE, "%.2f", value); }

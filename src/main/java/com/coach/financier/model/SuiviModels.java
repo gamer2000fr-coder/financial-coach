@@ -56,13 +56,21 @@ public final class SuiviModels {
             List<String> importantCustomerPreferences
     ) {}
 
-    /** Sortie IA structurée demandée à l'agent de synthèse (agent/suivi.txt). */
+    /**
+     * Sortie IA structurée demandée à l'agent de synthèse (agent/suivi.txt) : dossier conseiller,
+     * brouillon client ET signaux Marketing (même appel IA, §3 du module Marketing Intelligence).
+     */
     public record SuiviResult(
             ConversationSummary conversationSummary,
             List<ProductOfInterest> productsOfInterest,
             EmailContent advisorEmail,
-            EmailContent preparedCustomerEmail
-    ) {}
+            EmailContent preparedCustomerEmail,
+            List<MarketingModels.MarketingEventDraft> marketingEvents
+    ) {
+        public SuiviResult {
+            marketingEvents = marketingEvents == null ? List.of() : List.copyOf(marketingEvents);
+        }
+    }
 
     /** Pièce jointe générée à partir du brouillon client. */
     public record Attachment(String filename, byte[] content, String contentType) {}

@@ -1,0 +1,19 @@
+[ {
+  "reasonCategory" : "DURATION",
+  "productId" : null,
+  "productName" : null,
+  "count" : 1,
+  "share" : 0.3333
+}, {
+  "reasonCategory" : "COMPETITOR",
+  "productId" : null,
+  "productName" : null,
+  "count" : 1,
+  "share" : 0.3333
+}, {
+  "reasonCategory" : "CONDITIONS",
+  "productId" : null,
+  "productName" : null,
+  "count" : 1,
+  "share" : 0.3333
+} ]

@@ -5,6 +5,11 @@ import type {
   ConversationClosure,
   ConversationData,
   FinancialSummary,
+  MarketingAggregates,
+  MarketingPeriod,
+  MarketingProductDetail,
+  MarketingReport,
+  MarketingStatus,
 } from './types'
 
 function resolveApiBaseUrl(): string {
@@ -148,4 +153,88 @@ export async function clearLogs(): Promise<void> {
     }
     throw new Error(detail)
   }
+}
+
+// ------------------------------------------------------------------ Marketing Intelligence (#/marketing)
+
+/** Filtres appliqués côté backend avant agrégation. */
+export interface MarketingFilters {
+  productId?: string
+  productFamily?: string
+  projectType?: string
+  interestLevel?: string
+  eventType?: string
+}
+
+function marketingQuery(period: MarketingPeriod, from?: string, to?: string,
+                        filters?: MarketingFilters): string {
+  const params = new URLSearchParams()
+  params.set('period', period)
+  if (period === 'custom') {
+    if (from) params.set('from', from)
+    if (to) params.set('to', to)
+  }
+  Object.entries(filters ?? {}).forEach(([key, value]) => {
+    if (value) params.set(key, value)
+  })
+  return params.toString()
+}
+
+/** Agrégats complets de la période (KPI, produits, projets, refus, cross-sell, tendances). */
+export async function fetchMarketingOverview(
+  period: MarketingPeriod,
+  from?: string,
+  to?: string,
+  filters?: MarketingFilters,
+): Promise<MarketingAggregates> {
+  return apiFetch<MarketingAggregates>(`/marketing/overview?${marketingQuery(period, from, to, filters)}`)
+}
+
+/** État du module (jours disponibles, mode démo, tranches de montant). */
+export async function fetchMarketingStatus(): Promise<MarketingStatus> {
+  return apiFetch<MarketingStatus>('/marketing/status')
+}
+
+/** Drill-down produit : métriques + refus détaillés + associations. */
+export async function fetchMarketingProduct(
+  productId: string,
+  period: MarketingPeriod,
+  from?: string,
+  to?: string,
+): Promise<MarketingProductDetail> {
+  return apiFetch<MarketingProductDetail>(
+    `/marketing/products/${encodeURIComponent(productId)}?${marketingQuery(period, from, to)}`,
+  )
+}
+
+/** Rapport IA du jour demandé (ou le plus récent) ; {@code null} si aucun rapport. */
+export async function fetchMarketingReport(date?: string): Promise<MarketingReport | null> {
+  const query = date ? `?date=${encodeURIComponent(date)}` : ''
+  const response = await fetch(`${API_BASE_URL}/marketing/reports/daily${query}`, {
+    headers: { Accept: 'application/json' },
+  })
+  if (response.status === 204) return null
+  if (!response.ok) throw new Error(`Erreur HTTP ${response.status}`)
+  return (await response.json()) as MarketingReport
+}
+
+/** Régénère les agrégats et le rapport IA d'une date (idempotent). */
+export async function regenerateMarketingReport(date: string, provider?: AIProvider): Promise<unknown> {
+  const params = new URLSearchParams({ date })
+  if (provider) params.set('provider', provider)
+  return apiFetch(`/marketing/reports/daily/regenerate?${params.toString()}`, { method: 'POST' })
+}
+
+/** Génère un jeu de données de démonstration (événements marqués demo=true). */
+export async function generateMarketingDemoData(
+  days = 7,
+  sessionsPerDay = 12,
+): Promise<{ eventsGenerated: number; eventsWritten: number }> {
+  const params = new URLSearchParams({ days: String(days), sessionsPerDay: String(sessionsPerDay) })
+  return apiFetch(`/marketing/demo-data?${params.toString()}`, { method: 'POST' })
+}
+
+/** URL d'export CSV des métriques produit (aucune donnée personnelle). */
+export function marketingProductsCsvUrl(period: MarketingPeriod, from?: string, to?: string): string {
+  return `${API_BASE_URL}/marketing/export/products.csv?${marketingQuery(period, from, to)}`
 }

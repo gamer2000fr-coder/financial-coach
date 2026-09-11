@@ -28,6 +28,8 @@ public class AgentPromptStore {
     public static final String PRINCIPAL_FILE = "principal.txt";
     /** Agent de synthèse de FIN DE CONVERSATION (dossier conseiller + brouillon client). */
     public static final String SUIVI_KEY = "suivi";
+    /** Agent ANALYSTE MARKETING (rapport quotidien à partir des agrégats). */
+    public static final String MARKETING_KEY = "marketing";
     private static final String GENERIC_THEME = "generic";
 
     /**
@@ -51,6 +53,7 @@ public class AgentPromptStore {
         }
         result.add(entry(PRINCIPAL_KEY, "Agent principal", PRINCIPAL_FILE));
         result.add(entry(SUIVI_KEY, "Agent de suivi (fin de conversation)", AgentFiles.SUIVI_PROMPT_FILE));
+        result.add(entry(MARKETING_KEY, "Agent analyste marketing", AgentFiles.MARKETING_PROMPT_FILE));
         for (AgentDefinition agent : agents) {
             if (GENERIC_THEME.equalsIgnoreCase(agent.getTheme())) {
                 continue;

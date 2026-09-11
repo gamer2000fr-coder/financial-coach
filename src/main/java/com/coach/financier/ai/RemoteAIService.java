@@ -4,6 +4,7 @@ import com.coach.financier.model.AIModels;
 import com.coach.financier.model.ConversationModels;
 import com.coach.financier.model.FinancialSummary;
 import com.coach.financier.model.IntentClassification;
+import com.coach.financier.model.MarketingModels;
 import com.coach.financier.model.SuiviModels;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -134,7 +135,59 @@ public abstract class RemoteAIService implements AIService {
                 new SuiviModels.ConversationSummary("", List.of(), List.of()),
                 List.of(),
                 new SuiviModels.EmailContent("", ""),
-                new SuiviModels.EmailContent("", ""));
+                new SuiviModels.EmailContent("", ""),
+                List.of());
+    }
+
+    @Override
+    public MarketingModels.MarketingReport analyzeMarketing(MarketingModels.MarketingAggregates aggregates,
+                                                           AIModels.AIProvider provider) {
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new IllegalStateException("Clé API absente pour le fournisseur " + providerName);
+        }
+        // L'analyste ne reçoit QUE des statistiques agrégées (jamais les conversations brutes).
+        String system = AgentFiles.marketingSystemPrompt();
+        String user;
+        try {
+            user = objectMapper.writeValueAsString(aggregates == null ? Map.of() : aggregates);
+        } catch (Exception e) {
+            throw new IllegalStateException("Agrégats marketing non sérialisables", e);
+        }
+        String content = call(system, user);
+        try {
+            MarketingModels.MarketingReport parsed =
+                    objectMapper.readValue(content, MarketingModels.MarketingReport.class);
+            return withReportMeta(parsed, aggregates);
+        } catch (Exception e) {
+            throw new IllegalStateException("Rapport marketing invalide: " + content, e);
+        }
+    }
+
+    /** Complète le rapport avec les métadonnées calculées côté backend (date, modèle, horodatage). */
+    private MarketingModels.MarketingReport withReportMeta(MarketingModels.MarketingReport report,
+                                                           MarketingModels.MarketingAggregates aggregates) {
+        String reportDate = aggregates == null ? report.reportDate() : aggregates.dateTo();
+        return new MarketingModels.MarketingReport(
+                reportDate,
+                copy(report.executiveSummary()),
+                copy(report.mainTrends()),
+                copy(report.recommendationPerformance()),
+                copy(report.customerFriction()),
+                copy(report.crossSellInsights()),
+                copy(report.unmetNeeds()),
+                copy(report.missingProductInformation()),
+                copy(report.aiCoachQuality()),
+                copy(report.alerts()),
+                copy(report.opportunities()),
+                report.finalSummary(),
+                java.time.Instant.now().toString(),
+                model,
+                Boolean.TRUE,
+                null);
+    }
+
+    private static <T> List<T> copy(List<T> values) {
+        return values == null ? List.of() : List.copyOf(values);
     }
 
     private String call(String system, String user) {
