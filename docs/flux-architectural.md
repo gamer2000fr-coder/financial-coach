@@ -215,7 +215,7 @@ Règles structurantes :
 
 ```mermaid
 flowchart TD
-    END["Fin de conversation<br/>(bouton « Terminer et envoyer au conseiller »)"] --> POP["Pop-in : note 1-5<br/>motifs si note ≤ 3<br/>commentaire facultatif"]
+    END["Fin de conversation<br/>(bouton « Terminer la conversation »)"] --> POP["Pop-in : note 1-5<br/>motifs si note ≤ 3<br/>commentaire facultatif"]
     POP -->|"Envoyer mon avis"| FB["POST /api/conversations/{id}/feedback<br/>fire-and-forget — jamais bloquant"]
     POP -->|"Passer"| CLOSE
     FB --> CLOSE["Clôture : dossier de suivi conseiller"]

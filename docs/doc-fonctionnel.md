@@ -52,7 +52,7 @@ Empêcher structurellement l'IA de recommander ou de mentionner un produit banca
 
 | Route | Page | Contenu |
 |---|---|---|
-| `#/` | **Chat coach** | Conversation + panneau « Vue d'ensemble » (solde, revenus, dépenses, crédits, taux). Interrupteur « Avancé » : fournisseur IA (GPT/DeepSeek/Mock), Audio, garde-fou hors-sujet, case **« Suivi conseiller »**, accès Logs / Agents / Marketing (nouveaux onglets). Bouton d'en-tête : « Terminer et envoyer au conseiller » (suivi activé) ou « Nouvelle conversation » (suivi désactivé) |
+| `#/` | **Chat coach** | Conversation + panneau « Vue d'ensemble » (solde, revenus, dépenses, crédits, taux). Interrupteur « Avancé » : fournisseur IA (GPT/DeepSeek/Mock), Audio, garde-fou hors-sujet, case **« Suivi conseiller »**, accès Logs / Agents / Marketing (nouveaux onglets). Bouton d'en-tête : « Terminer la conversation » (suivi activé) ou « Nouvelle conversation » (suivi désactivé) |
 | `#/logs` | **Logs des appels IA** | Traces : statut, session, agent utilisé, message client, caractères, données envoyées/demandées, boutons « Voir le prompt », « Voir le filtrage », « Voir la réponse », « Historique » |
 | `#/agents` | **Agents IA** | Édition des prompts par agent : générique (défaut), agent principal, agent de suivi, agent analyste marketing, 6 agents spécialisés. Injecté à chaque appel |
 | `#/marketing` | **Marketing Intelligence** | KPI, top produits, projets, « recommandé vs intérêt », refus, cross-sell, besoins non couverts, infos manquantes, rapport IA du jour, export CSV |
@@ -179,7 +179,7 @@ Principe : **« l'IA prépare → le conseiller contrôle → le conseiller déc
 
 ```mermaid
 flowchart TD
-    A[Bouton du chat<br/>« Terminer et envoyer au conseiller »] --> B{Suivi activé ?}
+    A[Bouton du chat<br/>« Terminer la conversation »] --> B{Suivi activé ?}
     B -- Non --> Z[Bouton = « Nouvelle conversation »<br/>simple vidage du chat]
     B -- Oui --> C{≥ 2 échanges client ?}
     C -- Non --> Z
@@ -222,7 +222,7 @@ Deux notions **à ne jamais confondre** :
 
 ```mermaid
 flowchart TD
-    A[Client clique<br/>« Terminer et envoyer au conseiller »] --> B{Suivi actif<br/>et ≥ 2 échanges ?}
+    A[Client clique<br/>« Terminer la conversation »] --> B{Suivi actif<br/>et ≥ 2 échanges ?}
     B -- Non --> Z[Clôture / nouvelle conversation<br/>sans question]
     B -- Oui --> C[Pop-in : comment s'est passée<br/>votre conversation avec le Coach ?]
     C --> D{Note + motifs + commentaire}

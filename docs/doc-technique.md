@@ -574,7 +574,7 @@ cd frontend; npm install; npm run dev   # http://localhost:9898 (host 0.0.0.0 �
 ### 15.2 Déclenchement côté IHM
 
 - **Un seul bouton** dans l'en-tête du chat (pastille rouge SG), toujours visible, à deux états selon la case **« Suivi conseiller »** (état persisté `localStorage['financial-coach-suivi']`, **désactivé par défaut**) :
-  - **activé** → « Terminer et envoyer au conseiller » : clôture puis vidage du chat ;
+  - **activé** → « Terminer la conversation » : clôture puis vidage du chat ;
   - **désactivé** → « Nouvelle conversation » : simple vidage, **aucun appel réseau**.
 - **Fire-and-forget** : l'IHM n'attend pas la réponse (ni chargement, ni bannière de résultat) ; les erreurs sont visibles dans la console et dans l'écran **Logs**.
 - Conditions avant appel : **≥ 2 messages client** (`MIN_EXCHANGES_TO_CLOSE`) et **une seule clôture par session** (`closedSessionRef`).
@@ -769,7 +769,7 @@ Voir §5 (`/api/conversations/{sessionId}/feedback` et `/api/quality/**`). Le fr
 
 ### 17.7 Frontend
 
-- `FeedbackPopup.tsx` : pop-in ouverte au clic sur « Terminer et envoyer au conseiller » (suivi actif **et** ≥ 2 échanges) — 5 étoiles, motifs à partir de 3 étoiles ou moins, commentaire facultatif, « Envoyer mon avis » / « Passer ». L'avis part en fire-and-forget **avant** la clôture ; un échec n'empêche rien.
+- `FeedbackPopup.tsx` : pop-in ouverte au clic sur « Terminer la conversation » (suivi actif **et** ≥ 2 échanges) — 5 étoiles, motifs à partir de 3 étoiles ou moins, commentaire facultatif, « Envoyer mon avis » / « Passer ». L'avis part en fire-and-forget **avant** la clôture ; un échec n'empêche rien.
 - `Quality.tsx` (route `#/quality`, lien `BadgeCheck` dans l'en-tête) : filtres de période/note/sévérité, KPI satisfaction **et** conformité, distribution des notes, motifs, thèmes de commentaires, table des contrôles, croisement A/B/C/D, rapport IA, export CSV. Réutilise le design system de la page Marketing (`.mkt-*`) — pas de seconde architecture.
 
 ### 17.8 Commandes utiles

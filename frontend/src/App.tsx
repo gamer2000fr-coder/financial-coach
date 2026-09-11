@@ -720,7 +720,7 @@ function App() {
 
   /**
    * Réinitialise l'IHM pour une nouvelle conversation : nouvelle session + messages d'accueil.
-   * Partagé par « Nouvelle conversation » (menu mobile) et par « Terminer et envoyer au conseiller ».
+   * Partagé par « Nouvelle conversation » (menu mobile) et par « Terminer la conversation ».
    */
   function resetConversation() {
     setSessionId(newSessionId())
@@ -732,7 +732,7 @@ function App() {
   /**
    * Termine la conversation : clôture FIRE-AND-FORGET (uniquement si ≥ MIN_EXCHANGES_TO_CLOSE échanges
    * client ↔ IA) puis vide le chat. Appelé par « Nouvelle conversation » (menu mobile) et par le bouton
-   * « Terminer et envoyer au conseiller » : même comportement dans les deux cas.
+   * « Terminer la conversation » : même comportement dans les deux cas.
    */
   function finishConversation() {
     closeInBackground()
@@ -740,7 +740,7 @@ function App() {
   }
 
   /**
-   * Clic sur « Terminer et envoyer au conseiller » : la pop-in de satisfaction s'ouvre d'abord (§43),
+   * Clic sur « Terminer la conversation » : la pop-in de satisfaction s'ouvre d'abord (§43),
    * puis la clôture suit (avec ou sans avis). Suivi désactivé ou conversation trop courte :
    * aucune question n'est posée, le comportement « nouvelle conversation » est conservé.
    */
@@ -982,7 +982,7 @@ function App() {
               }
             >
               {suiviEnabled ? <Send size={16} /> : <Plus size={17} />}
-              <span>{suiviEnabled ? 'Terminer et envoyer au conseiller' : 'Nouvelle conversation'}</span>
+              <span>{suiviEnabled ? 'Terminer la conversation' : 'Nouvelle conversation'}</span>
             </button>
           </div>
 
@@ -1202,7 +1202,7 @@ function App() {
         <span>API : {API_BASE_URL}</span>
       </footer>
 
-      {/* Pop-in de satisfaction : ouverte au clic sur « Terminer et envoyer au conseiller »,
+      {/* Pop-in de satisfaction : ouverte au clic sur « Terminer la conversation »,
           AVANT la clôture. « Envoyer mon avis » comme « Passer » mènent à la clôture. */}
       {feedbackOpen && (
         <FeedbackPopup onSubmit={submitFeedbackAndFinish} onSkip={skipFeedbackAndFinish} />
