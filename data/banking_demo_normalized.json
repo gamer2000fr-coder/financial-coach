@@ -3,7 +3,7 @@
   "datasetType": "DEMO_BANKING_DATA",
   "customer": {
     "customerId": "DEMO001",
-    "mail": "coach.financier.pay@gmail.com",
+    "mail": "Michel@gmail.com",
     "bfm_eligible": false,
     "student": false,
     "age": 30

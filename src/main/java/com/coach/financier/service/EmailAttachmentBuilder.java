@@ -29,11 +29,13 @@ public class EmailAttachmentBuilder {
     private static final String BASE_NAME = "email_client_prepare_";
 
     /**
-     * @param format          {@code txt}, {@code html} ou {@code eml}
-     * @param email           brouillon client (objet + corps)
-     * @param customerAddress adresse du client (utilisée uniquement pour préremplir un .eml)
+     * @param format    {@code txt}, {@code html} ou {@code eml}
+     * @param email     brouillon client (objet + corps)
+     * @param addresses adresses préremplies du .eml : destinataire = client ({@code customer.mail}),
+     *                  expéditeur = conseiller ; un champ vide reste vide
      */
-    public SuiviModels.Attachment build(String format, SuiviModels.EmailContent email, String customerAddress) {
+    public SuiviModels.Attachment build(String format, SuiviModels.EmailContent email,
+                                        SuiviModels.EmailAddresses addresses) {
         String normalized = format == null ? "txt" : format.trim().toLowerCase(java.util.Locale.ROOT);
         String baseName = BASE_NAME + LocalDate.now().format(DATE_STAMP);
         String subject = email == null || email.subject() == null ? "" : email.subject();
@@ -41,7 +43,7 @@ public class EmailAttachmentBuilder {
         return switch (normalized) {
             case "html" -> new SuiviModels.Attachment(baseName + ".html",
                     htmlDocument(subject, body).getBytes(StandardCharsets.UTF_8), "text/html");
-            case "eml" -> buildEml(baseName, subject, body, customerAddress);
+            case "eml" -> buildEml(baseName, subject, body, addresses);
             default -> new SuiviModels.Attachment(baseName + ".txt",
                     textDocument(subject, body).getBytes(StandardCharsets.UTF_8), "text/plain");
         };
@@ -70,15 +72,28 @@ public class EmailAttachmentBuilder {
                 """.formatted(UrlLinkRenderer.escapeHtml(subject), UrlLinkRenderer.escapeHtml(subject), htmlBody);
     }
 
-    /** Rendu .eml (message RFC 822) : le conseiller peut l'ouvrir et l'adapter avant envoi. */
-    private SuiviModels.Attachment buildEml(String baseName, String subject, String body, String customerAddress) {
+    /**
+     * Rendu .eml (message RFC 822) : le conseiller peut l'ouvrir, le contrôler et l'adapter avant envoi.
+     * <ul>
+     *   <li><b>Destinataire (To)</b> : adresse du CLIENT ({@code customer.mail}) ;</li>
+     *   <li><b>Expéditeur (From)</b> : adresse du CONSEILLER (sinon « unknown sender » à l'ouverture).</li>
+     * </ul>
+     * Un champ dont l'adresse est absente reste vide. Aucun envoi n'est déclenché.
+     */
+    private SuiviModels.Attachment buildEml(String baseName, String subject, String body,
+                                            SuiviModels.EmailAddresses addresses) {
         try {
             Session session = Session.getInstance(new Properties());
             MimeMessage message = new MimeMessage(session);
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setSubject(subject == null ? "" : subject);
-            if (customerAddress != null && customerAddress.contains("@")) {
-                helper.setTo(customerAddress.trim());
+            String advisor = addresses == null ? null : addresses.advisor();
+            String customer = addresses == null ? null : addresses.customer();
+            if (isEmail(advisor)) {
+                helper.setFrom(advisor.trim());
+            }
+            if (isEmail(customer)) {
+                helper.setTo(customer.trim());
             }
             helper.setText(UrlLinkRenderer.toHtml(body), true);
             ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -89,5 +104,9 @@ public class EmailAttachmentBuilder {
             return new SuiviModels.Attachment(baseName + ".txt",
                     textDocument(subject, body).getBytes(StandardCharsets.UTF_8), "text/plain");
         }
+    }
+
+    private static boolean isEmail(String value) {
+        return value != null && !value.isBlank() && value.contains("@");
     }
 }

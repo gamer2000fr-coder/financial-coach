@@ -1,0 +1,15 @@
+Ce que dit l'erreur
+534-5.7.9 ... WebLoginRequired → Google exige que vous vous connectiez via un navigateur avec ce compte avant de réautoriser l'envoi SMTP. C'est une mesure anti-abus déclenchée par Google, sur le compte coach.financier.pay@gmail.com.
+
+Causes typiques :
+
+Activité jugée suspecte (nouvelle IP/FAI, première utilisation, connexion depuis un environnement inattendu) → Google bloque et demande une re-vérification navigateur ;
+le compte n'a jamais (ou plus) été ouvert dans un navigateur récemment ;
+une alerte de sécurité est en attente sur le compte (connexion à valider) ;
+l'app password a été révoqué parce que la validation en deux étapes a été désactivée puis réactivée, ou le mot de passe du compte a changé.
+À faire, dans cet ordre
+Connectez-vous dans un navigateur sur https://mail.google.com avec coach.financier.pay@gmail.com, et validez toutes les demandes (CAPTCHA, téléphone, « C'était bien vous ? »). C'est le point qui lève ce 534-5.7.9.
+Débloquez l'accès SMTP en étant connecté, ouvrez : https://accounts.google.com/DisplayUnlockCaptcha → Continuer. (oui, l'écran date, il reste utilisé pour ce type de blocage)
+Vérifiez la validation en deux étapes : https://myaccount.google.com/signinoptions/two-step-verification → elle doit être activée.
+Regénérez un mot de passe d'application : https://myaccount.google.com/apppasswords → supprimez l'ancien, créez-en un nouveau, puis mettez à jour MAIL_PASSWORD et redémarrez le backend.
+Contrôlez les alertes : https://myaccount.google.com/notifications et https://myaccount.google.com/security-checkup.

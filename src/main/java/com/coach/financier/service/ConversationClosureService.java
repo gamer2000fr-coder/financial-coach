@@ -174,6 +174,10 @@ public class ConversationClosureService {
         try {
             result = ai.summarizeConversation(context, provider);
         } catch (Exception e) {
+            // IMPORTANT : on trace l'échec AVANT de sortir, sinon aucun enregistrement [SUIVI]
+            // n'apparaît dans la page Logs (l'écriture avait lieu après la synthèse).
+            logSuiviFailure(sessionId, conversation, suiviPrompt, context, sentChars, provider,
+                    candidateProducts.size(), advisorAddress, e);
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
                     "Échec de l'IA de synthèse : " + e.getMessage(), e);
         }
@@ -181,9 +185,10 @@ public class ConversationClosureService {
         // 5) Validation backend : produits réels, refus exclus, URLs non inventées.
         Validated validated = validate(result, candidateIds, candidateNames, allowedUrls, warnings);
 
-        // 6) Pièce jointe générée à partir du brouillon client.
-        SuiviModels.Attachment attachment = attachmentBuilder.build(
-                format, validated.preparedCustomerEmail(), customerMail());
+        // 6) Pièce jointe générée à partir du brouillon client : destinataire = mail du client
+        //    (fiche customer.mail), expéditeur = mail du conseiller (évite « unknown sender »).
+        SuiviModels.Attachment attachment = attachmentBuilder.build(format, validated.preparedCustomerEmail(),
+                new SuiviModels.EmailAddresses(customerMail(), advisorAddress));
 
         // 7) Envoi du SEUL email conseiller (jamais au client), sauf dry-run.
         //    `mailError` conserve l'ORIGINE précise d'un non-envoi (configuration, SMTP...), reprise
@@ -358,19 +363,55 @@ public class ConversationClosureService {
                               Validated validated, String attachmentFormat, String attachmentName,
                               String sendStatus, String mailTarget, String mailError,
                               String advisorAddress, List<String> warnings) {
+        String debug = suiviDebug(provider, conversation.transcript().size(), candidateCount, validated,
+                attachmentFormat, attachmentName, sendStatus, mailTarget, mailError, advisorAddress, warnings);
+
+        aiLogService.log(sessionId, CLOSE_TRACE_MESSAGE, suiviDataSent(conversation, candidateCount),
+                conversation.transcript().size(), charCount, AIModels.AIStatus.ANSWER, List.of(),
+                SUIVI_AGENT_LABEL, suiviPromptSnapshot(systemPrompt, context), debug, suiviAnswer(result));
+    }
+
+    /**
+     * Trace un ÉCHEC de la synthèse (clé IA absente, fournisseur injoignable, réponse illisible...) :
+     * une entrée [SUIVI] est TOUJOURS créée, même quand aucun dossier n'a pu être produit. C'est ce qui
+     * permet de distinguer « rien n'a été déclenché » de « déclenché mais en échec » dans la page Logs.
+     */
+    private void logSuiviFailure(String sessionId, ConversationModels.Conversation conversation,
+                                 String systemPrompt, Map<String, Object> context, long charCount,
+                                 AIModels.AIProvider provider, int candidateCount,
+                                 String advisorAddress, Exception error) {
+        String cause = oneLine(rootCause(error));
+        StringBuilder sb = new StringBuilder();
+        sb.append("[SUIVI]\n");
+        sb.append("provider=").append(provider).append('\n');
+        sb.append("historyMessages=").append(conversation.transcript().size()).append('\n');
+        sb.append("candidateProducts=").append(candidateCount).append('\n');
+        sb.append("productsOfInterest=0\n");
+        sb.append("  HIGH=0\n  MEDIUM=0\n  LOW=0\n  REJECTED=0\n");
+        sb.append("attachmentFormat=(aucune)\n");
+        sb.append("attachmentName=(aucune)\n");
+        sb.append("mailStatus=AI_FAILED\n");
+        sb.append("mailSent=false\n");
+        sb.append("mailTarget=").append(nullToEmpty(mailService.describeTarget())).append('\n');
+        sb.append("mailError=échec de la synthèse IA : ").append(cause).append('\n');
+        sb.append("advisor=").append(advisorAddress == null ? "" : advisorAddress).append('\n');
+        sb.append("warnings=1\n");
+
+        aiLogService.log(sessionId, CLOSE_TRACE_MESSAGE, suiviDataSent(conversation, candidateCount),
+                conversation.transcript().size(), charCount, AIModels.AIStatus.ERROR, List.of(),
+                SUIVI_AGENT_LABEL, suiviPromptSnapshot(systemPrompt, context), sb.toString(),
+                "Échec de la synthèse IA : " + cause);
+    }
+
+    /** Descriptions des données transmises à l'agent de suivi (affichées sur la page Logs). */
+    private static List<String> suiviDataSent(ConversationModels.Conversation conversation, int candidateCount) {
         List<String> dataSent = new ArrayList<>();
         dataSent.add("Historique de conversation (" + conversation.transcript().size() + " messages)");
         dataSent.add("Contexte client (synthèse financière + projets)");
         dataSent.add("Contexte conseiller");
         dataSent.add("Produits présentés (" + candidateCount + ")");
         dataSent.add("URLs utiles");
-
-        String debug = suiviDebug(provider, conversation.transcript().size(), candidateCount, validated,
-                attachmentFormat, attachmentName, sendStatus, mailTarget, mailError, advisorAddress, warnings);
-
-        aiLogService.log(sessionId, CLOSE_TRACE_MESSAGE, dataSent, conversation.transcript().size(),
-                charCount, AIModels.AIStatus.ANSWER, List.of(), SUIVI_AGENT_LABEL,
-                suiviPromptSnapshot(systemPrompt, context), debug, suiviAnswer(result));
+        return dataSent;
     }
 
     /** Prompt visible via « Voir le prompt » : prompt système (suivi.txt) + contexte de clôture. */
@@ -518,6 +559,7 @@ public class ConversationClosureService {
         return blankToNull(customer.path("customerId").asText(null));
     }
 
+    /** Adresse email du client, lue dans la fiche bancaire ({@code customer.mail}). */
     private String customerMail() {
         JsonNode customer = bankingDataRepository.loadSnapshot().rawData().path("customer");
         return blankToNull(customer.path("mail").asText(null));

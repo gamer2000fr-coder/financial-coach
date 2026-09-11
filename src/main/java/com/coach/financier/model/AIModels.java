@@ -28,7 +28,9 @@ public final class AIModels {
 
     public enum AIStatus {
         ANSWER,
-        NEED_DATA
+        NEED_DATA,
+        /** Échec (IA indisponible, réponse illisible...) : utilisé uniquement pour les traces. */
+        ERROR
     }
 
     public enum BankingContextMode {

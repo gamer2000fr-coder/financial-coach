@@ -24,6 +24,30 @@
     "description": "Épargne"
   },
   {
+    "path": "/data/catalogue/guide/assurance_auto_guide.json",
+    "description": "Assurance auto"
+  },
+  {
+    "path": "/data/catalogue/guide/assurance_emprunteur_immo_guide.json",
+    "description": "Assurance emprunteur immobilier"
+  },
+  {
+    "path": "/data/catalogue/guide/assurance_habitation_guide.json",
+    "description": "Assurance habitation"
+  },
+  {
+    "path": "/data/catalogue/guide/credit_conso_guide.json",
+    "description": "Crédit consommation"
+  },
+  {
+    "path": "/data/catalogue/guide/credit_immo_guide.json",
+    "description": "Crédit immobilier"
+  },
+  {
+    "path": "/data/catalogue/guide/epargne_guide.json",
+    "description": "Épargne"
+  },
+  {
     "path": "/data/synthese_financier.json",
     "description": "Synthèse financière"
   },

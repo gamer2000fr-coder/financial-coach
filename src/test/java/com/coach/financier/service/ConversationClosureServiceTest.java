@@ -27,6 +27,7 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -206,6 +207,28 @@ class ConversationClosureServiceTest {
         assertTrue(debug.contains("mailSent=false"));
         assertTrue(debug.contains("mailError=échec de l'envoi à " + ADVISOR + " via smtp.gmail.com:587"));
         assertTrue(debug.contains("AuthenticationFailedException — 535-5.7.8 Username and Password not accepted"));
+    }
+
+    @Test
+    void close_logsTheSuiviAttemptEvenWhenTheAiFails() {
+        // Panne de l'agent de synthèse (clé absente, fournisseur injoignable...) : la tentative doit
+        // quand même laisser une trace [SUIVI] dans la page Logs, sinon on ne peut rien diagnostiquer.
+        AIService failingAi = mock(AIService.class);
+        when(failingAi.summarizeConversation(any(), any()))
+                .thenThrow(new IllegalStateException("Clé API absente pour le fournisseur DEEPSEEK"));
+        when(aiServiceFactory.defaultProvider()).thenReturn(AIModels.AIProvider.DEEPSEEK);
+        when(aiServiceFactory.get(any())).thenReturn(failingAi);
+        when(conversationService.find("s1")).thenReturn(conversationWithTousRisques());
+
+        assertThrows(org.springframework.web.server.ResponseStatusException.class,
+                () -> service().close("s1", null));
+
+        String debug = captureSuiviDebug();
+        assertTrue(debug.contains("mailStatus=AI_FAILED"));
+        assertTrue(debug.contains("mailSent=false"));
+        assertTrue(debug.contains("Clé API absente pour le fournisseur DEEPSEEK"));
+        verify(mailService, never()).sendWithAttachments(anyString(), anyString(), anyString(),
+                anyBoolean(), any());
     }
 
     /** Récupère le bloc debug [SUIVI] journalisé pour la trace IA de clôture. */

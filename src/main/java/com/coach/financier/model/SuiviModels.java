@@ -68,6 +68,13 @@ public final class SuiviModels {
     public record Attachment(String filename, byte[] content, String contentType) {}
 
     /**
+     * Adresses de préremplissage de la pièce jointe .eml : le brouillon est adressé AU CLIENT
+     * ({@code customer}) et expédié PAR LE CONSEILLER ({@code advisor}). Un type dédié évite
+     * d'inverser les deux adresses. Valeurs {@code null}/vides = champ correspondant laissé vide.
+     */
+    public record EmailAddresses(String customer, String advisor) {}
+
+    /**
      * Corps de la requête de clôture. Tous les champs sont optionnels : la configuration
      * ({@code app.advisor.*}, {@code app.suivi.*}) sert de repli.
      *

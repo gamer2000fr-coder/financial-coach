@@ -67,7 +67,7 @@ export interface AiLog {
   dataSent: string[]
   historyCount: number
   charCount: number
-  status: 'ANSWER' | 'NEED_DATA'
+  status: 'ANSWER' | 'NEED_DATA' | 'ERROR'
   agent?: string
   requestedData: string[]
   debug?: string
