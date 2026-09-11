@@ -67,4 +67,29 @@ class AgentPromptStoreTest {
                         .noneMatch(agent -> AgentPromptStore.MARKETING_KEY.equalsIgnoreCase(agent.getTheme())),
                 "marketing ne doit pas être un thème d'agent de coach (agents.json)");
     }
+
+    @Test
+    void listsTheQualityAgentAndItsPromptIsEditable() {
+        Map<String, String> quality = store.entries().stream()
+                .filter(entry -> AgentPromptStore.QUALITY_KEY.equals(entry.get("key")))
+                .findFirst()
+                .orElse(null);
+
+        assertNotNull(quality, "L'agent analyste qualité doit apparaître dans la liste déroulante");
+        assertEquals("Agent analyste qualité & satisfaction", quality.get("libelle"));
+        assertEquals("qualite_coach_client.txt", quality.get("file"));
+
+        // La clé doit résoudre le fichier éditable ./agent/qualite_coach_client.txt
+        assertEquals("qualite_coach_client.txt", store.fileNameOf(AgentPromptStore.QUALITY_KEY));
+
+        String content = store.read(AgentPromptStore.QUALITY_KEY);
+        assertNotNull(content);
+        assertTrue(content.length() > 500, "Le prompt qualité doit être un vrai prompt (pas le repli vide)");
+        assertTrue(content.contains("SATISFACTION"), "Le prompt doit distinguer satisfaction et conformité");
+
+        // Il ne doit PAS être déclaré dans agents.json (il n'est jamais un agent de coach).
+        assertTrue(com.coach.financier.ai.AgentFiles.agents().stream()
+                        .noneMatch(agent -> AgentPromptStore.QUALITY_KEY.equalsIgnoreCase(agent.getTheme())),
+                "qualite ne doit pas être un thème d'agent de coach (agents.json)");
+    }
 }
