@@ -671,7 +671,7 @@ function App() {
         {
           id: newMessageId(),
           role: 'assistant',
-          content: 'Je n’ai pas pu contacter le backend. Vérifiez Spring Boot et réessayez.',
+          content: 'Je n’ai pas pu contacter le serveur.',
           timestamp: new Date().toISOString(),
         },
       ])

@@ -204,6 +204,7 @@ Objectif : comprendre, à partir des **conversations**, ce que les clients cherc
 - Ce qui est mesuré : intérêt par produit, produits « recommandés mais non intéressants » vs « intéressants », projets, refus (motif), associations de produits (cross-sell), besoins non couverts, informations manquantes, demandes de RDV.
 - **Aucune donnée personnelle** : l'identifiant client est pseudonymisé (hash), les emails/téléphones présents dans les motifs sont masqués.
 - Filtres proposés : période (aujourd'hui, hier, 7 j, 30 j, personnalisée), produit, famille, projet, niveau d'intérêt.
+- **Lisibilité** : les blocs « Projets clients », « Pourquoi les clients refusent-ils ? », « Besoins non couverts » et « Questions sans réponse dans le catalogue » affichent des **libellés métier en français** (« Projet immobilier — Aucune offre adaptée au besoin », « Durée inadaptée »), jamais les codes techniques (`REAL_ESTATE`, `NO_SUITABLE_PRODUCT`) qui restent visibles uniquement en infobulle. Les niveaux d'intérêt sont affichés « Intérêt élevé / moyen / faible ». Un produit non identifiable est affiché « Produit non identifié ».
 - Boutons d'administration : export **CSV**, régénération du **rapport IA** du jour, **données de démonstration** (30 jours d'événements synthétiques marqués `demo=true`).
 
 ---

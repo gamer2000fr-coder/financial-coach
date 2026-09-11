@@ -328,6 +328,13 @@ export interface MarketingStatus {
   availableDays: string[]
   reportDates: string[]
   amountBounds: number[]
+  /** Libellés métier fournis par le backend (source unique) : code technique → libellé lisible. */
+  projectTypeLabels?: Record<string, string>
+  productFamilyLabels?: Record<string, string>
+  rejectionReasonLabels?: Record<string, string>
+  interestReasonLabels?: Record<string, string>
+  unmetReasonLabels?: Record<string, string>
+  missingInfoReasonLabels?: Record<string, string>
 }
 
 export interface MarketingProductDetail {

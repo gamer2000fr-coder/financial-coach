@@ -3,6 +3,118 @@
   "sourceProductName" : "Assurance Auto SG – Tiers",
   "targetProductId" : "sg_auto_tous_risques",
   "targetProductName" : "Assurance Auto SG – Tous Risques",
+  "commonSessions" : 2,
+  "sourceSessions" : 2,
+  "rate" : 1.0
+}, {
+  "sourceProductId" : "sg_auto_tous_risques",
+  "sourceProductName" : "Assurance Auto SG – Tous Risques",
+  "targetProductId" : "sg_auto_tous_risques_plus",
+  "targetProductName" : "Assurance Auto SG – Tous Risques+",
+  "commonSessions" : 2,
+  "sourceSessions" : 5,
+  "rate" : 0.4
+}, {
+  "sourceProductId" : "sg_auto_tous_risques",
+  "sourceProductName" : "Assurance Auto SG – Tous Risques",
+  "targetProductId" : "sg_auto_tiers",
+  "targetProductName" : "Assurance Auto SG – Tiers",
+  "commonSessions" : 2,
+  "sourceSessions" : 5,
+  "rate" : 0.4
+}, {
+  "sourceProductId" : "sg_auto_tous_risques_plus",
+  "sourceProductName" : "Assurance Auto SG – Tous Risques+",
+  "targetProductId" : "sg_auto_tous_risques",
+  "targetProductName" : "Assurance Auto SG – Tous Risques",
+  "commonSessions" : 2,
+  "sourceSessions" : 2,
+  "rate" : 1.0
+}, {
+  "sourceProductId" : "sg_auto_leasing",
+  "sourceProductName" : "Assurance Auto SG – Leasing",
+  "targetProductId" : "sg_auto_tiers",
+  "targetProductName" : "Assurance Auto SG – Tiers",
+  "commonSessions" : 1,
+  "sourceSessions" : 1,
+  "rate" : 1.0
+}, {
+  "sourceProductId" : "sg_auto_leasing",
+  "sourceProductName" : "Assurance Auto SG – Leasing",
+  "targetProductId" : "sg_auto_tiers_plus",
+  "targetProductName" : "Assurance Auto SG – Tiers+",
+  "commonSessions" : 1,
+  "sourceSessions" : 1,
+  "rate" : 1.0
+}, {
+  "sourceProductId" : "sg_auto_leasing",
+  "sourceProductName" : "Assurance Auto SG – Leasing",
+  "targetProductId" : "sg_auto_tous_risques",
+  "targetProductName" : "Assurance Auto SG – Tous Risques",
+  "commonSessions" : 1,
+  "sourceSessions" : 1,
+  "rate" : 1.0
+}, {
+  "sourceProductId" : "sg_auto_leasing",
+  "sourceProductName" : "Assurance Auto SG – Leasing",
+  "targetProductId" : "sg_auto_tous_risques_plus",
+  "targetProductName" : "Assurance Auto SG – Tous Risques+",
+  "commonSessions" : 1,
+  "sourceSessions" : 1,
+  "rate" : 1.0
+}, {
+  "sourceProductId" : "sg_auto_tiers",
+  "sourceProductName" : "Assurance Auto SG – Tiers",
+  "targetProductId" : "sg_auto_leasing",
+  "targetProductName" : "Assurance Auto SG – Leasing",
+  "commonSessions" : 1,
+  "sourceSessions" : 2,
+  "rate" : 0.5
+}, {
+  "sourceProductId" : "sg_auto_tiers",
+  "sourceProductName" : "Assurance Auto SG – Tiers",
+  "targetProductId" : "sg_auto_tiers_plus",
+  "targetProductName" : "Assurance Auto SG – Tiers+",
+  "commonSessions" : 1,
+  "sourceSessions" : 2,
+  "rate" : 0.5
+}, {
+  "sourceProductId" : "sg_auto_tiers",
+  "sourceProductName" : "Assurance Auto SG – Tiers",
+  "targetProductId" : "sg_auto_tous_risques_plus",
+  "targetProductName" : "Assurance Auto SG – Tous Risques+",
+  "commonSessions" : 1,
+  "sourceSessions" : 2,
+  "rate" : 0.5
+}, {
+  "sourceProductId" : "sg_auto_tiers_plus",
+  "sourceProductName" : "Assurance Auto SG – Tiers+",
+  "targetProductId" : "sg_auto_leasing",
+  "targetProductName" : "Assurance Auto SG – Leasing",
+  "commonSessions" : 1,
+  "sourceSessions" : 1,
+  "rate" : 1.0
+}, {
+  "sourceProductId" : "sg_auto_tiers_plus",
+  "sourceProductName" : "Assurance Auto SG – Tiers+",
+  "targetProductId" : "sg_auto_tiers",
+  "targetProductName" : "Assurance Auto SG – Tiers",
+  "commonSessions" : 1,
+  "sourceSessions" : 1,
+  "rate" : 1.0
+}, {
+  "sourceProductId" : "sg_auto_tiers_plus",
+  "sourceProductName" : "Assurance Auto SG – Tiers+",
+  "targetProductId" : "sg_auto_tous_risques",
+  "targetProductName" : "Assurance Auto SG – Tous Risques",
+  "commonSessions" : 1,
+  "sourceSessions" : 1,
+  "rate" : 1.0
+}, {
+  "sourceProductId" : "sg_auto_tiers_plus",
+  "sourceProductName" : "Assurance Auto SG – Tiers+",
+  "targetProductId" : "sg_auto_tous_risques_plus",
+  "targetProductName" : "Assurance Auto SG – Tous Risques+",
   "commonSessions" : 1,
   "sourceSessions" : 1,
   "rate" : 1.0
@@ -12,86 +124,38 @@
   "targetProductId" : "sg_habitation_confort",
   "targetProductName" : "Assurance Habitation SG – Confort",
   "commonSessions" : 1,
-  "sourceSessions" : 4,
-  "rate" : 0.25
-}, {
-  "sourceProductId" : "sg_auto_tous_risques",
-  "sourceProductName" : "Assurance Auto SG – Tous Risques",
-  "targetProductId" : "sg_auto_tous_risques_plus",
-  "targetProductName" : "Assurance Auto SG – Tous Risques+",
-  "commonSessions" : 1,
-  "sourceSessions" : 4,
-  "rate" : 0.25
+  "sourceSessions" : 5,
+  "rate" : 0.2
 }, {
   "sourceProductId" : "sg_auto_tous_risques",
   "sourceProductName" : "Assurance Auto SG – Tous Risques",
   "targetProductId" : "sg_credit_auto_expresso",
   "targetProductName" : "Crédit Auto Expresso",
   "commonSessions" : 1,
-  "sourceSessions" : 4,
-  "rate" : 0.25
+  "sourceSessions" : 5,
+  "rate" : 0.2
 }, {
   "sourceProductId" : "sg_auto_tous_risques",
   "sourceProductName" : "Assurance Auto SG – Tous Risques",
-  "targetProductId" : "sg_auto_tiers",
-  "targetProductName" : "Assurance Auto SG – Tiers",
+  "targetProductId" : "sg_auto_leasing",
+  "targetProductName" : "Assurance Auto SG – Leasing",
   "commonSessions" : 1,
-  "sourceSessions" : 4,
-  "rate" : 0.25
+  "sourceSessions" : 5,
+  "rate" : 0.2
 }, {
-  "sourceProductId" : "sg_auto_tous_risques_plus",
-  "sourceProductName" : "Assurance Auto SG – Tous Risques+",
-  "targetProductId" : "sg_auto_tous_risques",
-  "targetProductName" : "Assurance Auto SG – Tous Risques",
+  "sourceProductId" : "sg_auto_tous_risques",
+  "sourceProductName" : "Assurance Auto SG – Tous Risques",
+  "targetProductId" : "sg_auto_tiers_plus",
+  "targetProductName" : "Assurance Auto SG – Tiers+",
   "commonSessions" : 1,
-  "sourceSessions" : 1,
-  "rate" : 1.0
+  "sourceSessions" : 5,
+  "rate" : 0.2
 }, {
   "sourceProductId" : "sg_auto_tous_risques_plus",
   "sourceProductName" : "Assurance Auto SG – Tous Risques+",
   "targetProductId" : "sg_credit_auto_expresso",
   "targetProductName" : "Crédit Auto Expresso",
   "commonSessions" : 1,
-  "sourceSessions" : 1,
-  "rate" : 1.0
-}, {
-  "sourceProductId" : "sg_credit_auto_expresso",
-  "sourceProductName" : "Crédit Auto Expresso",
-  "targetProductId" : "sg_auto_tous_risques",
-  "targetProductName" : "Assurance Auto SG – Tous Risques",
-  "commonSessions" : 1,
   "sourceSessions" : 2,
   "rate" : 0.5
-}, {
-  "sourceProductId" : "sg_credit_auto_expresso",
-  "sourceProductName" : "Crédit Auto Expresso",
-  "targetProductId" : "sg_auto_tous_risques_plus",
-  "targetProductName" : "Assurance Auto SG – Tous Risques+",
-  "commonSessions" : 1,
-  "sourceSessions" : 2,
-  "rate" : 0.5
-}, {
-  "sourceProductId" : "sg_credit_auto_expresso",
-  "sourceProductName" : "Crédit Auto Expresso",
-  "targetProductId" : "sg_pret_etudiant_evolutif",
-  "targetProductName" : "Prêt Étudiant Évolutif",
-  "commonSessions" : 1,
-  "sourceSessions" : 2,
-  "rate" : 0.5
-}, {
-  "sourceProductId" : "sg_habitation_confort",
-  "sourceProductName" : "Assurance Habitation SG – Confort",
-  "targetProductId" : "sg_auto_tous_risques",
-  "targetProductName" : "Assurance Auto SG – Tous Risques",
-  "commonSessions" : 1,
-  "sourceSessions" : 2,
-  "rate" : 0.5
-}, {
-  "sourceProductId" : "sg_pret_etudiant_evolutif",
-  "sourceProductName" : "Prêt Étudiant Évolutif",
-  "targetProductId" : "sg_credit_auto_expresso",
-  "targetProductName" : "Crédit Auto Expresso",
-  "commonSessions" : 1,
-  "sourceSessions" : 4,
-  "rate" : 0.25
 } ]

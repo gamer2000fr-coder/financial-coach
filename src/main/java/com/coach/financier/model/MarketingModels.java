@@ -1,6 +1,8 @@
 package com.coach.financier.model;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -40,6 +42,174 @@ public final class MarketingModels {
         return COACH_DATA_MISSING.equals(eventType)
                 || COACH_PRODUCT_MISMATCH.equals(eventType)
                 || COACH_UNANSWERED_REQUEST.equals(eventType);
+    }
+
+    // ------------------------------------------------------------------ libellés lisibles
+
+    /**
+     * Libellés MÉTIER des codes techniques (types de projet, motifs de refus, besoins non couverts,
+     * informations manquantes) : la page Marketing ne doit jamais afficher un code brut comme
+     * {@code REAL_ESTATE · NO_SUITABLE_PRODUCT}.
+     * <p>
+     * Les libellés vivent côté BACKEND (source unique) et sont exposés par {@code GET /api/marketing/status}.
+     * Un code inconnu est « humanisé » (underscores remplacés, première lettre en majuscule) : jamais de
+     * code brut, jamais d'invention.
+     */
+    private static final Map<String, String> PROJECT_TYPE_LABELS = labels(new String[][]{
+            {"VEHICLE", "Achat d'un véhicule"},
+            {"REAL_ESTATE", "Projet immobilier"},
+            {"HOME_WORK", "Travaux / aménagement"},
+            {"ELECTRONICS", "Achat high-tech"},
+            {"FURNITURE", "Achat mobilier"},
+            {"TRAVEL", "Voyage"},
+            {"EDUCATION", "Études / formation"},
+            {"WEDDING", "Mariage"},
+            {"HEALTH_EXPENSE", "Dépense de santé"},
+            {"CASH_NEED", "Besoin de trésorerie"},
+            {"DEBT_RESTRUCTURING", "Regroupement de crédits"},
+            {"SAVINGS", "Épargne / placement"},
+            {"INVESTMENT", "Investissement"},
+            {"INSURANCE", "Assurance"},
+            {"BUDGET", "Gestion du budget"},
+            // variantes observées côté IA (libellé français malgré tout, jamais un code brut)
+            {"REAL_ESTATE_PURCHASE", "Achat immobilier"},
+            {"REAL_ESTATE_INVESTMENT", "Investissement immobilier"},
+            {"CAR_PURCHASE", "Achat d'un véhicule"},
+            {"HOME_RENOVATION", "Travaux / aménagement"},
+            {"LIQUIDITY_NEED", "Besoin de trésorerie"},
+            {"OTHER", "Autre projet"},
+            {"UNKNOWN", "Projet non identifié"}});
+
+    /** Familles de produits du catalogue (crédits, assurances, épargne). */
+    private static final Map<String, String> PRODUCT_FAMILY_LABELS = labels(new String[][]{
+            {"AUTO_LOAN", "Crédit auto"},
+            {"PERSONAL_LOAN", "Crédit personnel"},
+            {"MORTGAGE", "Crédit immobilier"},
+            {"STUDENT_LOAN", "Prêt étudiant"},
+            {"YOUNG_ACTIVE_LOAN", "Prêt jeune actif"},
+            {"DRIVER_LICENSE_LOAN", "Crédit permis de conduire"},
+            {"REVOLVING_CREDIT", "Crédit renouvelable"},
+            {"DEBT_CONSOLIDATION", "Regroupement de crédits"},
+            {"INSURANCE_AUTO", "Assurance auto"},
+            {"INSURANCE_HOME", "Assurance habitation"},
+            {"INSURANCE_BORROWER", "Assurance emprunteur"},
+            {"LIFE_INSURANCE", "Assurance vie"},
+            {"SAVINGS_PRODUCT", "Produit d'épargne"},
+            {"HOME_SAVINGS", "Épargne logement"},
+            {"RETIREMENT_SAVINGS", "Épargne retraite"},
+            {"TERM_DEPOSIT", "Dépôt à terme"},
+            {"EQUITY_INVESTMENT", "Investissement en actions"}});
+
+    /** Motifs de REFUS d'un produit (le client écarte l'offre). */
+    private static final Map<String, String> REJECTION_REASON_LABELS = labels(new String[][]{
+            {"PRICE", "Prix / coût trop élevé"},
+            {"RATE", "Taux jugé trop élevé"},
+            {"PREFERS_CASH", "Préfère payer comptant"},
+            {"DOES_NOT_WANT_CREDIT", "Ne souhaite pas de crédit"},
+            {"INSUFFICIENT_COVERAGE", "Garanties insuffisantes"},
+            {"DURATION", "Durée inadaptée"},
+            {"CONDITIONS", "Conditions non acceptées"},
+            {"COMPETITOR", "Offre concurrente préférée"},
+            {"NOT_NEEDED", "Besoin non confirmé"},
+            {"TOO_COMPLEX", "Offre jugée trop complexe"},
+            {"OTHER", "Autre motif"}});
+
+    /** Motifs d'INTÉRÊT du client (pourquoi il s'intéresse au produit). */
+    private static final Map<String, String> INTEREST_REASON_LABELS = labels(new String[][]{
+            {"DETAIL_REQUEST", "Demande de détails"},
+            {"PRICE_REQUEST", "Demande de prix"},
+            {"RATE_REQUEST", "Demande de taux"},
+            {"COVERAGE_REQUEST", "Demande sur les garanties"},
+            {"COMPARISON", "Comparaison d'offres"},
+            {"SUBSCRIPTION_REQUEST", "Souhaite souscrire"},
+            {"QUOTE_REQUEST", "Demande de devis"},
+            {"ADVISOR_REQUEST", "Souhaite parler à un conseiller"},
+            {"OTHER", "Autre motif"}});
+
+    /** Motifs d'un BESOIN NON COUVERT (aucune offre adaptée au catalogue). */
+    private static final Map<String, String> UNMET_REASON_LABELS = labels(new String[][]{
+            {"NO_SUITABLE_PRODUCT", "Aucune offre adaptée au besoin"},
+            {"PRICE_RANGE_NOT_COVERED", "Montant hors gamme d'offres"},
+            {"ELIGIBILITY_NOT_MET", "Critères d'éligibilité non couverts"},
+            {"PRODUCT_MISSING", "Produit absent du catalogue"},
+            {"OTHER", "Autre motif"}});
+
+    /** Motifs d'INFORMATION PRODUIT MANQUANTE (question restée sans réponse). */
+    private static final Map<String, String> MISSING_INFO_REASON_LABELS = labels(new String[][]{
+            {"MISSING_COVERAGE_INFORMATION", "Garanties non documentées"},
+            {"MISSING_PRICING_INFORMATION", "Tarif non documenté"},
+            {"MISSING_CONDITIONS_INFORMATION", "Conditions non documentées"},
+            {"MISSING_ELIGIBILITY_INFORMATION", "Éligibilité non documentée"},
+            {"OTHER", "Autre information manquante"}});
+
+    private static Map<String, String> labels(String[][] entries) {
+        Map<String, String> map = new LinkedHashMap<>();
+        for (String[] entry : entries) {
+            map.put(entry[0], entry[1]);
+        }
+        return Map.copyOf(map);
+    }
+
+    public static Map<String, String> projectTypeLabels() {
+        return PROJECT_TYPE_LABELS;
+    }
+
+    public static Map<String, String> rejectionReasonLabels() {
+        return REJECTION_REASON_LABELS;
+    }
+
+    public static Map<String, String> productFamilyLabels() {
+        return PRODUCT_FAMILY_LABELS;
+    }
+
+    public static String productFamilyLabel(String raw) {
+        return label(PRODUCT_FAMILY_LABELS, raw);
+    }
+
+    public static Map<String, String> interestReasonLabels() {
+        return INTEREST_REASON_LABELS;
+    }
+
+    public static Map<String, String> unmetReasonLabels() {
+        return UNMET_REASON_LABELS;
+    }
+
+    public static Map<String, String> missingInfoReasonLabels() {
+        return MISSING_INFO_REASON_LABELS;
+    }
+
+    public static String projectTypeLabel(String raw) {
+        return label(PROJECT_TYPE_LABELS, raw);
+    }
+
+    public static String rejectionReasonLabel(String raw) {
+        return label(REJECTION_REASON_LABELS, raw);
+    }
+
+    public static String interestReasonLabel(String raw) {
+        return label(INTEREST_REASON_LABELS, raw);
+    }
+
+    public static String unmetReasonLabel(String raw) {
+        return label(UNMET_REASON_LABELS, raw);
+    }
+
+    public static String missingInfoReasonLabel(String raw) {
+        return label(MISSING_INFO_REASON_LABELS, raw);
+    }
+
+    /** Libellé d'un code : table de libellés, sinon version humanisée (jamais le code brut). */
+    private static String label(Map<String, String> labels, String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "";
+        }
+        String code = raw.trim().toUpperCase(Locale.ROOT);
+        String known = labels.get(code);
+        if (known != null) {
+            return known;
+        }
+        String humanized = code.replace('_', ' ').toLowerCase(Locale.ROOT);
+        return humanized.isEmpty() ? raw : humanized.substring(0, 1).toUpperCase(Locale.ROOT) + humanized.substring(1);
     }
 
     // ------------------------------------------------------------------ événements

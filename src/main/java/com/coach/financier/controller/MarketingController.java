@@ -66,6 +66,14 @@ public class MarketingController {
         out.put("availableDays", analyticsService.availableDays().stream().map(LocalDate::toString).toList());
         out.put("reportDates", reportService.availableDates());
         out.put("amountBounds", properties.amountBounds());
+        // Libellés métier (source unique) : la page ne doit jamais afficher un code brut
+        // comme « REAL_ESTATE · NO_SUITABLE_PRODUCT ».
+        out.put("projectTypeLabels", MarketingModels.projectTypeLabels());
+        out.put("productFamilyLabels", MarketingModels.productFamilyLabels());
+        out.put("rejectionReasonLabels", MarketingModels.rejectionReasonLabels());
+        out.put("interestReasonLabels", MarketingModels.interestReasonLabels());
+        out.put("unmetReasonLabels", MarketingModels.unmetReasonLabels());
+        out.put("missingInfoReasonLabels", MarketingModels.missingInfoReasonLabels());
         return out;
     }
 

@@ -3,17 +3,23 @@
   "productId" : null,
   "productName" : null,
   "count" : 1,
-  "share" : 0.3333
+  "share" : 0.25
 }, {
   "reasonCategory" : "COMPETITOR",
   "productId" : null,
   "productName" : null,
   "count" : 1,
-  "share" : 0.3333
+  "share" : 0.25
 }, {
   "reasonCategory" : "CONDITIONS",
   "productId" : null,
   "productName" : null,
   "count" : 1,
-  "share" : 0.3333
+  "share" : 0.25
+}, {
+  "reasonCategory" : "PREFERS_CASH",
+  "productId" : null,
+  "productName" : null,
+  "count" : 1,
+  "share" : 0.25
 } ]

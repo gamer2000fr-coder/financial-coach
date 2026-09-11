@@ -1,11 +1,11 @@
 {
-  "conversationCount" : 16,
-  "sessionsWithInterest" : 12,
+  "conversationCount" : 24,
+  "sessionsWithInterest" : 18,
   "uniqueCustomers" : 14,
-  "highInterestCount" : 12,
+  "highInterestCount" : 21,
   "subscriptionIntentCount" : 3,
-  "appointmentRequestCount" : 4,
+  "appointmentRequestCount" : 6,
   "unmetNeedCount" : 2,
-  "missingInformationCount" : 0,
+  "missingInformationCount" : 3,
   "coachQualityIssueCount" : 0
 }

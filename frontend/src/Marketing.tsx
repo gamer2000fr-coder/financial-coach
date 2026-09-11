@@ -49,8 +49,58 @@ function formatEvolution(value: number | null | undefined): string {
   return `${sign}${value.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %`
 }
 
-function labelProject(type: string): string {
-  return type.replace(/_/g, ' ').toLowerCase().replace(/^\w/, (c) => c.toUpperCase())
+/**
+ * Libellés métier : la page ne doit jamais afficher un code technique brut
+ * comme « REAL_ESTATE · NO_SUITABLE_PRODUCT ».
+ * La source est le backend (`GET /api/marketing/status` → `*Labels`) ; ce repli local ne sert
+ * qu'avant le chargement du statut. Un code inconnu est « humanisé », jamais affiché tel quel.
+ */
+const FALLBACK_LABELS: Record<string, string> = {
+  VEHICLE: "Achat d'un véhicule",
+  REAL_ESTATE: 'Projet immobilier',
+  HOME_WORK: 'Travaux / aménagement',
+  ELECTRONICS: 'Achat high-tech',
+  FURNITURE: 'Achat mobilier',
+  TRAVEL: 'Voyage',
+  EDUCATION: 'Études / formation',
+  CASH_NEED: 'Besoin de trésorerie',
+  SAVINGS: 'Épargne / placement',
+  BUDGET: 'Gestion du budget',
+  OTHER: 'Autre',
+  UNKNOWN: 'Non identifié',
+  MORTGAGE: 'Crédit immobilier',
+  PERSONAL_LOAN: 'Crédit personnel',
+  AUTO_LOAN: 'Crédit auto',
+  SAVINGS_PRODUCT: "Produit d'épargne",
+  INSURANCE_AUTO: 'Assurance auto',
+  INSURANCE_HOME: 'Assurance habitation',
+  INSURANCE_BORROWER: 'Assurance emprunteur',
+  NO_SUITABLE_PRODUCT: 'Aucune offre adaptée au besoin',
+  PRICE: 'Prix / coût trop élevé',
+  RATE: 'Taux jugé trop élevé',
+  PREFERS_CASH: 'Préfère payer comptant',
+  DOES_NOT_WANT_CREDIT: 'Ne souhaite pas de crédit',
+  MISSING_COVERAGE_INFORMATION: 'Garanties non documentées',
+  MISSING_PRICING_INFORMATION: 'Tarif non documenté',
+  MISSING_CONDITIONS_INFORMATION: 'Conditions non documentées',
+}
+
+/* Le code technique UNKNOWN ne doit jamais s'afficher tel quel dans la page. */
+const UNKNOWN_CODES = new Set(['UNKNOWN', 'NONE', 'NULL', 'UNDEFINED', '-', 'N/A', 'NA'])
+
+function isUnknown(code?: string | null): boolean {
+  return !code || !code.trim() || UNKNOWN_CODES.has(code.trim().toUpperCase())
+}
+
+function humanizeCode(code: string): string {
+  const text = code.replace(/_/g, ' ').toLowerCase()
+  return text ? text.charAt(0).toUpperCase() + text.slice(1) : code
+}
+
+function readableLabel(map: Record<string, string>, code?: string | null): string {
+  if (!code || !code.trim()) return ''
+  const key = code.trim().toUpperCase()
+  return map[key] ?? FALLBACK_LABELS[key] ?? humanizeCode(key)
 }
 
 export default function Marketing() {
@@ -78,6 +128,23 @@ export default function Marketing() {
     productFamily: productFamily || undefined,
     interestLevel: interestLevel || undefined,
   }), [projectType, productFamily, interestLevel])
+
+  /** Tables de libellés métier fournies par le backend (source unique). */
+  const labels = useMemo(() => ({
+    project: status?.projectTypeLabels ?? {},
+    family: status?.productFamilyLabels ?? {},
+    rejection: status?.rejectionReasonLabels ?? {},
+    interest: status?.interestReasonLabels ?? {},
+    unmet: status?.unmetReasonLabels ?? {},
+    missingInfo: status?.missingInfoReasonLabels ?? {},
+  }), [status])
+
+  /* Les valeurs des filtres restent les codes techniques : seuls les libellés affichés changent. */
+  const projectLabel = useCallback((code?: string | null) => readableLabel(labels.project, code), [labels])
+  const familyLabel = useCallback((code?: string | null) => readableLabel(labels.family, code), [labels])
+  const rejectionLabel = useCallback((code?: string | null) => readableLabel(labels.rejection, code), [labels])
+  const unmetLabel = useCallback((code?: string | null) => readableLabel(labels.unmet, code), [labels])
+  const missingInfoLabel = useCallback((code?: string | null) => readableLabel(labels.missingInfo, code), [labels])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -175,14 +242,14 @@ export default function Marketing() {
         <select value={projectType} onChange={(e) => setProjectType(e.target.value)} title="Filtrer par projet">
           <option value="">Tous les projets</option>
           {(data?.projects ?? []).map((project) => (
-            <option key={project.projectType} value={project.projectType}>{labelProject(project.projectType)}</option>
+            <option key={project.projectType} value={project.projectType}>{projectLabel(project.projectType)}</option>
           ))}
         </select>
         <select value={interestLevel} onChange={(e) => setInterestLevel(e.target.value)} title="Filtrer par niveau d'intérêt">
           <option value="">Tous les niveaux</option>
-          <option value="HIGH">HIGH</option>
-          <option value="MEDIUM">MEDIUM</option>
-          <option value="LOW">LOW</option>
+          <option value="HIGH">Intérêt élevé</option>
+          <option value="MEDIUM">Intérêt moyen</option>
+          <option value="LOW">Intérêt faible</option>
         </select>
         <button type="button" className="mkt-action" onClick={() => void load()} disabled={loading || working}>
           <RefreshCw size={15} /> Actualiser
@@ -244,7 +311,7 @@ export default function Marketing() {
           <section className="mkt-kpis">
             <Kpi label="Conversations analysées" value={formatNumber(data.overview.conversationCount)} />
             <Kpi label="Sessions avec intérêt" value={formatNumber(data.overview.sessionsWithInterest)} />
-            <Kpi label="Intérêts HIGH" value={formatNumber(data.overview.highInterestCount)} />
+            <Kpi label="Intérêts élevés (HIGH)" value={formatNumber(data.overview.highInterestCount)} />
             <Kpi label="Intentions de souscription" value={formatNumber(data.overview.subscriptionIntentCount)} />
             <Kpi label="Demandes de rendez-vous" value={formatNumber(data.overview.appointmentRequestCount)} />
             <Kpi label="Besoins non couverts" value={formatNumber(data.overview.unmetNeedCount)} />
@@ -261,7 +328,7 @@ export default function Marketing() {
                 </div>
               ))}
             </div>
-            <p className="mkt-hint">Barres = conversations par jour · survolez pour le détail (intérêts, HIGH, RDV).</p>
+            <p className="mkt-hint">Barres = conversations par jour · survolez pour le détail (intérêts, intérêts élevés, RDV).</p>
           </section>
 
           <section className="mkt-grid">
@@ -273,7 +340,7 @@ export default function Marketing() {
                   <span className="mkt-ranking-name">{product.productName}</span>
                   <span className="mkt-ranking-bar" style={{ width: `${(product.interestedSessions / maxInterested) * 100}%` }} />
                   <span className="mkt-ranking-value">
-                    {product.interestedSessions} <small>({product.highCount} HIGH)</small>
+                    {product.interestedSessions} <small>(dont {product.highCount} à intérêt élevé)</small>
                   </span>
                   <EvolutionBadge value={product.evolutionPercent} />
                 </button>
@@ -284,7 +351,7 @@ export default function Marketing() {
               <h2>Recommandation vs intérêt réel</h2>
               <table className="mkt-table compact">
                 <thead>
-                  <tr><th>Produit</th><th>Recommandé</th><th>Intérêt</th><th>HIGH</th><th>Taux</th></tr>
+                  <tr><th>Produit</th><th>Recommandé</th><th>Intérêt</th><th>Élevé</th><th>Taux</th></tr>
                 </thead>
                 <tbody>
                   {data.products.filter((p) => p.recommendedSessions > 0).slice(0, 8).map((product) => (
@@ -309,7 +376,7 @@ export default function Marketing() {
                   className="mkt-row"
                   onClick={() => setProjectType(project.projectType === projectType ? '' : project.projectType)}
                 >
-                  <span>{labelProject(project.projectType)}</span>
+                  <span title={project.projectType}>{projectLabel(project.projectType)}</span>
                   <span>{formatNumber(project.volume)} <small>({formatPercent(project.share)})</small></span>
                   <EvolutionBadge value={project.evolutionPercent} />
                 </button>
@@ -321,7 +388,7 @@ export default function Marketing() {
               {data.rejections.length === 0 && <p className="mkt-empty">Aucun refus enregistré.</p>}
               {data.rejections.map((rejection) => (
                 <div key={rejection.reasonCategory} className="mkt-row">
-                  <span>{rejection.reasonCategory}</span>
+                  <span title={rejection.reasonCategory}>{rejectionLabel(rejection.reasonCategory)}</span>
                   <span>{formatNumber(rejection.count)} <small>({formatPercent(rejection.share)})</small></span>
                 </div>
               ))}
@@ -343,8 +410,16 @@ export default function Marketing() {
               {data.unmetNeeds.length === 0 && <p className="mkt-empty">Aucun besoin non couvert détecté.</p>}
               {data.unmetNeeds.slice(0, 6).map((need, index) => (
                 <div key={`${need.projectType}-${need.reasonCategory}-${index}`} className="mkt-row column">
-                  <span className="mkt-strong">{labelProject(need.projectType ?? 'UNKNOWN')} · {need.reasonCategory}</span>
-                  <span className="mkt-muted">{need.reason ?? '—'} — {formatNumber(need.count)} occurrence(s)</span>
+                  <span className="mkt-strong" title={[need.projectType, need.reasonCategory].filter(Boolean).join(' · ')}>
+                    {isUnknown(need.projectType) ? 'Projet non identifié' : projectLabel(need.projectType)}
+                    {' — '}
+                    {isUnknown(need.reasonCategory) ? 'Motif non précisé' : unmetLabel(need.reasonCategory)}
+                  </span>
+                  <span className="mkt-muted">
+                    {need.reason?.trim() && `« ${need.reason.trim()} » · `}
+                    {formatNumber(need.count)} {need.count > 1 ? 'demandes' : 'demande'}
+                    {need.averageConfidence != null && ` · confiance IA ${formatPercent(need.averageConfidence, 0)}`}
+                  </span>
                 </div>
               ))}
             </div>
@@ -354,7 +429,10 @@ export default function Marketing() {
               {data.missingInformation.length === 0 && <p className="mkt-empty">Aucun manque d'information signalé.</p>}
               {data.missingInformation.slice(0, 6).map((info) => (
                 <div key={`${info.productId}-${info.reasonCategory}`} className="mkt-row">
-                  <span>{info.productName}<small> · {info.reasonCategory}</small></span>
+                  <span title={info.productId}>
+                    {isUnknown(info.productName) ? <span className="mkt-muted">Produit non identifié</span> : info.productName}
+                    <small> · {isUnknown(info.reasonCategory) ? 'motif non précisé' : missingInfoLabel(info.reasonCategory)}</small>
+                  </span>
                   <span>{formatNumber(info.count)}</span>
                 </div>
               ))}
@@ -405,7 +483,7 @@ export default function Marketing() {
                   {report.unmetNeeds && report.unmetNeeds.length > 0 && (
                     <div>
                       <h3>Besoins non couverts</h3>
-                      <ul>{report.unmetNeeds.map((item, i) => <li key={i}><strong>{labelProject(item.projectType ?? '')}</strong> — {item.observation}</li>)}</ul>
+                      <ul>{report.unmetNeeds.map((item, i) => <li key={i}><strong>{projectLabel(item.projectType) || 'Projet non identifié'}</strong> — {item.observation}</li>)}</ul>
                     </div>
                   )}
                   {report.missingProductInformation && report.missingProductInformation.length > 0 && (
@@ -465,7 +543,7 @@ export default function Marketing() {
                 <thead>
                   <tr>
                     <th>Produit</th><th>Famille</th><th>Recommandations</th><th>Intérêts</th>
-                    <th>HIGH</th><th>MEDIUM</th><th>Refus</th><th>Souscription</th><th>RDV</th>
+                    <th>Élevé</th><th>Moyen</th><th>Refus</th><th>Souscription</th><th>RDV</th>
                     <th>Taux intérêt</th><th>Score</th><th>Évolution</th>
                   </tr>
                 </thead>
@@ -473,7 +551,7 @@ export default function Marketing() {
                   {products.slice(0, 40).map((product) => (
                     <tr key={product.productId} onClick={() => void openProduct(product.productId)}>
                       <td>{product.productName}</td>
-                      <td>{product.productFamily ?? '—'}</td>
+                      <td>{isUnknown(product.productFamily) ? '—' : familyLabel(product.productFamily)}</td>
                       <td>{product.recommendedSessions}</td>
                       <td>{product.interestedSessions}</td>
                       <td>{product.highCount}</td>
@@ -504,7 +582,7 @@ export default function Marketing() {
               <Metric label="Recommandations" value={formatNumber(detail.metric.recommendedSessions)} />
               <Metric label="Sessions intéressées" value={formatNumber(detail.metric.interestedSessions)} />
               <Metric label="Clients uniques" value={formatNumber(detail.metric.uniqueInterestedCustomers)} />
-              <Metric label="HIGH / MEDIUM" value={`${detail.metric.highCount} / ${detail.metric.mediumCount}`} />
+              <Metric label="Intérêt élevé / moyen" value={`${detail.metric.highCount} / ${detail.metric.mediumCount}`} />
               <Metric label="Refus" value={formatNumber(detail.metric.rejectedCount)} />
               <Metric label="Souscription / RDV" value={`${detail.metric.subscriptionIntentCount} / ${detail.metric.appointmentRequestCount}`} />
               <Metric label="Taux intérêt" value={formatPercent(detail.metric.interestRate)} />
@@ -518,7 +596,7 @@ export default function Marketing() {
               <h3>Motifs de refus</h3>
               <ul className="mkt-report-list">
                 {detail.rejections.map((rejection) => (
-                  <li key={rejection.reasonCategory}><strong>{rejection.reasonCategory}</strong> — {rejection.count} ({formatPercent(rejection.share)})</li>
+                  <li key={rejection.reasonCategory}><strong>{rejectionLabel(rejection.reasonCategory)}</strong> — {rejection.count} ({formatPercent(rejection.share)})</li>
                 ))}
               </ul>
             </>

@@ -1,7 +1,37 @@
 [ {
+  "projectType" : "VEHICLE",
+  "volume" : 8,
+  "share" : 0.3077,
+  "amountRanges" : {
+    "2000_5000" : 2,
+    "5000_10000" : 3
+  },
+  "interestCount" : 7,
+  "rejectedCount" : 1,
+  "unmetNeedCount" : 0,
+  "topProducts" : [ {
+    "productId" : "sg_credit_auto_expresso",
+    "productName" : "Crédit Auto Expresso",
+    "count" : 4
+  }, {
+    "productId" : "sg_auto_tous_risques",
+    "productName" : "Assurance Auto SG – Tous Risques",
+    "count" : 1
+  }, {
+    "productId" : "sg_auto_tous_risques_plus",
+    "productName" : "Assurance Auto SG – Tous Risques+",
+    "count" : 1
+  }, {
+    "productId" : "credit-auto-expresso",
+    "productName" : "Crédit Auto Expresso",
+    "count" : 1
+  } ],
+  "previousVolume" : 1,
+  "evolutionPercent" : 700.0
+}, {
   "projectType" : "REAL_ESTATE",
-  "volume" : 4,
-  "share" : 0.25,
+  "volume" : 5,
+  "share" : 0.1923,
   "amountRanges" : {
     "10000_15000" : 3,
     "0_2000" : 1
@@ -15,11 +45,11 @@
     "count" : 1
   } ],
   "previousVolume" : 1,
-  "evolutionPercent" : 300.0
+  "evolutionPercent" : 400.0
 }, {
   "projectType" : "ELECTRONICS",
   "volume" : 3,
-  "share" : 0.1875,
+  "share" : 0.1154,
   "amountRanges" : {
     "30000_PLUS" : 1,
     "0_2000" : 2
@@ -41,7 +71,7 @@
 }, {
   "projectType" : "EDUCATION",
   "volume" : 2,
-  "share" : 0.125,
+  "share" : 0.0769,
   "amountRanges" : {
     "15000_30000" : 1,
     "0_2000" : 1
@@ -67,7 +97,7 @@
 }, {
   "projectType" : "SAVINGS",
   "volume" : 2,
-  "share" : 0.125,
+  "share" : 0.0769,
   "amountRanges" : {
     "15000_30000" : 2
   },
@@ -88,7 +118,7 @@
 }, {
   "projectType" : "TRAVEL",
   "volume" : 2,
-  "share" : 0.125,
+  "share" : 0.0769,
   "amountRanges" : {
     "0_2000" : 1,
     "5000_10000" : 1
@@ -116,34 +146,9 @@
   "previousVolume" : null,
   "evolutionPercent" : null
 }, {
-  "projectType" : "VEHICLE",
-  "volume" : 2,
-  "share" : 0.125,
-  "amountRanges" : {
-    "2000_5000" : 1
-  },
-  "interestCount" : 3,
-  "rejectedCount" : 0,
-  "unmetNeedCount" : 0,
-  "topProducts" : [ {
-    "productId" : "sg_credit_auto_expresso",
-    "productName" : "Crédit Auto Expresso",
-    "count" : 1
-  }, {
-    "productId" : "sg_auto_tous_risques",
-    "productName" : "Assurance Auto SG – Tous Risques",
-    "count" : 1
-  }, {
-    "productId" : "sg_auto_tous_risques_plus",
-    "productName" : "Assurance Auto SG – Tous Risques+",
-    "count" : 1
-  } ],
-  "previousVolume" : 1,
-  "evolutionPercent" : 100.0
-}, {
   "projectType" : "HOME_WORK",
   "volume" : 1,
-  "share" : 0.0625,
+  "share" : 0.0385,
   "amountRanges" : {
     "10000_15000" : 1
   },
@@ -157,4 +162,69 @@
   } ],
   "previousVolume" : 1,
   "evolutionPercent" : 0.0
+}, {
+  "projectType" : "INSURANCE",
+  "volume" : 1,
+  "share" : 0.0385,
+  "amountRanges" : { },
+  "interestCount" : 5,
+  "rejectedCount" : 0,
+  "unmetNeedCount" : 0,
+  "topProducts" : [ {
+    "productId" : "sg_auto_tiers",
+    "productName" : "Assurance Auto SG – Tiers",
+    "count" : 1
+  }, {
+    "productId" : "sg_auto_tiers_plus",
+    "productName" : "Assurance Auto SG – Tiers+",
+    "count" : 1
+  }, {
+    "productId" : "sg_auto_tous_risques",
+    "productName" : "Assurance Auto SG – Tous Risques",
+    "count" : 1
+  }, {
+    "productId" : "sg_auto_tous_risques_plus",
+    "productName" : "Assurance Auto SG – Tous Risques+",
+    "count" : 1
+  }, {
+    "productId" : "sg_auto_leasing",
+    "productName" : "Assurance Auto SG – Leasing",
+    "count" : 1
+  } ],
+  "previousVolume" : null,
+  "evolutionPercent" : null
+}, {
+  "projectType" : "OTHER",
+  "volume" : 1,
+  "share" : 0.0385,
+  "amountRanges" : { },
+  "interestCount" : 3,
+  "rejectedCount" : 0,
+  "unmetNeedCount" : 0,
+  "topProducts" : [ {
+    "productId" : "sg_habitation_initiale",
+    "productName" : "Assurance Habitation SG – Initiale",
+    "count" : 1
+  }, {
+    "productId" : "sg_habitation_confort",
+    "productName" : "Assurance Habitation SG – Confort",
+    "count" : 1
+  }, {
+    "productId" : "sg_habitation_optimale",
+    "productName" : "Assurance Habitation SG – Optimale",
+    "count" : 1
+  } ],
+  "previousVolume" : null,
+  "evolutionPercent" : null
+}, {
+  "projectType" : "REAL_ESTATE_PURCHASE",
+  "volume" : 1,
+  "share" : 0.0385,
+  "amountRanges" : { },
+  "interestCount" : 0,
+  "rejectedCount" : 0,
+  "unmetNeedCount" : 0,
+  "topProducts" : [ ],
+  "previousVolume" : null,
+  "evolutionPercent" : null
 } ]

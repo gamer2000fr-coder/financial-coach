@@ -1,1 +1,11 @@
-[ ]
+[ {
+  "productId" : "UNKNOWN",
+  "productName" : "UNKNOWN",
+  "reasonCategory" : "MISSING_PRICING_INFORMATION",
+  "count" : 2
+}, {
+  "productId" : "UNKNOWN",
+  "productName" : "UNKNOWN",
+  "reasonCategory" : "MISSING_CONDITIONS_INFORMATION",
+  "count" : 1
+} ]

@@ -665,7 +665,7 @@ Types : `PROJECT_DETECTED`, `PRODUCT_RECOMMENDED`, `PRODUCT_INTEREST`, `PRODUCT_
 
 | Méthode | Chemin | Rôle |
 |---|---|---|
-| GET | `/api/marketing/status` | État du module (activé, mode démo, jours disponibles, bornes de montant) |
+| GET | `/api/marketing/status` | État du module (activé, mode démo, jours disponibles, bornes de montant) + **tables de libellés métier** (`projectTypeLabels`, `productFamilyLabels`, `rejectionReasonLabels`, `interestReasonLabels`, `unmetReasonLabels`, `missingInfoReasonLabels`) |
 | GET | `/api/marketing/overview` | KPI + produits + projets + séries + tendances |
 | GET | `/api/marketing/products`, `/products/{productId}` | Classement produits / détail d'un produit |
 | GET | `/api/marketing/projects`, `/trends`, `/rejections`, `/cross-sell`, `/unmet-needs`, `/missing-information` | Vues analytiques |
@@ -685,11 +685,20 @@ Toutes les lectures acceptent `period` (`today`, `yesterday`, `7d`, `30d`, `cust
 - **Cross-sell** : nombre de sessions où deux produits sont associés, rapporté au nombre de sessions intéressées par le produit source.
 - **Client unique** : `anonymousCustomerId` = SHA-256(sel + identifiant client) tronqué → aucun identifiant en clair sur disque.
 
-### 16.6 Frontend
+### 16.6 Libellés métier (lisibilité)
+
+Les codes techniques stockés dans les événements (`REAL_ESTATE`, `NO_SUITABLE_PRODUCT`, `MORTGAGE`…) ne sont **jamais affichés bruts** dans la page : les libellés français vivent dans `MarketingModels` (`PROJECT_TYPE_LABELS`, `PRODUCT_FAMILY_LABELS`, `REJECTION_REASON_LABELS`, `INTEREST_REASON_LABELS`, `UNMET_REASON_LABELS`, `MISSING_INFO_REASON_LABELS`) et sont exposés par `GET /api/marketing/status` (source unique).
+
+- `projectTypeLabel("REAL_ESTATE")` → « Projet immobilier », `unmetReasonLabel("NO_SUITABLE_PRODUCT")` → « Aucune offre adaptée au besoin », `productFamilyLabel("MORTGAGE")` → « Crédit immobilier ».
+- Un code inconnu est **humanisé** (« solar panels ») : jamais de code brut, jamais d'invention de sens.
+- Le code technique reste utilisé comme **valeur de filtre** et disponible en **infobulle** (`title`) pour le support.
+- Le produit `UNKNOWN` (produit non identifiable par le coach) est affiché « Produit non identifié ».
+
+### 16.7 Frontend
 
 `Marketing.tsx` (route `#/marketing`, lien `TrendingUp` dans l'en-tête du chat) : en-tête + filtres de période, 7 cartes KPI, histogramme jour par jour, classement des produits, tableau « recommandé vs intérêt », projets, refus, cross-sell, besoins non couverts, informations manquantes, rapport IA (avec avertissement « rapport généré par IA »), tableau triable/filtrable et tiroir de détail produit. Types dans `types.ts`, appels dans `api.ts`, styles `.mkt-*` dans `styles.css`.
 
-### 16.7 Commandes utiles
+### 16.8 Commandes utiles
 
 ```powershell
 # Batch du jour + rapport IA (MOCK par défaut)
