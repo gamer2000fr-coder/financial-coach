@@ -817,5 +817,167 @@ public class MockAIService implements AIService {
         return rate == null ? "n/a" : Math.round(rate * 1000) / 10.0 + " %";
     }
 
+    /**
+     * Mode démo — ANALYSTE FEEDBACK CONSEILLER : rapport DÉTERMINISTE construit uniquement à partir
+     * des KPI calculés par le backend. Aucun chiffre inventé, aucune instruction de commentaire
+     * suivie, aucune recommandation de modification automatique du Coach.
+     */
+    @Override
+    public com.coach.financier.model.AdvisorFeedbackModels.AdvisorFeedbackReport analyzeAdvisorFeedback(
+            com.coach.financier.model.AdvisorFeedbackModels.AdvisorFeedbackAggregates aggregates,
+            AIModels.AIProvider provider) {
+        java.util.List<com.coach.financier.model.AdvisorFeedbackModels.StrengthItem> strengths = new ArrayList<>();
+        java.util.List<com.coach.financier.model.AdvisorFeedbackModels.IssueItem> issues = new ArrayList<>();
+        java.util.List<com.coach.financier.model.AdvisorFeedbackModels.ProductAnalysisItem> productAnalysis =
+                new ArrayList<>();
+        java.util.List<String> overestimation = new ArrayList<>();
+        java.util.List<com.coach.financier.model.AdvisorFeedbackModels.AdvisorTrend> trends = new ArrayList<>();
+        java.util.List<com.coach.financier.model.AdvisorFeedbackModels.AdvisorPriorityImprovement> improvements =
+                new ArrayList<>();
+        java.util.List<String> watchPoints = new ArrayList<>();
+
+        String reportDate = LocalDate.now().toString();
+        String status = com.coach.financier.model.AdvisorFeedbackModels.STATUS_INSUFFICIENT;
+        String summaryText = "Aucun feedback conseiller exploitable sur la période : les données fournies ne "
+                + "permettent pas de conclure sur la pertinence du travail du Coach.";
+        String interestSummary = "Aucune correction de niveau d'intérêt fournie.";
+        String nextActionSummary = "Aucune évaluation du suivi conseillé fournie.";
+        String emailSummary = "Aucune évaluation d'email fournie.";
+
+        if (aggregates != null) {
+            reportDate = aggregates.dateTo() == null ? reportDate : aggregates.dateTo();
+            com.coach.financier.model.AdvisorFeedbackModels.AdvisorKpis kpis = aggregates.kpis();
+            if (kpis != null && kpis.feedbackCount() > 0) {
+                summaryText = kpis.sessionsEvaluated() + " dossier(s) évalué(s) : "
+                        + percent(kpis.relevantRate()) + " jugé(s) pertinents, "
+                        + percent(kpis.needsImprovementRate()) + " à améliorer, "
+                        + percent(kpis.incorrectRate()) + " incorrects."
+                        + (kpis.sufficientSample() ? ""
+                        : " Le volume de retours reste limité : ces observations sont préliminaires.");
+                status = kpis.relevantRate() != null && kpis.relevantRate() >= 0.7
+                        ? com.coach.financier.model.AdvisorFeedbackModels.STATUS_GOOD
+                        : (kpis.incorrectRate() != null && kpis.incorrectRate() >= 0.15
+                        ? com.coach.financier.model.AdvisorFeedbackModels.STATUS_ATTENTION
+                        : com.coach.financier.model.AdvisorFeedbackModels.STATUS_WATCH);
+                if (kpis.relevantRate() != null && kpis.relevantRate() >= 0.7) {
+                    strengths.add(new com.coach.financier.model.AdvisorFeedbackModels.StrengthItem(
+                            "Analyses globalement validées",
+                            percent(kpis.relevantRate()) + " des dossiers évalués sont jugés pertinents par les "
+                                    + "conseillers."));
+                }
+                if (kpis.emailReadyOrMinorRate() != null && kpis.emailReadyOrMinorRate() >= 0.6) {
+                    strengths.add(new com.coach.financier.model.AdvisorFeedbackModels.StrengthItem(
+                            "Emails préparés exploitables",
+                            percent(kpis.emailReadyOrMinorRate()) + " des emails évalués sont prêts à l'emploi ou "
+                                    + "ne demandent que des modifications mineures."));
+                }
+                if (kpis.productRelevanceRate() != null && kpis.productRelevanceRate() >= 0.8) {
+                    strengths.add(new com.coach.financier.model.AdvisorFeedbackModels.StrengthItem(
+                            "Produits jugés pertinents",
+                            percent(kpis.productRelevanceRate()) + " des produits évalués sont validés par les "
+                                    + "conseillers."));
+                }
+            }
+            for (com.coach.financier.model.AdvisorFeedbackModels.AreaMetric area : aggregates.areas()) {
+                if (issues.size() >= 5) break;
+                issues.add(new com.coach.financier.model.AdvisorFeedbackModels.IssueItem(area.area(),
+                        area.label() + " : " + area.count() + " correction(s) signalée(s)"
+                                + (area.evolutionPercent() == null ? "" : " (évolution "
+                                + area.evolutionPercent() + " %)"), "MEDIUM"));
+            }
+            for (com.coach.financier.model.AdvisorFeedbackModels.ReasonMetric reason : aggregates.reasons()) {
+                if (issues.size() >= 6) break;
+                issues.add(new com.coach.financier.model.AdvisorFeedbackModels.IssueItem(
+                        com.coach.financier.model.AdvisorFeedbackModels.AREA_OTHER,
+                        "Motif « " + reason.label() + " » relevé " + reason.count() + " fois", "LOW"));
+            }
+            for (com.coach.financier.model.AdvisorFeedbackModels.ProductFeedbackMetric product : aggregates.products()) {
+                if (productAnalysis.size() >= 8) break;
+                String signal = product.relevanceRate() == null
+                        ? com.coach.financier.model.AdvisorFeedbackModels.STATUS_INSUFFICIENT
+                        : (product.relevanceRate() >= 0.8 ? "POSITIVE"
+                        : (product.relevanceRate() >= 0.5 ? "MIXED" : "NEGATIVE"));
+                productAnalysis.add(new com.coach.financier.model.AdvisorFeedbackModels.ProductAnalysisItem(
+                        product.productId(), product.productName(),
+                        product.assessments() + " évaluation(s), " + product.relevant() + " pertinent(s), "
+                                + product.notRelevant() + " non pertinent(s), " + product.interestCorrections()
+                                + " correction(s) de niveau"
+                                + (product.addedByAdvisor() > 0 ? ", ajouté " + product.addedByAdvisor()
+                                + " fois par un conseiller" : ""), signal));
+            }
+            for (com.coach.financier.model.AdvisorFeedbackModels.InterestCorrectionMetric correction
+                    : aggregates.interestCorrections()) {
+                if (overestimation.size() >= 5) break;
+                String direction = "HIGH".equals(correction.fromLevel()) || "MEDIUM".equals(correction.fromLevel())
+                        && "LOW".equals(correction.toLevel()) ? "surestimation" : "correction";
+                overestimation.add(correction.productName() + " : " + correction.fromLevel() + " → "
+                        + correction.toLevel() + " (" + correction.count() + " fois, " + direction + ")");
+            }
+            if (!aggregates.interestCorrections().isEmpty()) {
+                interestSummary = aggregates.kpis().interestCorrections()
+                        + " correction(s) de niveau d'intérêt : la valeur IA et la valeur conseiller sont "
+                        + "conservées séparément.";
+            }
+            if (!aggregates.emailQuality().isEmpty()) {
+                emailSummary = "Distribution des emails évalués : "
+                        + aggregates.emailQuality().stream()
+                        .map(item -> item.label() + " = " + item.count())
+                        .collect(java.util.stream.Collectors.joining(", ")) + ".";
+            }
+            if (aggregates.kpis() != null && aggregates.kpis().productAssessments() > 0) {
+                nextActionSummary = "Le suivi conseillé est évalué par les conseillers ; "
+                        + aggregates.kpis().productAssessments() + " produit(s) évalué(s) sur la période.";
+            }
+            for (com.coach.financier.model.MarketingModels.TrendMetric trend : aggregates.trends()) {
+                if (trends.size() >= 5 || trend.evolutionPercent() == null) continue;
+                trends.add(new com.coach.financier.model.AdvisorFeedbackModels.AdvisorTrend(
+                        trend.evolutionPercent() > 0 ? "DEGRADING" : "IMPROVING",
+                        trend.entityName(), trend.current() + " vs " + trend.previous() + " ("
+                                + trend.evolutionPercent() + " %) sur la période précédente."));
+            }
+            if (!aggregates.areas().isEmpty()) {
+                var top = aggregates.areas().get(0);
+                improvements.add(new com.coach.financier.model.AdvisorFeedbackModels.AdvisorPriorityImprovement(
+                        "MEDIUM", "Traiter la correction la plus fréquente",
+                        top.label() + " (" + top.count() + " signalement(s))",
+                        "Analyser les dossiers concernés et examiner les critères utilisés par le Coach, "
+                                + "sans modifier automatiquement de seuil ni de règle.",
+                        "Baisse des corrections manuelles et gain de temps pour les conseillers."));
+            }
+            if (!overestimation.isEmpty()) {
+                improvements.add(new com.coach.financier.model.AdvisorFeedbackModels.AdvisorPriorityImprovement(
+                        "HIGH", "Réduire la surestimation des niveaux d'intérêt",
+                        String.join(" | ", overestimation),
+                        "Étudier les critères distinguant un intérêt explicite d'une simple demande "
+                                + "d'information (comparaison des dossiers corrigés).",
+                        "Meilleure priorisation commerciale et confiance accrue dans le dossier."));
+                watchPoints.add("Plusieurs niveaux d'intérêt corrigés par les conseillers : converger avec "
+                        + "les signaux produit.");
+            }
+            if (aggregates.kpis() != null && !aggregates.kpis().sufficientSample()) {
+                watchPoints.add("Volume de retours conseillers limité : confirmer sur plusieurs périodes.");
+            }
+            if (aggregates.demo()) {
+                watchPoints.add("Des feedbacks de démonstration (source=DEMO) sont présents sur la période.");
+            }
+        }
+
+        return new com.coach.financier.model.AdvisorFeedbackModels.AdvisorFeedbackReport(
+                reportDate,
+                new com.coach.financier.model.AdvisorFeedbackModels.AdvisorReportPeriod(
+                        aggregates == null ? reportDate : aggregates.dateFrom(),
+                        aggregates == null ? reportDate : aggregates.dateTo()),
+                new com.coach.financier.model.AdvisorFeedbackModels.AdvisorExecutiveSummary(status, summaryText),
+                strengths, issues, productAnalysis,
+                new com.coach.financier.model.AdvisorFeedbackModels.InterestLevelAnalysis(interestSummary,
+                        overestimation, List.of()),
+                new com.coach.financier.model.AdvisorFeedbackModels.SectionAnalysis(nextActionSummary, List.of()),
+                new com.coach.financier.model.AdvisorFeedbackModels.SectionAnalysis(emailSummary, List.of()),
+                trends, improvements, watchPoints,
+                "Rapport généré en mode démo à partir des KPI calculés : il propose des pistes, il ne modifie "
+                        + "jamais automatiquement le Coach (prompt, règles, seuils, catalogue, code).",
+                java.time.Instant.now().toString(), "MOCK", Boolean.TRUE, null);
+    }
+
     private String money(double value) { return String.format(java.util.Locale.FRANCE, "%.2f", value); }
 }

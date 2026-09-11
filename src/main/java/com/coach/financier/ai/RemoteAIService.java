@@ -163,8 +163,111 @@ public abstract class RemoteAIService implements AIService {
         }
     }
 
-    /** Complète le rapport avec les métadonnées calculées côté backend (date, modèle, horodatage). */
-    private MarketingModels.MarketingReport withReportMeta(MarketingModels.MarketingReport report,
+    @Override
+    public com.coach.financier.model.AdvisorFeedbackModels.AdvisorFeedbackReport analyzeAdvisorFeedback(
+            com.coach.financier.model.AdvisorFeedbackModels.AdvisorFeedbackAggregates aggregates,
+            AIModels.AIProvider provider) {
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new IllegalStateException("Clé API absente pour le fournisseur " + providerName);
+        }
+        // L'analyste ne reçoit QUE les KPI calculés et des commentaires anonymisés (§1 du prompt).
+        String system = AgentFiles.advisorFeedbackSystemPrompt();
+        String user;
+        try {
+            user = objectMapper.writeValueAsString(advisorPayload(aggregates));
+        } catch (Exception e) {
+            throw new IllegalStateException("Agrégats de feedback conseiller non sérialisables", e);
+        }
+        String content = call(system, user);
+        try {
+            com.coach.financier.model.AdvisorFeedbackModels.AdvisorFeedbackReport parsed =
+                    objectMapper.readValue(content,
+                            com.coach.financier.model.AdvisorFeedbackModels.AdvisorFeedbackReport.class);
+            return withAdvisorMeta(parsed, aggregates);
+        } catch (Exception e) {
+            throw new IllegalStateException("Rapport Feedback Conseiller invalide: " + content, e);
+        }
+    }
+
+    /** Payload calqué sur les données d'entrée décrites par le prompt (§1). */
+    private static Map<String, Object> advisorPayload(
+            com.coach.financier.model.AdvisorFeedbackModels.AdvisorFeedbackAggregates aggregates) {
+        if (aggregates == null) {
+            return Map.of();
+        }
+        Map<String, Object> payload = new java.util.LinkedHashMap<>();
+        payload.put("period", Map.of("from", aggregates.dateFrom(), "to", aggregates.dateTo(),
+                "comparisonPeriod", "PREVIOUS_PERIOD"));
+        payload.put("kpis", aggregates.kpis());
+        payload.put("assessments", aggregates.assessments());
+        payload.put("correctionAreas", aggregates.areas());
+        payload.put("correctionReasons", aggregates.reasons());
+        payload.put("productFeedback", aggregates.products());
+        payload.put("interestLevelCorrections", aggregates.interestCorrections());
+        payload.put("emailQuality", aggregates.emailQuality());
+        payload.put("trends", aggregates.trends());
+        payload.put("series", aggregates.series());
+        payload.put("anonymizedComments", aggregates.anonymizedComments());
+        payload.put("demoData", aggregates.demo());
+        payload.put("invalidLines", aggregates.invalidLines());
+        return payload;
+    }
+
+    /** Complète le rapport et NORMALISE les valeurs d'énumération (statut, sévérité, signaux, priorités). */
+    private com.coach.financier.model.AdvisorFeedbackModels.AdvisorFeedbackReport withAdvisorMeta(
+            com.coach.financier.model.AdvisorFeedbackModels.AdvisorFeedbackReport report,
+            com.coach.financier.model.AdvisorFeedbackModels.AdvisorFeedbackAggregates aggregates) {
+        com.coach.financier.model.AdvisorFeedbackModels.AdvisorFeedbackReport source = report == null
+                ? new com.coach.financier.model.AdvisorFeedbackModels.AdvisorFeedbackReport(null, null, null,
+                List.of(), List.of(), List.of(),
+                new com.coach.financier.model.AdvisorFeedbackModels.InterestLevelAnalysis("", List.of(), List.of()),
+                new com.coach.financier.model.AdvisorFeedbackModels.SectionAnalysis("", List.of()),
+                new com.coach.financier.model.AdvisorFeedbackModels.SectionAnalysis("", List.of()),
+                List.of(), List.of(), List.of(), null, null, null, null, null) : report;
+        String date = aggregates == null || aggregates.dateTo() == null
+                ? source.reportDate() : aggregates.dateTo();
+        var summary = source.executiveSummary() == null
+                ? new com.coach.financier.model.AdvisorFeedbackModels.AdvisorExecutiveSummary(
+                com.coach.financier.model.AdvisorFeedbackModels.STATUS_INSUFFICIENT, "")
+                : new com.coach.financier.model.AdvisorFeedbackModels.AdvisorExecutiveSummary(
+                com.coach.financier.model.AdvisorFeedbackModels
+                        .normalizeReportStatus(source.executiveSummary().status()),
+                source.executiveSummary().summary());
+        List<com.coach.financier.model.AdvisorFeedbackModels.IssueItem> issues = source.mainIssues().stream()
+                .map(item -> new com.coach.financier.model.AdvisorFeedbackModels.IssueItem(
+                        item.area(), item.observation(),
+                        com.coach.financier.model.AdvisorFeedbackModels.normalizePriority(item.severity())))
+                .toList();
+        List<com.coach.financier.model.AdvisorFeedbackModels.ProductAnalysisItem> products =
+                source.productAnalysis().stream()
+                        .map(item -> new com.coach.financier.model.AdvisorFeedbackModels.ProductAnalysisItem(
+                                item.productId(), item.productName(), item.observation(),
+                                com.coach.financier.model.AdvisorFeedbackModels.normalizeSignal(item.signal())))
+                        .toList();
+        List<com.coach.financier.model.AdvisorFeedbackModels.AdvisorTrend> trends = source.trends().stream()
+                .map(item -> new com.coach.financier.model.AdvisorFeedbackModels.AdvisorTrend(
+                        com.coach.financier.model.AdvisorFeedbackModels.normalizeTrendType(item.type()),
+                        item.topic(), item.observation()))
+                .toList();
+        List<com.coach.financier.model.AdvisorFeedbackModels.AdvisorPriorityImprovement> improvements =
+                source.priorityImprovements().stream()
+                        .map(item -> new com.coach.financier.model.AdvisorFeedbackModels.AdvisorPriorityImprovement(
+                                com.coach.financier.model.AdvisorFeedbackModels.normalizePriority(item.priority()),
+                                item.title(), item.observation(), item.recommendation(), item.expectedBenefit()))
+                        .limit(5) // §20 : au maximum 5 priorités
+                        .toList();
+        com.coach.financier.model.AdvisorFeedbackModels.AdvisorReportPeriod period = aggregates == null
+                ? source.period()
+                : new com.coach.financier.model.AdvisorFeedbackModels.AdvisorReportPeriod(
+                aggregates.dateFrom(), aggregates.dateTo());
+        return new com.coach.financier.model.AdvisorFeedbackModels.AdvisorFeedbackReport(
+                date, period, summary, source.strengths(), issues, products, source.interestLevelAnalysis(),
+                source.nextActionAnalysis(), source.clientEmailAnalysis(), trends, improvements,
+                source.watchPoints(), source.finalAssessment(), java.time.Instant.now().toString(),
+                model, Boolean.TRUE, null);
+    }
+
+    /** Complète le rapport avec les métadonnées calculées côté backend (date, modèle, horodatage). */    private MarketingModels.MarketingReport withReportMeta(MarketingModels.MarketingReport report,
                                                            MarketingModels.MarketingAggregates aggregates) {
         String reportDate = aggregates == null ? report.reportDate() : aggregates.dateTo();
         return new MarketingModels.MarketingReport(

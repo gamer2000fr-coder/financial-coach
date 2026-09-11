@@ -46,6 +46,7 @@ Empêcher structurellement l'IA de recommander ou de mentionner un produit banca
 | F17 | Marketing Intelligence | Analyse des conversations (intérêts, refus, cross-sell, besoins non couverts) + rapport IA, sans base de données |
 | F18 | Pop-in de satisfaction | À la fin d'une conversation : note 1 à 5, motifs si note ≤ 3, commentaire facultatif, bouton **Passer** — avis toujours facultatif |
 | F19 | Qualité & Satisfaction du Coach | Indicateurs de satisfaction client **et** contrôles de conformité du Coach, croisement des deux, rapport IA quotidien |
+| F20 | Feedback Conseiller | Le conseiller évalue en quelques secondes la pertinence du travail du Coach (résumé, besoin, produits, intérêts, suivi, email) ; KPI, pertinence produit, qualité des emails, analyse IA |
 
 ### 2.1 Pages / écrans (frontend React, routage par hash, pas de react-router)
 
@@ -56,6 +57,8 @@ Empêcher structurellement l'IA de recommander ou de mentionner un produit banca
 | `#/agents` | **Agents IA** | Édition des prompts par agent : générique (défaut), agent principal, agent de suivi, agent analyste marketing, 6 agents spécialisés. Injecté à chaque appel |
 | `#/marketing` | **Marketing Intelligence** | KPI, top produits, projets, « recommandé vs intérêt », refus, cross-sell, besoins non couverts, infos manquantes, rapport IA du jour, export CSV |
 | `#/quality` | **Qualité & Satisfaction** | Note moyenne, taux de participation, avis positifs/négatifs, distribution des notes, motifs d'insatisfaction, contrôles du Coach, croisement satisfaction × conformité, analyse IA, export CSV |
+| `#/advisor-feedback` | **Feedback Conseillers** | Saisie rapide d'un avis conseiller par dossier, KPI de pertinence, zones corrigées, pertinence produit, corrections d'intérêt, qualité des emails préparés, analyse IA, export CSV |
+| `#/advisor-feedback/session/<sessionId>` | **Évaluation d'un dossier** | Vue ciblée ouverte par le **lien du mail conseiller** : projet, synthèse du Coach, produits et niveaux d'intérêt, suivi conseillé, email préparé, puis formulaire d'évaluation |
 
 ---
 
@@ -187,7 +190,9 @@ flowchart TD
     F --> H[Événements marketing<br/>persistés en JSONL]
 ```
 
-- **Un seul email automatique** : au conseiller. Le brouillon destiné au client est **joint** (`.eml`/`.html`/`.txt`), jamais envoyé.
+- le **suivi conseillé** = **un seul email automatique**, au **conseiller** ;
+- ce mail contient un **lien direct « Évaluer le suivi du Coach »** vers le dossier de la conversation : le conseiller passe du mail à l'écran d'évaluation en un clic (§41/§42) ;
+- le brouillon destiné au client est **joint** (`.eml`/`.html`/`.txt`), jamais envoyé et ne contient **jamais** le lien interne d'évaluation.
 - Déclenchement **sans attente** (l'IHM n'affiche ni chargement ni bannière de résultat) et **une seule fois par session**.
 - Cas particuliers : suivi désactivé, moins de 2 échanges, ou session inconnue (backend redémarré) → **aucun envoi** ; l'échec d'envoi est tracé dans l'écran **Logs** (bloc `[SUIVI]` : `mailStatus`, `mailSent`, `mailTarget`, `mailError`).
 
@@ -237,6 +242,35 @@ flowchart TD
 - **Anonymat** : identifiant client pseudonymisé, commentaire nettoyé (emails/téléphones masqués), aucun libellé bancaire.
 - **Page Qualité** : filtres de période (aujourd'hui, hier, 7 j, 30 j, personnalisée), note, sévérité ; indicateurs de satisfaction et de conformité **séparés** ; croisement A/B/C/D (B = anomalie invisible pour le client, C = règle correctement appliquée mais frustrante, D = cas prioritaire) ; analyse IA ; export CSV des agrégats (jamais des commentaires bruts).
 - **Contrôles affichés** = uniquement ceux **réellement implémentés** ; les autres sont listés à part et ne sont jamais comptés comme un « 0 ».
+
+### 3.9 Feedback Conseiller (`#/advisor-feedback`)
+
+Troisième point de vue sur le Coach, **indépendant** des deux autres :
+
+| Module | Question posée | Qui répond |
+|---|---|---|
+| Qualité | « Le client est-il satisfait ? Le Coach respecte-t-il les règles ? » | client + contrôles automatiques |
+| **Feedback Conseiller** | « Le travail produit est-il **pertinent** du point de vue professionnel du conseiller ? » | conseiller bancaire |
+
+- **Saisie en quelques secondes** : l'évaluation globale suffit (👍 Pertinente / ⚠ À améliorer / 👎 Incorrecte). Les détails (zones à améliorer, motifs, produits, niveaux d'intérêt, suivi, email) ne s'ouvrent que pour un avis négatif et restent facultatifs.
+- **Produits** : le conseiller marque un produit « pertinent / non pertinent », peut **corriger le niveau d'intérêt** (la valeur IA **et** la valeur du conseiller sont conservées) et signaler un **produit oublié** choisi uniquement dans le catalogue réel.
+- **Email client** : exploitabilité évaluée (prêt à l'emploi, modifications mineures, importantes, non utilisable) — c'est la mesure concrète du gain apporté au conseiller.
+- **Boucle d'amélioration** : KPI, tendances, pertinence par produit, qualité des emails, puis analyse IA (« Générer l'analyse IA ») qui **propose** des pistes — **aucune** modification automatique du prompt, des règles, des seuils, du catalogue ou du code.
+- **Robustesse** : un échec d'enregistrement ne casse jamais le dossier conseiller ; un double clic ne crée pas de doublon ; une révision crée une **version suivante** (historique conservé).
+- **Parcours depuis le mail** (§41 à §47) :
+
+```mermaid
+flowchart TD
+    MAIL[Mail de suivi reçu par le conseiller] --> LINK[Bouton<br/>« Évaluer le suivi du Coach »]
+    LINK --> DOSSIER[Page #/advisor-feedback/session/&lt;sessionId&gt;<br/>dossier déjà chargé]
+    DOSSIER --> FORM[Note globale puis détails<br/>facultatifs]
+    FORM --> MERCI[« Merci, votre retour<br/>a bien été enregistré. »]
+    MERCI --> RETOUR[Retour au tableau de suivi]
+```
+
+  - l'URL ne contient **que** le `sessionId` : jamais de nom, email, compte, montant ni commentaire (§45) ;
+  - le **backend** vérifie l'existence du dossier (§46) : session inconnue → « Ce dossier n'est plus disponible. » (sans erreur technique) ;
+  - un dossier déjà évalué affiche le feedback existant et permet sa **révision** (nouvelle version).
 
 ---
 
@@ -348,6 +382,17 @@ Toutes les données sont **fictives** et servent uniquement la démonstration.
 33. La page Qualité n'affiche que les contrôles **réellement exécutés** (aucun faux « 0 ») ;
 34. Aucun avis ne contient de donnée personnelle (identifiant pseudonymisé, commentaire nettoyé).
 
+### 7.4 Feedback Conseiller
+
+35. Un feedback positif s'enregistre **sans aucun détail** (évaluation globale seule) ;
+36. Un feedback négatif peut préciser zones, motifs, produits, intérêts, suivi et email — tout reste facultatif ;
+37. Un double clic ou un retry ne crée **qu'un seul** événement ; une révision crée une **version suivante** sans écraser l'historique ;
+38. Un échec d'enregistrement ne bloque jamais le dossier conseiller ;
+39. La correction d'un niveau d'intérêt conserve **les deux valeurs** (IA et conseiller) ;
+40. Un produit oublié ne peut être choisi que dans le **catalogue réel** ;
+41. Le nom du conseiller n'est jamais stocké (identifiant technique uniquement) ;
+42. Aucun feedback ne modifie automatiquement le Coach : le rapport IA ne produit que des recommandations.
+
 ---
 
 ## 8. Limites connues (POC)
@@ -361,3 +406,6 @@ Toutes les données sont **fictives** et servent uniquement la démonstration.
 - Qualité : l'analyse IA **des commentaires** (classification automatique) n'est pas activée — les thèmes affichés proviennent d'une heuristique locale déterministe ;
 - Qualité : le taux de participation repose sur les conversations pour lesquelles des contrôles ont été exécutés (une conversation non clôturée n'est pas comptée) ;
 - Qualité : en dessous du seuil d'échantillon (`app.quality.sufficient-sample-size`), le rapport IA reste prudent et le signale.
+- Feedback Conseiller : la génération de l'analyse IA est **manuelle** dans le POC (bouton) ; un batch quotidien est disponible via l'API (`POST /api/advisor-feedback/batch`) mais n'est pas planifié ;
+- Feedback Conseiller : la comparaison automatique « version IA / version conseiller » de l'email (P2) n'est pas implémentée — seul le niveau déclaré par le conseiller est enregistré ;
+- Feedback Conseiller : la vue 360° (client + Quality + conseiller) n'est pas encore agrégée — les structures partagent le `sessionId` pour la préparer.

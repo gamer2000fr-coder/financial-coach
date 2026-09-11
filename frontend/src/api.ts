@@ -19,6 +19,16 @@ import type {
   QualityReport,
   QualityStatus,
 } from './types.quality'
+import type {
+  AdvisorAggregates,
+  AdvisorCandidatesResponse,
+  AdvisorDossierView,
+  AdvisorFeedbackInput,
+  AdvisorFeedbackResponse,
+  AdvisorPeriod,
+  AdvisorReport,
+  AdvisorStatus,
+} from './types.advisor'
 
 function resolveApiBaseUrl(): string {
   if (typeof window === 'undefined') return 'http://localhost:9797/api'
@@ -340,4 +350,157 @@ export async function generateQualityDemoData(
 /** URL d'export CSV des statistiques agrégées (jamais des commentaires bruts). */
 export function qualitySatisfactionCsvUrl(period: QualityPeriod, from?: string, to?: string): string {
   return `${API_BASE_URL}/quality/export/satisfaction.csv?${qualityQuery(period, from, to)}`
+}
+
+// ------------------------------------------------------------------ Feedback Conseiller (#/advisor-feedback)
+
+/** Zones corrigeables par le conseiller (§5 de la spécification). */
+export const ADVISOR_AREAS: { code: string; label: string }[] = [
+  { code: 'SUMMARY', label: 'Résumé de la conversation' },
+  { code: 'CUSTOMER_NEED', label: 'Compréhension du besoin client' },
+  { code: 'PROJECT_DETECTION', label: 'Projet détecté' },
+  { code: 'PRODUCT_RELEVANCE', label: "Produit proposé / produit d'intérêt" },
+  { code: 'INTEREST_LEVEL', label: "Niveau d'intérêt du client" },
+  { code: 'NEXT_ACTION', label: 'Suivi conseillé' },
+  { code: 'CLIENT_EMAIL', label: 'Email préparé pour le client' },
+  { code: 'MISSING_INFORMATION', label: 'Information importante manquante' },
+  { code: 'OTHER', label: 'Autre' },
+]
+
+/** Motifs structurés (§6). */
+export const ADVISOR_REASONS: { code: string; label: string }[] = [
+  { code: 'WRONG', label: 'Erreur' },
+  { code: 'INCOMPLETE', label: 'Incomplet' },
+  { code: 'NOT_RELEVANT', label: 'Non pertinent' },
+  { code: 'TOO_VERBOSE', label: 'Trop verbeux' },
+  { code: 'TOO_GENERIC', label: 'Trop générique' },
+  { code: 'MISSING_CONTEXT', label: 'Contexte manquant' },
+  { code: 'WRONG_PRODUCT', label: "Mauvais produit" },
+  { code: 'WRONG_INTEREST_LEVEL', label: "Mauvais niveau d'intérêt" },
+  { code: 'UNSUPPORTED_RECOMMENDATION', label: 'Recommandation non étayée' },
+  { code: 'OTHER', label: 'Autre' },
+]
+
+/** Motifs d'un produit jugé non pertinent (§7). */
+export const ADVISOR_PRODUCT_REASONS: { code: string; label: string }[] = [
+  { code: 'CUSTOMER_NOT_INTERESTED', label: 'Client non intéressé' },
+  { code: 'INCOMPATIBLE_WITH_NEED', label: 'Produit incompatible avec le besoin' },
+  { code: 'INTEREST_OVERESTIMATED', label: 'Intérêt surestimé' },
+  { code: 'MENTION_ONLY', label: 'Produit seulement mentionné' },
+  { code: 'OTHER', label: 'Autre' },
+]
+
+/** Exploitabilité de l'email préparé (§11). */
+export const ADVISOR_EMAIL_ASSESSMENTS: { code: string; label: string }[] = [
+  { code: 'READY_TO_USE', label: 'Prêt à utiliser' },
+  { code: 'MINOR_EDITS', label: 'Modifications mineures' },
+  { code: 'MAJOR_EDITS', label: 'Modifications importantes' },
+  { code: 'UNUSABLE', label: 'Non utilisable' },
+]
+
+/** Niveaux d'intérêt conservés tels quels (valeur IA et correction conseiller). */
+export const ADVISOR_INTEREST_LEVELS = ['HIGH', 'MEDIUM', 'LOW', 'REJECTED']
+
+function advisorQuery(period: AdvisorPeriod, from?: string, to?: string, filters?: AdvisorFilters): string {
+  const params = new URLSearchParams({ period })
+  if (period === 'custom') {
+    if (from) params.set('from', from)
+    if (to) params.set('to', to)
+  }
+  Object.entries(filters ?? {}).forEach(([key, value]) => {
+    if (value) params.set(key, value)
+  })
+  return params.toString()
+}
+
+/** Filtres de la page Feedback Conseillers. */
+export interface AdvisorFilters {
+  assessment?: string
+  area?: string
+  productId?: string
+  emailAssessment?: string
+}
+
+/** Enregistre (ou révise) un feedback conseiller — jamais bloquant pour le dossier. */
+export async function submitAdvisorFeedback(
+  payload: AdvisorFeedbackInput,
+): Promise<AdvisorFeedbackResponse> {
+  return apiFetch<AdvisorFeedbackResponse>('/advisor-feedback', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+/**
+ * Dossier évaluable ciblé par le lien reçu par email (§43). {@code null} si le dossier n'existe pas
+ * ou n'est plus disponible : l'IHM affiche alors « Ce dossier n'est plus disponible. » sans erreur
+ * technique. Le backend reste seul juge de l'existence du dossier (§46).
+ */
+export async function fetchAdvisorDossier(sessionId: string): Promise<AdvisorDossierView | null> {
+  const response = await fetch(
+    `${API_BASE_URL}/advisor-feedback/sessions/${encodeURIComponent(sessionId)}/dossier`,
+    { headers: { Accept: 'application/json' } },
+  )
+  if (response.status === 404 || response.status === 204) return null
+  if (!response.ok) throw new Error(`Erreur HTTP ${response.status}`)
+  return (await response.json()) as AdvisorDossierView
+}
+
+/** Dossiers proposés à l'évaluation + catalogue produits (produit manquant). */export async function fetchAdvisorCandidates(
+  days = 7,
+  includeEvaluated = false,
+): Promise<AdvisorCandidatesResponse> {
+  const params = new URLSearchParams({ days: String(days), includeEvaluated: String(includeEvaluated) })
+  return apiFetch<AdvisorCandidatesResponse>(`/advisor-feedback/candidates?${params.toString()}`)
+}
+
+/** État du module (libellés, jours disponibles). */
+export async function fetchAdvisorStatus(): Promise<AdvisorStatus> {
+  return apiFetch<AdvisorStatus>('/advisor-feedback/status')
+}
+
+/** Agrégats complets de la période (KPI, zones, motifs, produits, corrections, emails). */
+export async function fetchAdvisorOverview(
+  period: AdvisorPeriod,
+  from?: string,
+  to?: string,
+  filters?: AdvisorFilters,
+): Promise<AdvisorAggregates> {
+  return apiFetch<AdvisorAggregates>(`/advisor-feedback/overview?${advisorQuery(period, from, to, filters)}`)
+}
+
+/** Rapport IA de la période (ou le plus récent) ; {@code null} si aucun rapport. */
+export async function fetchAdvisorReport(date?: string): Promise<AdvisorReport | null> {
+  const query = date ? `?date=${encodeURIComponent(date)}` : ''
+  const response = await fetch(`${API_BASE_URL}/advisor-feedback/report${query}`, {
+    headers: { Accept: 'application/json' },
+  })
+  if (response.status === 204) return null
+  if (!response.ok) throw new Error(`Erreur HTTP ${response.status}`)
+  return (await response.json()) as AdvisorReport
+}
+
+/** Bouton « Générer l'analyse IA » (§30) : rapport de la période sélectionnée. */
+export async function generateAdvisorReport(
+  period: AdvisorPeriod,
+  from?: string,
+  to?: string,
+): Promise<AdvisorReport> {
+  return apiFetch<AdvisorReport>(`/advisor-feedback/report/generate?${advisorQuery(period, from, to)}`, {
+    method: 'POST',
+  })
+}
+
+/** Jeu de démonstration (source=DEMO, rejouable sans doublon). */
+export async function generateAdvisorDemoData(
+  days = 14,
+  evaluationsPerDay = 4,
+): Promise<{ days: number; written: number }> {
+  const params = new URLSearchParams({ days: String(days), evaluationsPerDay: String(evaluationsPerDay) })
+  return apiFetch(`/advisor-feedback/demo-data?${params.toString()}`, { method: 'POST' })
+}
+
+/** URL d'export CSV des statistiques agrégées. */
+export function advisorSummaryCsvUrl(period: AdvisorPeriod, from?: string, to?: string): string {
+  return `${API_BASE_URL}/advisor-feedback/export/summary.csv?${advisorQuery(period, from, to)}`
 }

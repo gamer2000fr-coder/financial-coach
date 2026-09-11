@@ -5,9 +5,17 @@ import Logs from './Logs'
 import Agents from './Agents'
 import Marketing from './Marketing'
 import Quality from './Quality'
+import AdvisorFeedback from './AdvisorFeedback'
+import DossierFeedback from './DossierFeedback'
 import './styles.css'
 
-type Page = 'chat' | 'logs' | 'agents' | 'marketing' | 'quality'
+type Page = 'chat' | 'logs' | 'agents' | 'marketing' | 'quality' | 'advisor-feedback' | 'advisor-dossier'
+
+/** SessionId porté par le lien du mail conseiller : `#/advisor-feedback/session/<sessionId>` (§42). */
+function dossierSessionId(): string | null {
+  const match = window.location.hash.match(/^#\/advisor-feedback\/session\/(.+)$/)
+  return match ? decodeURIComponent(match[1]) : null
+}
 
 function currentPage(): Page {
   const hash = window.location.hash
@@ -15,6 +23,8 @@ function currentPage(): Page {
   if (hash.startsWith('#/agents')) return 'agents'
   if (hash.startsWith('#/marketing')) return 'marketing'
   if (hash.startsWith('#/quality')) return 'quality'
+  if (hash.startsWith('#/advisor-feedback/session/')) return 'advisor-dossier'
+  if (hash.startsWith('#/advisor-feedback')) return 'advisor-feedback'
   return 'chat'
 }
 
@@ -31,6 +41,11 @@ function Router() {
   if (page === 'agents') return <Agents />
   if (page === 'marketing') return <Marketing />
   if (page === 'quality') return <Quality />
+  if (page === 'advisor-dossier') {
+    const sessionId = dossierSessionId()
+    return sessionId ? <DossierFeedback sessionId={sessionId} /> : <AdvisorFeedback />
+  }
+  if (page === 'advisor-feedback') return <AdvisorFeedback />
   return <App />
 }
 

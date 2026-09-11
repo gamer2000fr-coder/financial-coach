@@ -69,6 +69,7 @@ public class ConversationClosureService {
     private final MarketingEventStore marketingEventStore;
     private final MarketingExtractionService marketingExtractionService;
     private final CoachQualityCheckService coachQualityCheckService;
+    private final AdvisorDossierService advisorDossierService;
 
     private final String configuredAdvisorName;
     private final String configuredAdvisorEmail;
@@ -91,6 +92,7 @@ public class ConversationClosureService {
                                       MarketingEventStore marketingEventStore,
                                       MarketingExtractionService marketingExtractionService,
                                       CoachQualityCheckService coachQualityCheckService,
+                                      AdvisorDossierService advisorDossierService,
                                       @Value("${app.advisor.name:}") String configuredAdvisorName,
                                       @Value("${app.advisor.email:}") String configuredAdvisorEmail,
                                       @Value("${app.customer.name:}") String configuredCustomerName,
@@ -111,6 +113,7 @@ public class ConversationClosureService {
         this.marketingEventStore = marketingEventStore;
         this.marketingExtractionService = marketingExtractionService;
         this.coachQualityCheckService = coachQualityCheckService;
+        this.advisorDossierService = advisorDossierService;
         this.configuredAdvisorName = configuredAdvisorName;
         this.configuredAdvisorEmail = configuredAdvisorEmail;
         this.configuredCustomerName = configuredCustomerName;
@@ -206,6 +209,13 @@ public class ConversationClosureService {
         //       client : ils sont exécutés à chaque clôture et ne bloquent jamais le dossier de suivi.
         int qualityCheckCount = runQualityChecks(conversation, sessionId, warnings);
 
+        // 5quater) Dossier évaluable : persistance (best effort) + LIEN D'ÉVALUATION ajouté au mail
+        //          conseiller APRÈS la validation des URLs (le lien est fabriqué par le backend, il ne
+        //          peut donc pas être neutralisé par le contrôle anti-invention). L'URL ne contient que
+        //          le sessionId : aucune donnée personnelle (§45).
+        advisorDossierService.persist(sessionId, result);
+        validated = withFeedbackLink(validated, sessionId);
+
         // 6) Pièce jointe générée à partir du brouillon client : destinataire = mail du client
         //    (fiche customer.mail), expéditeur = mail du conseiller (évite « unknown sender »).
         SuiviModels.Attachment attachment = attachmentBuilder.build(format, validated.preparedCustomerEmail(),
@@ -269,6 +279,22 @@ public class ConversationClosureService {
             SuiviModels.EmailContent advisorEmail,
             SuiviModels.EmailContent preparedCustomerEmail
     ) {}
+
+    /**
+     * Ajoute le bloc « Évaluer le suivi du Coach » (lien direct vers le dossier) à la fin du mail
+     * conseiller. Le lien ne contient que le sessionId et n'est JAMAIS fabriqué par l'IA : il est
+     * donc insensible au contrôle d'invention d'URL.
+     */
+    private Validated withFeedbackLink(Validated validated, String sessionId) {
+        SuiviModels.EmailContent advisor = validated.advisorEmail();
+        if (advisor == null) {
+            return validated;
+        }
+        String body = (advisor.body() == null ? "" : advisor.body().stripTrailing())
+                + "\n\n" + advisorDossierService.feedbackBlock(sessionId);
+        return new Validated(validated.summary(), validated.products(), validated.rejectedProducts(),
+                new SuiviModels.EmailContent(advisor.subject(), body), validated.preparedCustomerEmail());
+    }
 
     /**
      * Contrôle déterministe de la sortie IA :

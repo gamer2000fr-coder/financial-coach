@@ -106,6 +106,8 @@ sequenceDiagram
 | **Feedback de satisfaction** | note 1 à 5, motifs, commentaire — TOUJOURS facultatif, jamais bloquant | pop-in `App.tsx`/`FeedbackPopup.tsx` → `QualityFeedbackService` |
 | **Conformité du Coach** | contrôles automatiques exécutés à la clôture, indépendants du ressenti client | `CoachQualityCheckService` → `QualityCheckStore` |
 | **Rapport qualité** | interprétation de la satisfaction ET de la conformité, tenues séparées | agent analyste `qualite_coach_client.txt` (`analyzeQuality`) |
+| **Feedback conseiller** | évaluation de la PERTINENCE du travail produit (résumé, besoin, produits, intérêts, suivi, email) | IHM `#/advisor-feedback` → `AdvisorFeedbackService` |
+| **Rapport feedback conseiller** | interprétation des KPI de pertinence + convergences produit × intérêt | agent analyste `feedback_conseiller.txt` (`analyzeAdvisorFeedback`) |
 
 ---
 
@@ -129,6 +131,7 @@ Deux prompts **ne sont pas des agents de coach** (ils n'apparaissent donc pas da
 - **`suivi.txt`** — agent de **fin de conversation** : produit le dossier de suivi conseiller (+ brouillon client + événements marketing). Appelé uniquement par `ConversationClosureService` (`AgentFiles.suiviSystemPrompt()`).
 - **`marketing.txt`** — agent **analyste marketing** : rédige le rapport à partir des agrégats déjà calculés. Appelé uniquement par `MarketingReportService` (`AgentFiles.marketingSystemPrompt()`).
 - **`qualite_coach_client.txt`** — agent **analyste qualité & satisfaction** : rédige le rapport qualité à partir des agrégats de satisfaction **et** de conformité. Appelé uniquement par `QualityReportService` (`AgentFiles.qualitySystemPrompt()`).
+- **`feedback_conseiller.txt`** — agent **analyste Feedback Conseiller** : rédige le rapport de pertinence à partir des KPI calculés et des commentaires anonymisés de conseillers. Appelé uniquement par `AdvisorFeedbackReportService` (`AgentFiles.advisorFeedbackSystemPrompt()`).
 
 ---
 
@@ -237,3 +240,34 @@ Règles structurantes :
 - **Anonymat** : identifiant client pseudonymisé, commentaires nettoyés (emails/téléphones masqués) avant stockage, affichage ou envoi à l'IA ; le commentaire reste une donnée **non fiable** (jamais une instruction).
 - **Idempotence** : `feedbackId` déterministe + une seule réponse par conversation ; identifiants de contrôle déterministes ; batch réexécutable.
 - **L'IA propose, l'humain décide** : le module ne modifie jamais le prompt, les règles métier, les catalogues ou le code.
+
+### 7.5 Boucle Feedback Conseiller (le conseiller juge le travail du Coach)
+
+```mermaid
+flowchart TD
+    CLOSE2["Clôture + dossier de suivi"] --> DOSSIER["Le conseiller consulte le dossier"]
+    CLOSE2 --> PERSIST["AdvisorDossierService<br/>dossier évaluable persiste<br/>+ lien ajoute au mail conseiller"]
+    PERSIST --> MAIL2["Mail conseiller :<br/>bouton Evaluer le suivi du Coach"]
+    MAIL2 --> DIRECT["#/advisor-feedback/session/&lt;sessionId&gt;<br/>(dossier deja charge)"]
+    DIRECT --> DOSSIER
+    DOSSIER --> SAISIE["Saisie rapide (#/advisor-feedback)<br/>👍 Pertinente / ⚠ À améliorer / 👎 Incorrecte"]
+    SAISIE --> DETAILS["Détails FACULTATIFS si avis négatif<br/>zones + motifs, produits, niveaux d'intérêt,<br/>suivi conseillé, email préparé"]
+    DETAILS --> JSONL["events/advisor_feedback_&lt;date&gt;.jsonl<br/>idempotent par contenu, versions conservées"]
+    JSONL --> KPI["AdvisorFeedbackAnalyticsService<br/>KPI + zones + produits + intérêts + emails"]
+    KPI --> PAGE2["Page #/advisor-feedback"]
+    KPI --> REP2["AdvisorFeedbackReportService<br/>agent feedback_conseiller.txt"]
+    REP2 --> RJSON2["reports/advisor_feedback_report_&lt;date&gt;.json"]
+    RJSON2 --> PAGE2
+    PAGE2 --> HUM["Équipe humaine → décide des évolutions"]
+```
+
+Règles structurantes :
+
+- **Un feedback positif ne demande rien d'autre** : l'évaluation globale suffit (quelques secondes).
+- **Le lien d'évaluation est injecté par le backend dans le mail conseiller** (`[URL|Évaluer le suivi du Coach|…/#/advisor-feedback/session/<sessionId>]`), APRÈS la validation anti-invention d'URL ; l'URL ne contient **que** le `sessionId`.
+- **Idempotence + historique** : un double clic ne crée pas de doublon ; une révision crée une version suivante ; les agrégats ne comptent que la **version courante**.
+- **Valeur IA conservée** : une correction de niveau d'intérêt stocke **les deux** valeurs (IA et conseiller).
+- **Aucun produit inventé** : un produit « oublié » est choisi dans le **catalogue réel**.
+- **Confidentialité** : conseiller identifié par un hash uniquement ; commentaires nettoyés et traités comme données **non fiables** (jamais exécutés comme instructions).
+- **Aucune modification automatique** : le module produit des **recommandations** ; l'humain décide (pas d'auto-apprentissage, pas de changement de seuil).
+- **Indépendance** : Qualité (client + règles) et Feedback Conseiller (pertinence métier) restent deux familles séparées, reliées par le seul `sessionId`.

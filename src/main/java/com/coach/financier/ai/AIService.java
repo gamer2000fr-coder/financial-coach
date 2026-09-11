@@ -1,5 +1,6 @@
 package com.coach.financier.ai;
 
+import com.coach.financier.model.AdvisorFeedbackModels;
 import com.coach.financier.model.AIModels;
 import com.coach.financier.model.ConversationModels;
 import com.coach.financier.model.FinancialSummary;
@@ -53,4 +54,13 @@ public interface AIService {
      */
     QualityModels.QualityReport analyzeQuality(QualityModels.QualityAggregates aggregates,
                                                AIModels.AIProvider provider);
+
+    /**
+     * Appel IA de l'ANALYSTE FEEDBACK CONSEILLER ({@code agent/feedback_conseiller.txt}) : l'IA
+     * INTERPRÈTE des statistiques déjà calculées (évaluations, zones corrigées, produits, niveaux
+     * d'intérêt, suivi, emails) et des commentaires anonymisés. Elle ne calcule aucun chiffre, ne
+     * reçoit aucune donnée personnelle et ne modifie jamais le Coach : elle propose, l'humain décide.
+     */
+    AdvisorFeedbackModels.AdvisorFeedbackReport analyzeAdvisorFeedback(
+            AdvisorFeedbackModels.AdvisorFeedbackAggregates aggregates, AIModels.AIProvider provider);
 }

@@ -99,6 +99,24 @@ app:
       unanswered-request: ${QUALITY_SEVERITY_UNANSWERED:MEDIUM}
       missing-data: ${QUALITY_SEVERITY_MISSING_DATA:MEDIUM}
       excessive-repetition: ${QUALITY_SEVERITY_REPETITION:LOW}
+  # --- Module Feedback Conseiller (POC, AUCUNE base de données) ---
+  # Le conseiller évalue la PERTINENCE du travail du Coach (résumé, besoin, produits, intérêts, suivi,
+  # email). Indépendant du module Qualité : sa satisfaction, le point de jonction est le sessionId.
+  # Aucun feedback ne modifie automatiquement le Coach (prompt, règle, seuil, catalogue, code).
+  advisor-feedback:
+    enabled: ${ADVISOR_FEEDBACK_ENABLED:true}
+    demo-mode: ${ADVISOR_FEEDBACK_DEMO_MODE:false}
+    dir: ${ADVISOR_FEEDBACK_DIR:./data/advisor-feedback}
+    # Sel de pseudonymisation du conseiller (nom jamais stocké, jamais exposé dans les agrégats).
+    hash-salt: ${ADVISOR_FEEDBACK_HASH_SALT:coach-financier-poc}
+    comment-max-length: ${ADVISOR_FEEDBACK_COMMENT_MAX_LENGTH:1000}
+    # En dessous de ce volume, le rapport IA reste prudent (échantillon insuffisant).
+    sufficient-sample-size: ${ADVISOR_FEEDBACK_SAMPLE_SIZE:5}
+    prompt-version: ${ADVISOR_FEEDBACK_PROMPT_VERSION:advisor-feedback-v1}
+    # Base du LIEN D'ÉVALUATION inséré dans le mail conseiller (bouton « Évaluer le suivi du Coach »).
+    # Exemple : http://localhost:9898 -> <base>/#/advisor-feedback/session/<sessionId>.
+    # Vide = lien relatif (utilisable depuis le navigateur du conseiller sur le même hôte).
+    frontend-url: ${ADVISOR_FEEDBACK_FRONTEND_URL:http://localhost:9898}
   mail:
     # Active/désactive l'envoi de mails (permet de démarrer sans configuration mail).
     enabled: ${MAIL_ENABLED:true}

@@ -143,6 +143,32 @@ class ConversationClosureServiceTest {
     }
 
     @Test
+    void close_addsTheEvaluationLinkToTheAdvisorEmail_withoutPersonalData() {
+        when(aiServiceFactory.defaultProvider()).thenReturn(AIModels.AIProvider.MOCK);
+        when(aiServiceFactory.get(any())).thenReturn(new MockAIService());
+        when(conversationService.find("s1")).thenReturn(conversationWithTousRisques());
+
+        SuiviModels.CloseConversationResponse response = service().close("s1", null);
+
+        String body = response.advisorEmail().body();
+        assertTrue(body.contains("Évaluer le suivi du Coach"),
+                "Le mail conseiller doit contenir le bloc d'évaluation (§41)");
+        assertTrue(body.contains("#/advisor-feedback/session/s1"),
+                "Le lien doit cibler directement le dossier de la conversation (§42)");
+        assertTrue(body.contains("[URL|Évaluer le suivi du Coach|http://localhost:9898/#/advisor-feedback/session/s1]"),
+                "Le lien doit respecter le format [URL|nom|url] pour être cliquable dans les clients mail");
+        // §45 : aucune donnée personnelle dans l'URL (ni email client, ni nom du conseiller).
+        String link = body.substring(body.indexOf("[URL|Évaluer le suivi du Coach|"));
+        link = link.substring(0, link.indexOf(']'));
+        assertFalse(link.contains("Michel@gmail.com"), "Aucun email client dans le lien");
+        assertFalse(link.contains("Jean Martin"), "Aucun nom dans le lien");
+        assertFalse(link.contains("conseiller@sg.test"), "Aucun email conseiller dans le lien");
+        // Le brouillon client, lui, ne contient jamais le lien d'évaluation.
+        assertFalse(response.preparedCustomerEmail().body().contains("advisor-feedback"),
+                "Le brouillon client ne doit pas contenir le lien interne d'évaluation");
+    }
+
+    @Test
     void close_logsTheSuiviAiCall() {
         when(aiServiceFactory.defaultProvider()).thenReturn(AIModels.AIProvider.MOCK);
         when(aiServiceFactory.get(any())).thenReturn(new MockAIService());
@@ -263,8 +289,26 @@ class ConversationClosureServiceTest {
                 productCatalogueService, new EmailAttachmentBuilder(), mailService, bankingDataRepository,
                 financialAnalysisService, aiLogService, testObjectMapper(), marketingProperties(),
                 mock(MarketingEventStore.class), mock(MarketingExtractionService.class),
-                qualityChecks(),
+                qualityChecks(), advisorDossiers(),
                 "Conseiller SG", ADVISOR, "Jean Martin", "txt", "https://particuliers.sg.fr/vos-rendez-vous", true);
+    }
+
+    /**
+     * Dossier évaluable : store pointant vers le répertoire de test (aucune écriture dans ./data) et
+     * lien d'évaluation absolu — le mail conseiller doit contenir le lien vers le dossier.
+     */
+    private static com.coach.financier.service.AdvisorDossierService advisorDossiers() {
+        return new com.coach.financier.service.AdvisorDossierService(
+                new com.coach.financier.service.AdvisorDossierStore(advisorFeedbackProperties(),
+                        testObjectMapper()),
+                mock(com.coach.financier.service.AdvisorFeedbackStore.class),
+                advisorFeedbackProperties(), "http://localhost:9898");
+    }
+
+    /** Configuration du module Feedback Conseiller (dossier de test). */
+    private static com.coach.financier.config.AdvisorFeedbackProperties advisorFeedbackProperties() {
+        return new com.coach.financier.config.AdvisorFeedbackProperties(true, false,
+                "./target/advisor-feedback-test", "salt", 1000, 5, "advisor-feedback-v1");
     }
 
     /**

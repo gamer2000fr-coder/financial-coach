@@ -16,6 +16,7 @@ import {
   Settings,
   Sparkles,
   TrendingUp,
+  UserCheck,
   Volume2,
   VolumeX,
   Wallet,
@@ -914,6 +915,9 @@ function App() {
               </a>
               <a className="icon-button logs-link" href="#/quality" target="_blank" rel="noopener noreferrer" title="Qualité & Satisfaction du Coach">
                 <BadgeCheck size={20} />
+              </a>
+              <a className="icon-button logs-link" href="#/advisor-feedback" target="_blank" rel="noopener noreferrer" title="Feedback Conseillers">
+                <UserCheck size={20} />
               </a>
               <a className="icon-button logs-link" href="#/logs" target="_blank" rel="noopener noreferrer" title="Logs des appels IA">
                 <Settings size={20} />

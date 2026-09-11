@@ -1,0 +1,117 @@
+{
+  "reportDate" : "2026-09-11",
+  "period" : {
+    "from" : "2026-08-13",
+    "to" : "2026-09-11"
+  },
+  "executiveSummary" : {
+    "status" : "ATTENTION",
+    "summary" : "84 dossier(s) évalué(s) : 56.0 % jugé(s) pertinents, 28.6 % à améliorer, 15.5 % incorrects."
+  },
+  "strengths" : [ {
+    "title" : "Emails préparés exploitables",
+    "observation" : "67.9 % des emails évalués sont prêts à l'emploi ou ne demandent que des modifications mineures."
+  }, {
+    "title" : "Produits jugés pertinents",
+    "observation" : "89.8 % des produits évalués sont validés par les conseillers."
+  } ],
+  "mainIssues" : [ {
+    "area" : "CLIENT_EMAIL",
+    "observation" : "Email préparé pour le client : 14 correction(s) signalée(s)",
+    "severity" : "MEDIUM"
+  }, {
+    "area" : "PROJECT_DETECTION",
+    "observation" : "Projet détecté : 13 correction(s) signalée(s)",
+    "severity" : "MEDIUM"
+  }, {
+    "area" : "PRODUCT_RELEVANCE",
+    "observation" : "Produit proposé / produit d'intérêt : 13 correction(s) signalée(s)",
+    "severity" : "MEDIUM"
+  }, {
+    "area" : "INTEREST_LEVEL",
+    "observation" : "Niveau d'intérêt du client : 10 correction(s) signalée(s)",
+    "severity" : "MEDIUM"
+  }, {
+    "area" : "OTHER",
+    "observation" : "Motif « Trop générique » relevé 14 fois",
+    "severity" : "LOW"
+  }, {
+    "area" : "OTHER",
+    "observation" : "Motif « Erreur » relevé 13 fois",
+    "severity" : "LOW"
+  } ],
+  "productAnalysis" : [ {
+    "productId" : "sg_auto_tiers_plus",
+    "productName" : "Assurance Auto SG – Tiers+",
+    "observation" : "32 évaluation(s), 28 pertinent(s), 4 non pertinent(s), 10 correction(s) de niveau",
+    "signal" : "POSITIVE"
+  }, {
+    "productId" : "sg_auto_tous_risques",
+    "productName" : "Assurance Auto SG – Tous Risques",
+    "observation" : "32 évaluation(s), 29 pertinent(s), 3 non pertinent(s), 10 correction(s) de niveau, ajouté 1 fois par un conseiller",
+    "signal" : "POSITIVE"
+  }, {
+    "productId" : "sg_auto_tiers",
+    "productName" : "Assurance Auto SG – Tiers",
+    "observation" : "31 évaluation(s), 26 pertinent(s), 5 non pertinent(s), 13 correction(s) de niveau",
+    "signal" : "POSITIVE"
+  }, {
+    "productId" : "sg_auto_leasing",
+    "productName" : "Assurance Auto SG – Leasing",
+    "observation" : "21 évaluation(s), 20 pertinent(s), 1 non pertinent(s), 5 correction(s) de niveau",
+    "signal" : "POSITIVE"
+  }, {
+    "productId" : "sg_auto_tous_risques_plus",
+    "productName" : "Assurance Auto SG – Tous Risques+",
+    "observation" : "12 évaluation(s), 12 pertinent(s), 0 non pertinent(s), 6 correction(s) de niveau, ajouté 1 fois par un conseiller",
+    "signal" : "POSITIVE"
+  }, {
+    "productId" : "sg_ade_investissement_locatif",
+    "productName" : null,
+    "observation" : "0 évaluation(s), 0 pertinent(s), 0 non pertinent(s), 0 correction(s) de niveau, ajouté 1 fois par un conseiller",
+    "signal" : "INSUFFICIENT_DATA"
+  }, {
+    "productId" : "sg_ade_residence_principale_secondaire",
+    "productName" : null,
+    "observation" : "0 évaluation(s), 0 pertinent(s), 0 non pertinent(s), 0 correction(s) de niveau, ajouté 2 fois par un conseiller",
+    "signal" : "INSUFFICIENT_DATA"
+  }, {
+    "productId" : "sg_ade_senior",
+    "productName" : null,
+    "observation" : "0 évaluation(s), 0 pertinent(s), 0 non pertinent(s), 0 correction(s) de niveau, ajouté 1 fois par un conseiller",
+    "signal" : "INSUFFICIENT_DATA"
+  } ],
+  "interestLevelAnalysis" : {
+    "summary" : "44 correction(s) de niveau d'intérêt : la valeur IA et la valeur conseiller sont conservées séparément.",
+    "overestimationSignals" : [ "Assurance Auto SG – Tiers : HIGH → MEDIUM (10 fois, surestimation)", "Assurance Auto SG – Tous Risques : HIGH → MEDIUM (9 fois, surestimation)", "Assurance Auto SG – Tiers+ : HIGH → MEDIUM (6 fois, surestimation)", "Assurance Auto SG – Tous Risques+ : HIGH → MEDIUM (6 fois, surestimation)", "Assurance Auto SG – Tiers+ : MEDIUM → LOW (4 fois, surestimation)" ],
+    "underestimationSignals" : [ ]
+  },
+  "nextActionAnalysis" : {
+    "summary" : "Le suivi conseillé est évalué par les conseillers ; 128 produit(s) évalué(s) sur la période.",
+    "issues" : [ ]
+  },
+  "clientEmailAnalysis" : {
+    "summary" : "Distribution des emails évalués : Prêt à utiliser = 35, Modifications mineures = 22, Modifications importantes = 27.",
+    "issues" : [ ]
+  },
+  "trends" : [ ],
+  "priorityImprovements" : [ {
+    "priority" : "MEDIUM",
+    "title" : "Traiter la correction la plus fréquente",
+    "observation" : "Email préparé pour le client (14 signalement(s))",
+    "recommendation" : "Analyser les dossiers concernés et examiner les critères utilisés par le Coach, sans modifier automatiquement de seuil ni de règle.",
+    "expectedBenefit" : "Baisse des corrections manuelles et gain de temps pour les conseillers."
+  }, {
+    "priority" : "HIGH",
+    "title" : "Réduire la surestimation des niveaux d'intérêt",
+    "observation" : "Assurance Auto SG – Tiers : HIGH → MEDIUM (10 fois, surestimation) | Assurance Auto SG – Tous Risques : HIGH → MEDIUM (9 fois, surestimation) | Assurance Auto SG – Tiers+ : HIGH → MEDIUM (6 fois, surestimation) | Assurance Auto SG – Tous Risques+ : HIGH → MEDIUM (6 fois, surestimation) | Assurance Auto SG – Tiers+ : MEDIUM → LOW (4 fois, surestimation)",
+    "recommendation" : "Étudier les critères distinguant un intérêt explicite d'une simple demande d'information (comparaison des dossiers corrigés).",
+    "expectedBenefit" : "Meilleure priorisation commerciale et confiance accrue dans le dossier."
+  } ],
+  "watchPoints" : [ "Plusieurs niveaux d'intérêt corrigés par les conseillers : converger avec les signaux produit.", "Des feedbacks de démonstration (source=DEMO) sont présents sur la période." ],
+  "finalAssessment" : "Rapport généré en mode démo à partir des KPI calculés : il propose des pistes, il ne modifie jamais automatiquement le Coach (prompt, règles, seuils, catalogue, code).",
+  "generatedAt" : "2026-09-11T10:27:24.197267400Z",
+  "model" : "MOCK",
+  "aiGenerated" : true,
+  "error" : null
+}

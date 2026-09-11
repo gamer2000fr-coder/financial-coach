@@ -34,6 +34,8 @@ public class AgentPromptStore {
     public static final String MARKETING_KEY = "marketing";
     /** Agent ANALYSTE QUALITÉ & SATISFACTION (rapport qualité quotidien à partir des agrégats). */
     public static final String QUALITY_KEY = "qualite";
+    /** Agent ANALYSTE FEEDBACK CONSEILLER (pertinence du travail du Coach vue par les conseillers). */
+    public static final String ADVISOR_FEEDBACK_KEY = "feedback_conseiller";
     private static final String GENERIC_THEME = "generic";
 
     /**
@@ -59,6 +61,8 @@ public class AgentPromptStore {
         result.add(entry(SUIVI_KEY, "Agent de suivi (fin de conversation)", AgentFiles.SUIVI_PROMPT_FILE));
         result.add(entry(MARKETING_KEY, "Agent analyste marketing", AgentFiles.MARKETING_PROMPT_FILE));
         result.add(entry(QUALITY_KEY, "Agent analyste qualité & satisfaction", AgentFiles.QUALITY_PROMPT_FILE));
+        result.add(entry(ADVISOR_FEEDBACK_KEY, "Analyste Feedback Conseiller",
+                AgentFiles.ADVISOR_FEEDBACK_PROMPT_FILE));
         for (AgentDefinition agent : agents) {
             if (GENERIC_THEME.equalsIgnoreCase(agent.getTheme())) {
                 continue;

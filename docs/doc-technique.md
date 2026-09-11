@@ -66,6 +66,7 @@ controller/
   MailController          # GET /api/mail/status
   MarketingController     # GET/POST /api/marketing/**
   QualityController       # GET/POST /api/quality/**
+  AdvisorFeedbackController # GET/POST /api/advisor-feedback/**
   HealthController        # /api/health
 service/
   ConversationService          # sessions en mémoire (sessionId → Conversation)
@@ -99,6 +100,14 @@ service/
   QualityBatchService          # batch quotidien (agrégat consolidé + fichiers par section + rapport)
   QualityReportService/Store   # rapport IA qualité (agent qualite_coach_client.txt)
   QualityDemoDataService       # avis + contrôles de démonstration (source=DEMO)
+  AdvisorFeedbackService       # saisie conseiller (facultative, idempotente, versionnée, jamais bloquante)
+  AdvisorFeedbackStore         # feedbacks conseiller JSONL (déduplication + historique des versions)
+  AdvisorFeedbackCandidatesService # dossiers proposés à l'évaluation + catalogue produits
+  AdvisorFeedbackAnalyticsService  # KPI DÉTERMINISTES (évaluations, zones, produits, intérêts, emails)
+  AdvisorFeedbackReportService     # rapport IA (agent feedback_conseiller.txt) + batch quotidien
+  AdvisorFeedbackDemoDataService   # feedbacks de démonstration (source=DEMO)
+  AdvisorDossierService            # dossier évaluable : persistance + LIEN D'ÉVALUATION du mail conseiller
+  AdvisorDossierStore              # dossiers JSONL (1 par clôture, résolu par sessionId)
 repository/
   BankingDataRepository        # charge banking_demo_normalized.json (FS puis classpath)
 ai/
@@ -109,12 +118,12 @@ ai/
   AIServiceFactory             # sélection GPT / DEEPSEEK / MOCK
   AgentFiles                   # agents.json + prompts système par agent (./agent puis classpath)
 config/
-  JacksonConfig  WebConfig  MarketingProperties  QualityProperties
+  JacksonConfig  WebConfig  MarketingProperties  QualityProperties  AdvisorFeedbackProperties
 model/
   AIModels, ChatModels, FinancialSummary, BankingModels, ConversationModels
   IntentClassification, CurrentProject, ProjectType, FinancialIntent, AgentDefinition,
   ProductFamily, ConfidenceLevel, BankProduct, CreditSimulation(Request), LogEntry
-  SuiviModels, MarketingModels, QualityModels
+  SuiviModels, MarketingModels, QualityModels, AdvisorFeedbackModels
 ```
 
 ### 2.2 Rôles des services
@@ -168,6 +177,10 @@ Tous les fichiers sont lus **depuis le système de fichiers `./data`** (racine d
 | `quality/checks/coach_quality_checks_<date>.jsonl` | Un événement par contrôle exécuté (détecté ou non) |
 | `quality/aggregates/coach_quality_daily_<date>.json` | Agrégat consolidé du jour (+ fichiers par section) |
 | `quality/reports/coach_quality_report_<date>.json` | Rapport IA qualité du jour |
+| `advisor-feedback/events/advisor_feedback_<date>.jsonl` | 1 feedback conseiller par ligne (versions successives conservées) |
+| `advisor-feedback/aggregates/advisor_feedback_daily_*.json` | Agrégats du batch (KPI, zones, produits, emails, série) |
+| `advisor-feedback/reports/advisor_feedback_report_<date>.json` | Rapport IA de l'analyste Feedback Conseiller |
+| `advisor-feedback/dossiers/advisor_dossier_<date>.jsonl` | Dossiers de suivi évaluables (1 par clôture) : c'est ce que le conseiller retrouve via le lien du mail |
 
 > Les **fiches produits** (`catalogue/*.json`) documentent des familles via la table `catalogueDocFamilies` (ex. `credit_immo` → MORTGAGE/HOME_IMPROVEMENT_LOAN). C'est ce qui permet la **restriction du catalogue** en contexte financement.
 
@@ -217,6 +230,15 @@ app.quality.sufficient-sample-size: ${QUALITY_SAMPLE_SIZE:10}
 app.quality.prompt-version: ${QUALITY_PROMPT_VERSION:quality-report-v1}
 app.quality.checks: ${QUALITY_CHECKS:}                            # vide = les 6 contrôles implémentés
 app.quality.severity.*: ${…}                                      # sévérité par contrôle (§21)
+# --- Module Feedback Conseiller (fichiers, sans base de données) ---
+app.advisor-feedback.enabled: ${ADVISOR_FEEDBACK_ENABLED:true}
+app.advisor-feedback.demo-mode: ${ADVISOR_FEEDBACK_DEMO_MODE:false}
+app.advisor-feedback.dir: ${ADVISOR_FEEDBACK_DIR:./data/advisor-feedback}
+app.advisor-feedback.hash-salt: ${ADVISOR_FEEDBACK_HASH_SALT:…}
+app.advisor-feedback.comment-max-length: ${ADVISOR_FEEDBACK_COMMENT_MAX_LENGTH:1000}
+app.advisor-feedback.sufficient-sample-size: ${ADVISOR_FEEDBACK_SAMPLE_SIZE:5}
+app.advisor-feedback.prompt-version: ${ADVISOR_FEEDBACK_PROMPT_VERSION:advisor-feedback-v1}
+app.advisor-feedback.frontend-url: ${ADVISOR_FEEDBACK_FRONTEND_URL:http://localhost:9898}  # base du lien d'évaluation
 ```
 
 - Clés API : `OPENAI_API_KEY`, `DEEPSEEK_API_KEY` — **aucune clé en dur** (variables d'environnement).
@@ -246,6 +268,10 @@ app.quality.severity.*: ${…}                                      # sévérit�
 | POST | `/api/conversations/{sessionId}/feedback` | **Pop-in de satisfaction** : `{rating, selectedReasons[], comment}` — facultatif, idempotent par session, jamais bloquant |
 | GET | `/api/quality/status`, `/overview`, `/ratings`, `/issues`, `/feedback-categories`, `/trends`, `/report`, `/export/satisfaction.csv` | **Module Qualité** : satisfaction et conformité **séparées** (paramètres `period=today\|yesterday\|7d\|30d\|custom`, `from`, `to`, `rating`, `checkType`, `severity`) |
 | POST | `/api/quality/report/regenerate`, `/batch`, `/demo-data` | Rapport IA, batch quotidien, jeu de démonstration |
+| POST | `/api/advisor-feedback` | **Saisie du feedback conseiller** (jamais bloquante pour le dossier) |
+| GET | `/api/advisor-feedback/sessions/{sessionId}/dossier` | **Dossier évaluable** ciblé par le lien du mail (projet, produits, suivi, email préparé) + feedback éventuel + `feedbackStatus` ; **404** si le dossier n'existe pas (l'IHM affiche « Ce dossier n'est plus disponible. ») |
+| GET | `/api/advisor-feedback/status`, `/candidates`, `/sessions/{id}`, `/overview`, `/issues`, `/products`, `/email-quality`, `/trends`, `/report`, `/export/summary.csv` | **Module Feedback Conseiller** (paramètres `period`, `from`, `to`, `assessment`, `area`, `productId`, `emailAssessment`) |
+| POST | `/api/advisor-feedback/report/generate`, `/batch`, `/demo-data` | Bouton « Générer l'analyse IA », batch quotidien, jeu de démonstration |
 | GET | `/api/health` | Healthcheck (expose le fournisseur par défaut) |
 
 ### Exemple — POST /api/chat
@@ -417,6 +443,7 @@ flowchart LR
 | `suivi` | `suivi.txt` | `ConversationClosureService` | Contexte de la conversation → `SuiviResult` (résumé, produits d'intérêt, brouillon client, `marketingEvents`) |
 | `marketing` | `marketing.txt` | `MarketingReportService` | Agrégats **déjà calculés** → `MarketingReport` (interprétation rédactionnelle) |
 | `qualite` | `qualite_coach_client.txt` | `QualityReportService` | Agrégats de satisfaction **et** de conformité + commentaires anonymisés → `QualityReport` |
+| `feedback_conseiller` | `feedback_conseiller.txt` | `AdvisorFeedbackReportService` | KPI de pertinence (évaluations, zones, produits, intérêts, emails) + commentaires anonymisés → `AdvisorFeedbackReport` |
 
 Ils ne figurent **pas** dans `agents.json` (donc jamais sélectionnables comme agent de coach) mais apparaissent dans `AgentPromptStore.entries()` après « Agent principal » (`SUIVI_KEY`, `MARKETING_KEY`, `QUALITY_KEY`), et sont éditables dans la page **Agents**.
 
@@ -448,8 +475,11 @@ frontend/src/
   Agents.tsx     # page édition des prompts d'agents (dont suivi, marketing et qualité)
   Marketing.tsx  # page marketing (KPI, produits, projets, refus, rapport IA, CSV)
   Quality.tsx    # page qualité & satisfaction (satisfaction, conformité, croisement, rapport IA, CSV)
+  AdvisorFeedback.tsx # page feedback conseillers (KPI, produits, emails, saisie rapide, rapport IA, CSV)
+  DossierFeedback.tsx # vue ciblée #/advisor-feedback/session/<id> (ouverte depuis le mail conseiller)
   types.ts       # types partagés (chat, logs, agents, marketing)
   types.quality.ts # types du module Qualité
+  types.advisor.ts # types du module Feedback Conseiller
   api.ts         # client API (fetch, API_BASE_URL dynamique) + fonctions marketing et qualité
   styles.css     # classes préfixées (logs-*, agent-*, mkt-*, qlt-*)
   vite-env.d.ts  # référence vite/client
@@ -490,6 +520,7 @@ flowchart LR
 | Synthèse de fin de conversation | **Déterministe** : niveaux d'intérêt déduits des messages (HIGH si le client cite le produit, MEDIUM si le coach, LOW sinon, REJECTED si refus explicite) + brouillon client | LLM via `suivi.txt` |
 | Rapport marketing | **Déterministe** : rapport construit à partir des agrégats | LLM via `marketing.txt` (interprétation) |
 | Rapport qualité | **Déterministe** : sépare satisfaction et conformité, signale les règles conformes frustrantes | LLM via `qualite_coach_client.txt` |
+| Rapport feedback conseiller | **Déterministe** : KPI de pertinence, convergences produit × intérêt | LLM via `feedback_conseiller.txt` |
 | Réseau / clé API | Aucun | Requis (`OPENAI_API_KEY`, `DEEPSEEK_API_KEY`) |
 | Simulation / calculs / statistiques | Identiques (Java) | Identiques (Java) |
 
@@ -758,3 +789,108 @@ curl "http://localhost:9797/api/quality/export/satisfaction.csv?period=7d"
 - Les contrôles sont **heuristiques** : ils privilégient la précision à l'exhaustivité (mieux vaut manquer une anomalie que produire un faux positif) ; chaque contrôle est documenté et testé.
 - Les avis de démonstration (`source=DEMO`) cohabitent avec les avis réels : le bandeau de la page le signale.
 - Le rapport IA n'est qu'une **proposition** : le module ne modifie jamais automatiquement le prompt, les règles métier, les catalogues ou le code.
+
+---
+
+## 18. Module Feedback Conseiller (POC, sans base de données)
+
+### 18.1 Principe : un troisième point de vue, jamais mélangé aux autres
+
+| Module | Question posée | Source |
+|---|---|---|
+| Qualité | « Le client est-il satisfait ? Le Coach respecte-t-il les règles ? » | client + contrôles automatiques |
+| **Feedback Conseiller** | « Le travail produit est-il **pertinent** du point de vue professionnel du conseiller ? » | conseiller bancaire |
+
+Le seul point de jonction est le `sessionId`, ce qui prépare une vue 360° ultérieure (P2). Le module ne modifie **jamais** automatiquement un prompt, une règle, un seuil, une cascade, un catalogue ou du code.
+
+### 18.2 Fichiers (`data/advisor-feedback`, configurable via `app.advisor-feedback.dir`)
+
+| Chemin | Contenu |
+|---|---|
+| `events/advisor_feedback_<AAAA-MM-JJ>.jsonl` | 1 feedback par ligne ; une révision **ajoute** une version (l'historique est conservé) |
+| `aggregates/advisor_feedback_daily_*.json` | Agrégats du batch (KPI, évaluations, zones, motifs, produits, corrections, emails, série) |
+| `reports/advisor_feedback_report_<date>.json` | Rapport IA de l'analyste Feedback Conseiller |
+
+### 18.3 Format d'un feedback
+
+```json
+{
+  "feedbackId": "afb-…", "timestamp": "2026-09-11T10:27:32", "sessionId": "web-…",
+  "advisorIdHash": "advisor_hash_153a6db75d187e28",
+  "overallAssessment": "NEEDS_IMPROVEMENT",
+  "issues": [{ "area": "INTEREST_LEVEL", "reason": "WRONG_INTEREST_LEVEL", "comment": "…" }],
+  "productFeedback": [{ "productId": "sg_auto_tous_risques", "aiInterestLevel": "HIGH",
+                        "advisorAssessment": "NOT_RELEVANT", "advisorInterestLevel": "LOW",
+                        "reason": "INTEREST_OVERESTIMATED" }],
+  "missingProductIds": ["sg_pea"],
+  "nextActionAssessment": "RELEVANT", "clientEmailAssessment": "MINOR_EDITS",
+  "comment": "… rappelez-moi au [numéro masqué]",
+  "source": "ADVISOR_FEEDBACK", "event": "CREATED", "version": 1
+}
+```
+
+Codes : évaluation globale `RELEVANT` / `NEEDS_IMPROVEMENT` / `INCORRECT` ; zones (`SUMMARY`, `CUSTOMER_NEED`, `PROJECT_DETECTION`, `PRODUCT_RELEVANCE`, `INTEREST_LEVEL`, `NEXT_ACTION`, `CLIENT_EMAIL`, `MISSING_INFORMATION`, `OTHER`) ; motifs (`WRONG`, `INCOMPLETE`, `NOT_RELEVANT`, `TOO_VERBOSE`, `TOO_GENERIC`, `MISSING_CONTEXT`, `WRONG_PRODUCT`, `WRONG_INTEREST_LEVEL`, `UNSUPPORTED_RECOMMENDATION`, `OTHER`) ; produit (`RELEVANT_PRODUCT`, `NOT_RELEVANT` + motifs `CUSTOMER_NOT_INTERESTED`, `INCOMPATIBLE_WITH_NEED`, `INTEREST_OVERESTIMATED`, `MENTION_ONLY`) ; email (`READY_TO_USE`, `MINOR_EDITS`, `MAJOR_EDITS`, `UNUSABLE`).
+
+### 18.4 Garanties d'écriture
+
+- **Facultatif** : seul le couple `sessionId` + évaluation globale est requis.
+- **Idempotent** : empreinte du contenu → un double clic / retry renvoie `DUPLICATE` **sans nouvel événement** ; un contenu modifié crée une **version suivante** (`UPDATED`) sans écraser l'historique ; les agrégats ne comptent que la **version courante**.
+- **Jamais bloquant** : `STORAGE_ERROR` est renvoyé sans impacter le dossier conseiller.
+- **Anonymat** : le conseiller n'est identifié que par `advisor_hash_…` et n'apparaît jamais dans les agrégats ; les commentaires sont nettoyés (emails/téléphones masqués) et traités comme données **non fiables** (jamais des instructions).
+
+### 18.5 KPI calculés par le backend (§18 à §21 du prompt)
+
+Dossiers évalués, taux de feedback (dénominateur = conversations clôturées du module Qualité), % pertinent / à améliorer / incorrect, zones et motifs les plus fréquents, pertinence par produit, **corrections de niveau d'intérêt** (valeur IA ↔ valeur conseiller), produits **ajoutés** par les conseillers, distribution d'exploitabilité des emails, séries et tendances (période précédente de même longueur). Toutes les valeurs non calculables restent `null`.
+
+### 18.6 Rapport IA
+
+Agent `agent/feedback_conseiller.txt` (`AgentFiles.advisorFeedbackSystemPrompt()`), appelé uniquement par la génération manuelle (`POST /api/advisor-feedback/report/generate`) ou le batch. Sortie normalisée (statut, sévérité, signal, tendance, priorité) et plafonnée à **5 priorités**. En cas d'échec, un rapport « indisponible » explicite est stocké.
+
+### 18.7 Frontend
+
+`AdvisorFeedback.tsx` (route `#/advisor-feedback`, lien `UserCheck`) : KPI, évaluations globales, zones corrigées + motifs, pertinence produit, corrections d'intérêt, qualité des emails, **saisie rapide d'un dossier** (dossiers candidats issus des signaux Marketing et des conversations clôturées, produits détectés, sélection d'un produit manquant dans le **catalogue réel**), rapport IA, export CSV. Réutilise le design system des pages Marketing/Qualité (`.mkt-*` + `.afb-*`).
+
+### 18.8 Commandes utiles
+
+```powershell
+curl -X POST "http://localhost:9797/api/advisor-feedback/demo-data?days=21&evaluationsPerDay=4"
+curl "http://localhost:9797/api/advisor-feedback/overview?period=30d"
+curl -X POST "http://localhost:9797/api/advisor-feedback/report/generate?period=30d"
+curl "http://localhost:9797/api/advisor-feedback/export/summary.csv?period=7d"
+```
+
+### 18.9 Limites assumées (P2 non implémenté)
+- **Comparaison automatique** version IA / version conseiller (similarité de l'email) : non implémentée — seul le niveau déclaré par le conseiller est enregistré.
+- **Vue 360°** (client + Quality + conseiller) : non agrégée, mais les identifiants communs (`sessionId`) la préparent.
+- La génération du rapport IA est **manuelle** dans le POC (le batch quotidien existe côté API mais n'est pas planifié).
+- Les feedbacks de démonstration (`source=DEMO`) cohabitent avec les réels : le bandeau de la page le signale ; supprimer `data/advisor-feedback` pour repartir propre.
+
+---
+
+## 19. Lien d'évaluation dans le mail conseiller (§41 à §50)
+
+### 19.1 Chaîne complète
+
+```
+Clôture de conversation
+  → ConversationClosureService : validation du dossier (URLs, produits, refus)
+  → AdvisorDossierService.persist(...)        : dossier évaluable écrit en JSONL
+  → withFeedbackLink(...)                     : bloc « Évaluer le suivi du Coach » ajouté au mail APRÈS validation
+  → MailService : envoi au SEUL conseiller (le brouillon client n'a jamais le lien)
+  → clic conseiller → #/advisor-feedback/session/<sessionId> → dossier + formulaire → feedback (versionné)
+```
+
+### 19.2 Choix d'implémentation
+
+- **Le lien est fabriqué par le backend**, jamais par l'IA : il utilise le format du dossier de suivi `[URL|nom|url]` (lien cliquable en HTML, lisible en texte) et ne peut donc pas être neutralisé par le contrôle anti-invention d'URL — il est injecté **après** `validate(...)`.
+- **URL** : `app.advisor-feedback.frontend-url` + `/#/advisor-feedback/session/<sessionId>` (URL-encodé). Si la base est vide, le lien reste **relatif** (utilisable depuis le navigateur du conseiller sur le même hôte).
+- **Confidentialité** (§45) : l'URL ne contient que le `sessionId` — ni nom, ni email, ni compte, ni montant, ni commentaire. Test dédié dans `ConversationClosureServiceTest`.
+- **Autorisation** (§46) : le frontend ne décide jamais quel dossier charger ; `GET /api/advisor-feedback/sessions/{id}/dossier` résout le `sessionId` côté serveur et renvoie **404** si le dossier n'existe pas (l'IHM affiche « Ce dossier n'est plus disponible. » sans erreur technique).
+- **Deux usages distincts** (§49) : `#/advisor-feedback` = dashboard ; `#/advisor-feedback/session/<id>` = évaluation d'un dossier (aucun KPI affiché, formulaire directement).
+- **Statut d'évaluation** (§48) : `NOT_REQUESTED` / `PENDING` / `COMPLETED`, **calculé** (jamais stocké en double) : un dossier sans feedback → `PENDING`, avec feedback → `COMPLETED`. Aucune relance automatique dans le POC.
+- **Extraction du « suivi conseillé »** : heuristique locale sur le mail conseiller (section « Suivi conseillé », verbes d'action, arrêt à la mention de pièce jointe) — aucune donnée inventée, simple confort d'affichage.
+
+### 19.3 Tests
+
+- Lien présent, format `[URL|Évaluer le suivi du Coach|…/session/<id>]`, **aucune donnée personnelle** dans l'URL, lien absent du brouillon client (`ConversationClosureServiceTest`).
+- Dossier inconnu → **404** (vérifié sur l'instance) ; dossier connu → 200 avec `feedbackStatus` `PENDING` puis `COMPLETED` après envoi du feedback (vérifié sur l'instance).
