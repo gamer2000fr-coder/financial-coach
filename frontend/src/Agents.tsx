@@ -109,10 +109,11 @@ export default function Agents() {
           Chaque agent possède son propre prompt système. L&rsquo;agent <strong>générique</strong>{' '}
           inclut le contenu de l&rsquo;<strong>agent principal</strong> via la balise{' '}
           <code>[agent_principal]</code>. L&rsquo;<strong>agent de suivi</strong> est utilisé à la fin
-          d&rsquo;une conversation (dossier conseiller + brouillon d&rsquo;email client) et l&rsquo;
-          <strong>agent analyste marketing</strong> rédige le rapport de la page{' '}
-          <a href="#/marketing">Marketing</a> à partir des statistiques calculées par le backend. La
-          sauvegarde est prise en compte <strong>immédiatement</strong>, sans redémarrer le serveur.
+          d&rsquo;une conversation (dossier conseiller + brouillon d&rsquo;email client) et les agents
+          analystes <strong>marketing</strong> et <strong>qualité &amp; satisfaction</strong> rédigent les
+          rapports des pages <a href="#/marketing">Marketing</a> et <a href="#/quality">Qualité</a> à partir
+          des statistiques calculées par le backend. La sauvegarde est prise en compte{' '}
+          <strong>immédiatement</strong>, sans redémarrer le serveur.
         </p>
 
         {loading ? (

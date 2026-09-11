@@ -11,6 +11,14 @@ import type {
   MarketingReport,
   MarketingStatus,
 } from './types'
+import type {
+  QualityAggregates,
+  QualityFeedbackRequest,
+  QualityFeedbackResponse,
+  QualityPeriod,
+  QualityReport,
+  QualityStatus,
+} from './types.quality'
 
 function resolveApiBaseUrl(): string {
   if (typeof window === 'undefined') return 'http://localhost:9797/api'
@@ -237,4 +245,99 @@ export async function generateMarketingDemoData(
 /** URL d'export CSV des métriques produit (aucune donnée personnelle). */
 export function marketingProductsCsvUrl(period: MarketingPeriod, from?: string, to?: string): string {
   return `${API_BASE_URL}/marketing/export/products.csv?${marketingQuery(period, from, to)}`
+}
+
+// ------------------------------------------------------------------ Qualité & Satisfaction (#/quality)
+
+/** Libellés client des motifs d'insatisfaction (le CODE reste la clé analytique). */
+export const QUALITY_REASONS: { code: string; label: string }[] = [
+  { code: 'NOT_ANSWERING_QUESTION', label: "La réponse ne répondait pas à ma question" },
+  { code: 'HARD_TO_UNDERSTAND', label: 'Les explications étaient difficiles à comprendre' },
+  { code: 'TOO_LONG', label: 'Les réponses étaient trop longues' },
+  { code: 'TOO_REPETITIVE', label: 'Les réponses étaient trop répétitives' },
+  { code: 'PRODUCT_NOT_RELEVANT', label: 'Les produits proposés ne correspondaient pas à mon besoin' },
+  { code: 'MISSING_INFORMATION', label: 'Il manquait des informations' },
+  { code: 'ACTION_NOT_POSSIBLE', label: "Je n'ai pas pu réaliser l'action souhaitée" },
+  { code: 'OTHER', label: 'Autre' },
+]
+
+/** Filtres de la page Qualité. */
+export interface QualityFilters {
+  checkType?: string
+  severity?: string
+  rating?: number
+  reason?: string
+}
+
+function qualityQuery(period: QualityPeriod, from?: string, to?: string,
+                      filters?: QualityFilters): string {
+  const params = new URLSearchParams({ period })
+  if (period === 'custom') {
+    if (from) params.set('from', from)
+    if (to) params.set('to', to)
+  }
+  Object.entries(filters ?? {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') params.set(key, String(value))
+  })
+  return params.toString()
+}
+
+/**
+ * Enregistre l'avis du client (pop-in de fin de conversation). Le backend ne renvoie jamais d'erreur
+ * bloquante : un échec d'enregistrement n'empêche pas la clôture de la conversation.
+ */
+export async function sendConversationFeedback(
+  sessionId: string,
+  payload: QualityFeedbackRequest,
+): Promise<QualityFeedbackResponse> {
+  return apiFetch<QualityFeedbackResponse>(
+    `/conversations/${encodeURIComponent(sessionId)}/feedback`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  )
+}
+
+/** État du module Qualité (jours disponibles, contrôles réellement implémentés, motifs). */
+export async function fetchQualityStatus(): Promise<QualityStatus> {
+  return apiFetch<QualityStatus>('/quality/status')
+}
+
+/** Agrégats qualité : satisfaction + conformité + croisement + séries + tendances. */
+export async function fetchQualityOverview(
+  period: QualityPeriod,
+  from?: string,
+  to?: string,
+  filters?: QualityFilters,
+): Promise<QualityAggregates> {
+  return apiFetch<QualityAggregates>(`/quality/overview?${qualityQuery(period, from, to, filters)}`)
+}
+
+/** Rapport IA qualité de la date demandée (ou le plus récent) ; {@code null} si aucun rapport. */
+export async function fetchQualityReport(date?: string): Promise<QualityReport | null> {
+  const query = date ? `?date=${encodeURIComponent(date)}` : ''
+  const response = await fetch(`${API_BASE_URL}/quality/report${query}`, {
+    headers: { Accept: 'application/json' },
+  })
+  if (response.status === 204) return null
+  if (!response.ok) throw new Error(`Erreur HTTP ${response.status}`)
+  return (await response.json()) as QualityReport
+}
+
+/** Régénère les agrégats (batch) et le rapport IA qualité d'une journée. */
+export async function runQualityBatch(date: string): Promise<unknown> {
+  const params = new URLSearchParams({ date })
+  return apiFetch(`/quality/batch?${params.toString()}`, { method: 'POST' })
+}
+
+/** Génère un jeu de démonstration (avis et contrôles marqués source=DEMO). */
+export async function generateQualityDemoData(
+  days = 14,
+  reviewsPerDay = 5,
+): Promise<{ days: number; feedbackWritten: number; checksWritten: number }> {
+  const params = new URLSearchParams({ days: String(days), reviewsPerDay: String(reviewsPerDay) })
+  return apiFetch(`/quality/demo-data?${params.toString()}`, { method: 'POST' })
+}
+
+/** URL d'export CSV des statistiques agrégées (jamais des commentaires bruts). */
+export function qualitySatisfactionCsvUrl(period: QualityPeriod, from?: string, to?: string): string {
+  return `${API_BASE_URL}/quality/export/satisfaction.csv?${qualityQuery(period, from, to)}`
 }

@@ -44,6 +44,8 @@ Empêcher structurellement l'IA de recommander ou de mentionner un produit banca
 | F15 | Rendu Markdown | Gras / italique / code des réponses IA affichés proprement |
 | F16 | Fin de conversation | Clôture → **un seul email automatique : au conseiller**, avec le **brouillon d'email client en pièce jointe** (jamais envoyé au client) |
 | F17 | Marketing Intelligence | Analyse des conversations (intérêts, refus, cross-sell, besoins non couverts) + rapport IA, sans base de données |
+| F18 | Pop-in de satisfaction | À la fin d'une conversation : note 1 à 5, motifs si note ≤ 3, commentaire facultatif, bouton **Passer** — avis toujours facultatif |
+| F19 | Qualité & Satisfaction du Coach | Indicateurs de satisfaction client **et** contrôles de conformité du Coach, croisement des deux, rapport IA quotidien |
 
 ### 2.1 Pages / écrans (frontend React, routage par hash, pas de react-router)
 
@@ -53,6 +55,7 @@ Empêcher structurellement l'IA de recommander ou de mentionner un produit banca
 | `#/logs` | **Logs des appels IA** | Traces : statut, session, agent utilisé, message client, caractères, données envoyées/demandées, boutons « Voir le prompt », « Voir le filtrage », « Voir la réponse », « Historique » |
 | `#/agents` | **Agents IA** | Édition des prompts par agent : générique (défaut), agent principal, agent de suivi, agent analyste marketing, 6 agents spécialisés. Injecté à chaque appel |
 | `#/marketing` | **Marketing Intelligence** | KPI, top produits, projets, « recommandé vs intérêt », refus, cross-sell, besoins non couverts, infos manquantes, rapport IA du jour, export CSV |
+| `#/quality` | **Qualité & Satisfaction** | Note moyenne, taux de participation, avis positifs/négatifs, distribution des notes, motifs d'insatisfaction, contrôles du Coach, croisement satisfaction × conformité, analyse IA, export CSV |
 
 ---
 
@@ -200,6 +203,43 @@ Objectif : comprendre, à partir des **conversations**, ce que les clients cherc
 
 ---
 
+### 3.8 Pop-in de satisfaction et page Qualité (`#/quality`)
+
+Deux notions **à ne jamais confondre** :
+
+| | Question posée | Origine |
+|---|---|---|
+| **Satisfaction client** | « Le client a-t-il apprécié son expérience ? » | Note 1 à 5, motifs, commentaire |
+| **Qualité / conformité du Coach** | « Le Coach a-t-il correctement répondu et respecté les règles ? » | Contrôles automatiques |
+
+> Règle absolue : **une mauvaise note n'est jamais convertie automatiquement en anomalie du Coach.**
+> Exemple : un client peut être mécontent parce que le Coach refuse de calculer une mensualité — comportement pourtant **conforme** (redirection vers le simulateur officiel).
+
+```mermaid
+flowchart TD
+    A[Client clique<br/>« Terminer et envoyer au conseiller »] --> B{Suivi actif<br/>et ≥ 2 échanges ?}
+    B -- Non --> Z[Clôture / nouvelle conversation<br/>sans question]
+    B -- Oui --> C[Pop-in : comment s'est passée<br/>votre conversation avec le Coach ?]
+    C --> D{Note + motifs + commentaire}
+    D --> E[« Envoyer mon avis »]
+    D --> F[« Passer »]
+    E --> G[Enregistrement anonymisé<br/>JSONL - jamais bloquant]
+    F --> H[Clôture]
+    G --> H[Clôture de conversation<br/>dossier conseiller]
+    H --> I[Contrôles automatiques du Coach]
+    I --> J[Agrégations du jour - batch]
+    J --> K[Agent IA Qualité<br/>agent/qualite_coach_client.txt]
+    K --> L[Rapport qualité quotidien]
+    L --> M[Page Qualité - #/quality]
+```
+
+- **Pop-in** : 5 étoiles, motifs proposés uniquement à partir de 3 étoiles ou moins, commentaire toujours facultatif, « Passer » clôture normalement. Un échec d'enregistrement n'empêche **jamais** la clôture.
+- **Anonymat** : identifiant client pseudonymisé, commentaire nettoyé (emails/téléphones masqués), aucun libellé bancaire.
+- **Page Qualité** : filtres de période (aujourd'hui, hier, 7 j, 30 j, personnalisée), note, sévérité ; indicateurs de satisfaction et de conformité **séparés** ; croisement A/B/C/D (B = anomalie invisible pour le client, C = règle correctement appliquée mais frustrante, D = cas prioritaire) ; analyse IA ; export CSV des agrégats (jamais des commentaires bruts).
+- **Contrôles affichés** = uniquement ceux **réellement implémentés** ; les autres sont listés à part et ne sont jamais comptés comme un « 0 ».
+
+---
+
 ## 4. Règles de filtrage métier (règles produit)
 
 ### 4.1 Mapping type de projet → familles de produits autorisées
@@ -297,6 +337,17 @@ Toutes les données sont **fictives** et servent uniquement la démonstration.
 25. Un rapport IA par jour est généré à partir des agrégats déjà calculés ;
 26. Le batch quotidien est **réexécutable** sans créer de doublons (événements comme fichiers).
 
+### 7.3 Qualité & Satisfaction
+
+27. L'avis de fin de conversation est **facultatif** : « Passer » clôture normalement ;
+28. Un double clic, un retry ou un refresh ne créent **qu'un seul** avis par conversation ;
+29. Un échec d'enregistrement de l'avis n'empêche jamais la clôture de la conversation ;
+30. Une **mauvaise note ne crée jamais** d'anomalie de qualité : les deux dimensions restent séparées ;
+31. Un refus de simulation de crédit suivi d'une redirection vers le simulateur officiel est **conforme** ;
+32. Un chiffrage de crédit réellement produit par le Coach est signalé (sévérité HIGH) ;
+33. La page Qualité n'affiche que les contrôles **réellement exécutés** (aucun faux « 0 ») ;
+34. Aucun avis ne contient de donnée personnelle (identifiant pseudonymisé, commentaire nettoyé).
+
 ---
 
 ## 8. Limites connues (POC)
@@ -306,3 +357,7 @@ Toutes les données sont **fictives** et servent uniquement la démonstration.
 - Un seul « projet courant » géré (le remplacement est accepté pour le POC) ;
 - Marketing : les événements ne sont produits qu'à la **clôture** d'une conversation ; les jeux de démonstration (`demo=true`) et les données réelles cohabitent dans `data/marketing` (le bandeau de la page le signale) ;
 - Marketing : pas de ventilation par agence/segment ni d'export Excel — export **CSV** uniquement.
+- Qualité : seuls **6 contrôles automatiques** sont implémentés (simulation de crédit, produit incompatible, URL inventée, demande non résolue, donnée non récupérée, répétition excessive) ; les contrôles `UNNECESSARY_ADVISOR_REDIRECT`, `UNSUPPORTED_PRODUCT_CLAIM`, `INVENTED_DATA` et `CONVERSATION_CONTEXT_LOST` sont décrits mais **non implémentés** et affichés comme tels ;
+- Qualité : l'analyse IA **des commentaires** (classification automatique) n'est pas activée — les thèmes affichés proviennent d'une heuristique locale déterministe ;
+- Qualité : le taux de participation repose sur les conversations pour lesquelles des contrôles ont été exécutés (une conversation non clôturée n'est pas comptée) ;
+- Qualité : en dessous du seuil d'échantillon (`app.quality.sufficient-sample-size`), le rapport IA reste prudent et le signale.

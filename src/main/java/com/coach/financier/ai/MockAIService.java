@@ -582,5 +582,240 @@ public class MockAIService implements AIService {
         return new com.coach.financier.model.MarketingModels.ReportItem(title, description, importance);
     }
 
+    /**
+     * Mode démo — AGENT ANALYSTE QUALITÉ : rapport DÉTERMINISTE construit uniquement à partir des
+     * agrégats calculés par le backend (satisfaction d'un côté, conformité de l'autre).
+     * <p>
+     * Le mock respecte les règles du prompt : aucun chiffre inventé, satisfaction et conformité
+     * TENUES SÉPARÉES, une mauvaise note n'est jamais transformée en anomalie du Coach, et la
+     * frustration liée à une règle correctement appliquée (simulation de crédit) est explicitée.
+     */
+    @Override
+    public com.coach.financier.model.QualityModels.QualityReport analyzeQuality(
+            com.coach.financier.model.QualityModels.QualityAggregates aggregates,
+            AIModels.AIProvider provider) {
+        java.util.List<String> positivePoints = new ArrayList<>();
+        java.util.List<String> irritants = new ArrayList<>();
+        java.util.List<String> issues = new ArrayList<>();
+        java.util.List<String> criticalIssues = new ArrayList<>();
+        java.util.List<String> notableCases = new ArrayList<>();
+        java.util.List<com.coach.financier.model.QualityModels.RuleFriction> friction = new ArrayList<>();
+        java.util.List<com.coach.financier.model.QualityModels.QualityTrend> trends = new ArrayList<>();
+        java.util.List<com.coach.financier.model.QualityModels.PriorityImprovement> improvements = new ArrayList<>();
+        java.util.List<com.coach.financier.model.QualityModels.QualityAlert> alerts = new ArrayList<>();
+
+        String reportDate = LocalDate.now().toString();
+        String status = com.coach.financier.model.QualityModels.STATUS_INSUFFICIENT;
+        String satisfactionSummary = "Aucun avis exploitable sur la période : les données fournies ne "
+                + "permettent pas de conclure sur la satisfaction client.";
+        String complianceSummary = "Aucun contrôle exploitable sur la période : les données fournies ne "
+                + "permettent pas d'évaluer la conformité du Coach.";
+        String crossSummary = "Le croisement satisfaction × conformité n'est pas exploitable sur la période.";
+
+        if (aggregates != null) {
+            reportDate = aggregates.dateTo() == null ? reportDate : aggregates.dateTo();
+            com.coach.financier.model.QualityModels.SatisfactionKpis satisfaction = aggregates.satisfaction();
+            com.coach.financier.model.QualityModels.ConformityKpis compliance = aggregates.conformity();
+            com.coach.financier.model.QualityModels.SatisfactionComplianceMatrix matrix =
+                    aggregates.satisfactionVsCompliance();
+
+            if (satisfaction != null && satisfaction.feedbackCount() > 0) {
+                satisfactionSummary = satisfaction.feedbackCount() + " avis reçu(s) sur "
+                        + satisfaction.conversationsClosed() + " conversation(s) terminée(s)"
+                        + (satisfaction.averageRating() == null ? "" : ", note moyenne "
+                        + satisfaction.averageRating() + " / 5")
+                        + (satisfaction.positiveRate() == null ? "" : ", avis positifs "
+                        + percent(satisfaction.positiveRate()) + ", avis négatifs "
+                        + percent(satisfaction.negativeRate()) + ".")
+                        + (satisfaction.sufficientSample() ? ""
+                        : " Le volume d'avis reste limité : ces observations sont préliminaires.");
+                if (satisfaction.averageRating() != null && satisfaction.averageRating() >= 4) {
+                    positivePoints.add("La satisfaction moyenne est élevée ("
+                            + satisfaction.averageRating() + " / 5).");
+                }
+                if (satisfaction.positiveRate() != null && satisfaction.positiveRate() >= 0.7) {
+                    positivePoints.add(percent(satisfaction.positiveRate())
+                            + " des avis sont positifs (4 ou 5 étoiles).");
+                }
+                if (!satisfaction.sufficientSample()) {
+                    status = com.coach.financier.model.QualityModels.STATUS_INSUFFICIENT;
+                } else if (satisfaction.negativeRate() != null && satisfaction.negativeRate() >= 0.2) {
+                    status = com.coach.financier.model.QualityModels.STATUS_ATTENTION;
+                } else {
+                    status = com.coach.financier.model.QualityModels.STATUS_WATCH;
+                }
+            }
+
+            for (com.coach.financier.model.QualityModels.ReasonMetric reason : aggregates.feedbackCategories()) {
+                if (irritants.size() >= 5) break;
+                irritants.add(reason.label() + " (" + reason.count() + " avis"
+                        + (reason.evolutionPercent() == null ? "" : ", évolution "
+                        + reason.evolutionPercent() + " %") + ")");
+            }
+            for (com.coach.financier.model.QualityModels.CommentTheme theme : aggregates.commentThemes()) {
+                if (irritants.size() >= 5) break;
+                irritants.add(theme.label() + " — " + theme.count() + " commentaire(s)");
+            }
+
+            if (compliance != null && compliance.checksRun() > 0) {
+                long creditViolations = detected(aggregates, com.coach.financier.model.QualityModels
+                        .CREDIT_SIMULATION_VIOLATION);
+                complianceSummary = compliance.checksRun() + " contrôle(s) exécuté(s), "
+                        + compliance.anomalies() + " anomalie(s) dont " + compliance.highAnomalies()
+                        + " de sévérité HIGH.";
+                if (creditViolations == 0) {
+                    complianceSummary += " Aucune violation du garde-fou interdisant les simulations de "
+                            + "crédit n'a été détectée.";
+                }
+                for (com.coach.financier.model.QualityModels.CheckMetric check : aggregates.qualityChecks()) {
+                    if (check.detected() == 0) continue;
+                    String line = check.label() + " : " + check.detected() + " détection(s) sur "
+                            + check.checksRun() + " contrôle(s) exécuté(s) (sévérité " + check.severity() + ")";
+                    if (com.coach.financier.model.QualityModels.SEVERITY_HIGH.equals(check.severity())) {
+                        criticalIssues.add(line);
+                    } else {
+                        issues.add(line);
+                    }
+                }
+                if (!criticalIssues.isEmpty()) {
+                    status = com.coach.financier.model.QualityModels.STATUS_ATTENTION;
+                }
+            }
+
+            if (matrix != null) {
+                crossSummary = "Croisement sur les avis reçus : " + matrix.satisfiedCompliant()
+                        + " client(s) satisfait(s) avec Coach conforme, " + matrix.satisfiedAnomaly()
+                        + " satisfait(s) avec anomalie, " + matrix.unsatisfiedCompliant()
+                        + " insatisfait(s) avec Coach CONFORME, " + matrix.unsatisfiedAnomaly()
+                        + " insatisfait(s) avec anomalie réelle.";
+                if (matrix.unsatisfiedCompliant() > 0) {
+                    notableCases.add("Insatisfaction client alors que le Coach a correctement appliqué les "
+                            + "règles : l'amélioration doit porter sur la pédagogie et l'explication de la "
+                            + "règle, pas sur la règle elle-même.");
+                }
+                if (matrix.unsatisfiedAnomaly() > 0) {
+                    notableCases.add("Cas prioritaire : insatisfaction ET anomalie confirmée côté Coach ("
+                            + matrix.unsatisfiedAnomaly() + ").");
+                }
+                if (matrix.satisfiedAnomaly() > 0) {
+                    notableCases.add("Anomalie(s) non ressentie(s) par le client ("
+                            + matrix.satisfiedAnomaly() + ") : à corriger même si la satisfaction est bonne.");
+                }
+            }
+
+            // Frustration liée à une règle CONFORME (ex. refus de simuler un crédit) : signalée comme telle.
+            long simulationRefusals = reasonCount(aggregates,
+                    com.coach.financier.model.QualityModels.ACTION_NOT_POSSIBLE);
+            long creditViolations = detected(aggregates, com.coach.financier.model.QualityModels
+                    .CREDIT_SIMULATION_VIOLATION);
+            if (simulationRefusals > 0 && creditViolations == 0) {
+                friction.add(new com.coach.financier.model.QualityModels.RuleFriction(
+                        "Interdiction pour le Coach de réaliser lui-même une simulation de crédit",
+                        simulationRefusals + " avis mentionnent une action impossible (redirection vers le "
+                                + "simulateur officiel) alors qu'aucune violation du garde-fou n'a été détectée.",
+                        Boolean.TRUE,
+                        "Améliorer l'explication de la règle et la transition vers le simulateur officiel "
+                                + "sans supprimer le garde-fou."));
+            }
+
+            for (com.coach.financier.model.MarketingModels.TrendMetric trend : aggregates.trends()) {
+                if (trends.size() >= 5 || trend.evolutionPercent() == null) continue;
+                String type = trend.evolutionPercent() > 0 ? "IMPROVING" : "DEGRADING";
+                if ("anomalies".equals(trend.entityId())) {
+                    type = trend.evolutionPercent() > 0 ? "DEGRADING" : "IMPROVING";
+                }
+                if ("feedback".equals(trend.entityId()) || "anomalies".equals(trend.entityId())) {
+                    type = "STABLE";
+                }
+                trends.add(new com.coach.financier.model.QualityModels.QualityTrend(type, trend.entityName(),
+                        trend.current() + " vs " + trend.previous() + " (" + trend.evolutionPercent()
+                                + " %) sur la période précédente."));
+            }
+
+            if (!criticalIssues.isEmpty()) {
+                improvements.add(new com.coach.financier.model.QualityModels.PriorityImprovement(
+                        "HIGH", "Corriger les anomalies critiques détectées",
+                        String.join(" | ", criticalIssues),
+                        "Analyser chaque anomalie HIGH (vérifier les messages concernés) puis corriger la "
+                                + "règle ou la formulation fautive.",
+                        "Réduction des anomalies critiques et sécurisation de la conformité."));
+                alerts.add(new com.coach.financier.model.QualityModels.QualityAlert("IMPORTANT",
+                        "Anomalies critiques détectées",
+                        criticalIssues.size() + " type(s) d'anomalie de sévérité HIGH sur la période."));
+            }
+            if (!irritants.isEmpty()) {
+                improvements.add(new com.coach.financier.model.QualityModels.PriorityImprovement(
+                        "MEDIUM", "Traiter le principal irritant client",
+                        irritants.get(0),
+                        "Tester une réponse plus concise et moins répétitive sur les questions de suivi, "
+                                + "sans modifier les garde-fous métier.",
+                        "Meilleure lisibilité perçue et satisfaction en hausse."));
+            }
+            if (matrix != null && matrix.unsatisfiedCompliant() > 0) {
+                improvements.add(new com.coach.financier.model.QualityModels.PriorityImprovement(
+                        "MEDIUM", "Mieux expliquer les règles qui frustrent",
+                        matrix.unsatisfiedCompliant() + " client(s) insatisfait(s) alors que le Coach était "
+                                + "conforme.",
+                        "Expliquer pourquoi la simulation de crédit est réalisée dans l'outil officiel et "
+                                + "fournir immédiatement le lien correspondant.",
+                        "Frustration réduite sans affaiblir la conformité."));
+            }
+            if (satisfaction != null && !satisfaction.sufficientSample()) {
+                alerts.add(new com.coach.financier.model.QualityModels.QualityAlert("WATCH",
+                        "Échantillon d'avis limité",
+                        "Le volume d'avis est faible : les observations doivent être confirmées sur "
+                                + "plusieurs périodes."));
+            }
+            if (satisfaction != null && satisfaction.negativeRate() != null && satisfaction.negativeRate() >= 0.2) {
+                alerts.add(new com.coach.financier.model.QualityModels.QualityAlert("WATCH",
+                        "Part d'avis négatifs élevée",
+                        percent(satisfaction.negativeRate()) + " des avis sont négatifs (1 ou 2 étoiles)."));
+            }
+        }
+
+        return new com.coach.financier.model.QualityModels.QualityReport(
+                reportDate,
+                new com.coach.financier.model.QualityModels.ReportPeriod(
+                        aggregates == null ? reportDate : aggregates.dateFrom(),
+                        aggregates == null ? reportDate : aggregates.dateTo()),
+                new com.coach.financier.model.QualityModels.ExecutiveSummary(status, satisfactionSummary),
+                new com.coach.financier.model.QualityModels.SatisfactionAnalysis(satisfactionSummary,
+                        positivePoints, irritants),
+                new com.coach.financier.model.QualityModels.QualityAndCompliance(complianceSummary,
+                        issues, criticalIssues),
+                new com.coach.financier.model.QualityModels.SatisfactionVsCompliance(crossSummary, notableCases),
+                friction, trends, improvements, alerts,
+                "Rapport généré en mode démo à partir des statistiques agrégées : satisfaction client et "
+                        + "conformité du Coach restent deux dimensions distinctes, aucune anomalie n'est "
+                        + "déduite d'une mauvaise note.",
+                java.time.Instant.now().toString(), "MOCK", Boolean.TRUE, null);
+    }
+
+    private static long detected(com.coach.financier.model.QualityModels.QualityAggregates aggregates,
+                                 String checkType) {
+        if (aggregates == null) {
+            return 0;
+        }
+        return aggregates.qualityChecks().stream()
+                .filter(check -> checkType.equals(check.checkType()))
+                .mapToLong(com.coach.financier.model.QualityModels.CheckMetric::detected)
+                .sum();
+    }
+
+    private static long reasonCount(com.coach.financier.model.QualityModels.QualityAggregates aggregates,
+                                    String reason) {
+        if (aggregates == null) {
+            return 0;
+        }
+        return aggregates.feedbackCategories().stream()
+                .filter(metric -> reason.equals(metric.reason()))
+                .mapToLong(com.coach.financier.model.QualityModels.ReasonMetric::count)
+                .sum();
+    }
+
+    private static String percent(Double rate) {
+        return rate == null ? "n/a" : Math.round(rate * 1000) / 10.0 + " %";
+    }
+
     private String money(double value) { return String.format(java.util.Locale.FRANCE, "%.2f", value); }
 }

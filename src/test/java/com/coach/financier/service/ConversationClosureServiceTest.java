@@ -263,7 +263,24 @@ class ConversationClosureServiceTest {
                 productCatalogueService, new EmailAttachmentBuilder(), mailService, bankingDataRepository,
                 financialAnalysisService, aiLogService, testObjectMapper(), marketingProperties(),
                 mock(MarketingEventStore.class), mock(MarketingExtractionService.class),
+                qualityChecks(),
                 "Conseiller SG", ADVISOR, "Jean Martin", "txt", "https://particuliers.sg.fr/vos-rendez-vous", true);
+    }
+
+    /**
+     * Contrôles qualité : stub qui n'écrit rien sur disque (les contrôles eux-mêmes sont testés dans
+     * {@code CoachQualityCheckServiceTest}) — la clôture doit rester indépendante du module Qualité.
+     */
+    private static CoachQualityCheckService qualityChecks() {
+        return new CoachQualityCheckService(qualityProperties(), mock(QualityCheckStore.class),
+                new ProjectProductMappingService(), mock(ProductUrlIndex.class), new AILogService(),
+                "https://particuliers.sg.fr/vos-rendez-vous");
+    }
+
+    /** Configuration qualité par défaut (contrôles standards, sévérités par défaut). */
+    private static com.coach.financier.config.QualityProperties qualityProperties() {
+        return new com.coach.financier.config.QualityProperties(true, false, "./target/quality-test", "salt",
+                1000, 30, 10, "quality-report-v1", "", "", "", "", "", "", "");
     }
 
     /** Configuration marketing par défaut (module activé, aucun événement persisté dans les tests). */

@@ -1,0 +1,68 @@
+{
+  "reportDate" : "2026-09-11",
+  "period" : {
+    "from" : "2026-09-11",
+    "to" : "2026-09-11"
+  },
+  "executiveSummary" : {
+    "status" : "INSUFFICIENT_DATA",
+    "summary" : "5 avis reçu(s) sur 8 conversation(s) terminée(s), note moyenne 3.8 / 5, avis positifs 60.0 %, avis négatifs 20.0 %. Le volume d'avis reste limité : ces observations sont préliminaires."
+  },
+  "satisfactionAnalysis" : {
+    "summary" : "5 avis reçu(s) sur 8 conversation(s) terminée(s), note moyenne 3.8 / 5, avis positifs 60.0 %, avis négatifs 20.0 %. Le volume d'avis reste limité : ces observations sont préliminaires.",
+    "positivePoints" : [ ],
+    "mainIrritants" : [ "Il manquait des informations (2 avis)", "Les explications étaient difficiles à comprendre (1 avis)", "Les explications étaient difficiles à comprendre — 1 commentaire(s)", "Les réponses étaient trop répétitives — 1 commentaire(s)", "Je n'ai pas pu réaliser l'action souhaitée — 1 commentaire(s)" ]
+  },
+  "qualityAndCompliance" : {
+    "summary" : "48 contrôle(s) exécuté(s), 2 anomalie(s) dont 0 de sévérité HIGH. Aucune violation du garde-fou interdisant les simulations de crédit n'a été détectée.",
+    "mainIssues" : [ "Répétition excessive : 2 détection(s) sur 8 contrôle(s) exécuté(s) (sévérité LOW)" ],
+    "criticalIssues" : [ ]
+  },
+  "satisfactionVsCompliance" : {
+    "summary" : "Croisement sur les avis reçus : 3 client(s) satisfait(s) avec Coach conforme, 0 satisfait(s) avec anomalie, 0 insatisfait(s) avec Coach CONFORME, 1 insatisfait(s) avec anomalie réelle.",
+    "notableCases" : [ "Cas prioritaire : insatisfaction ET anomalie confirmée côté Coach (1)." ]
+  },
+  "ruleFriction" : [ ],
+  "trends" : [ {
+    "type" : "DEGRADING",
+    "topic" : "Demande non résolue",
+    "observation" : "0 vs 1 (-100.0 %) sur la période précédente."
+  }, {
+    "type" : "DEGRADING",
+    "topic" : "Donnée demandée non récupérée",
+    "observation" : "0 vs 1 (-100.0 %) sur la période précédente."
+  }, {
+    "type" : "STABLE",
+    "topic" : "Anomalies détectées",
+    "observation" : "2 vs 4 (-50.0 %) sur la période précédente."
+  }, {
+    "type" : "STABLE",
+    "topic" : "Avis reçus",
+    "observation" : "5 vs 5 (0.0 %) sur la période précédente."
+  }, {
+    "type" : "DEGRADING",
+    "topic" : "Répétition excessive",
+    "observation" : "2 vs 2 (0.0 %) sur la période précédente."
+  } ],
+  "priorityImprovements" : [ {
+    "priority" : "MEDIUM",
+    "title" : "Traiter le principal irritant client",
+    "observation" : "Il manquait des informations (2 avis)",
+    "recommendation" : "Tester une réponse plus concise et moins répétitive sur les questions de suivi, sans modifier les garde-fous métier.",
+    "expectedBenefit" : "Meilleure lisibilité perçue et satisfaction en hausse."
+  } ],
+  "alerts" : [ {
+    "level" : "WATCH",
+    "title" : "Échantillon d'avis limité",
+    "description" : "Le volume d'avis est faible : les observations doivent être confirmées sur plusieurs périodes."
+  }, {
+    "level" : "WATCH",
+    "title" : "Part d'avis négatifs élevée",
+    "description" : "20.0 % des avis sont négatifs (1 ou 2 étoiles)."
+  } ],
+  "finalAssessment" : "Rapport généré en mode démo à partir des statistiques agrégées : satisfaction client et conformité du Coach restent deux dimensions distinctes, aucune anomalie n'est déduite d'une mauvaise note.",
+  "generatedAt" : "2026-09-11T09:42:11.920510900Z",
+  "model" : "MOCK",
+  "aiGenerated" : true,
+  "error" : null
+}

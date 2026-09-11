@@ -1,0 +1,16 @@
+{
+  "conversationsClosed" : 8,
+  "feedbackCount" : 5,
+  "participationRate" : 0.625,
+  "averageRating" : 3.8,
+  "positiveCount" : 3,
+  "negativeCount" : 1,
+  "neutralCount" : 1,
+  "positiveRate" : 0.6,
+  "negativeRate" : 0.2,
+  "previousFeedbackCount" : 5,
+  "previousAverageRating" : 4.6,
+  "averageRatingEvolutionPercent" : -17.3913,
+  "positiveRateEvolutionPercent" : -40.0,
+  "sufficientSample" : false
+}

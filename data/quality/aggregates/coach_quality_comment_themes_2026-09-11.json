@@ -1,0 +1,16 @@
+[ {
+  "theme" : "HARD_TO_UNDERSTAND",
+  "label" : "Les explications étaient difficiles à comprendre",
+  "count" : 1,
+  "share" : 0.3333
+}, {
+  "theme" : "TOO_REPETITIVE",
+  "label" : "Les réponses étaient trop répétitives",
+  "count" : 1,
+  "share" : 0.3333
+}, {
+  "theme" : "ACTION_NOT_POSSIBLE",
+  "label" : "Je n'ai pas pu réaliser l'action souhaitée",
+  "count" : 1,
+  "share" : 0.3333
+} ]

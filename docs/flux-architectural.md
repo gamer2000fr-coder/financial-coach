@@ -103,6 +103,9 @@ sequenceDiagram
 | **Fin de conversation** | déclenchement (case suivi + ≥ 2 échanges), synthèse, validation produits/URLs, envoi au **seul** conseiller | `App.tsx` (bouton) → `ConversationClosureService` → `MailService` |
 | **Statistiques marketing** | types d'événements extraits, agrégats, scores, tranches de montant | IA (`suivi.txt`) **propose** → Java (`MarketingExtractionService`, `MarketingAnalyticsService`) **calcule et stocke** |
 | **Rapport marketing** | rédaction à partir des **agrégats déjà calculés** | agent analyste `marketing.txt` (`analyzeMarketing`) |
+| **Feedback de satisfaction** | note 1 à 5, motifs, commentaire — TOUJOURS facultatif, jamais bloquant | pop-in `App.tsx`/`FeedbackPopup.tsx` → `QualityFeedbackService` |
+| **Conformité du Coach** | contrôles automatiques exécutés à la clôture, indépendants du ressenti client | `CoachQualityCheckService` → `QualityCheckStore` |
+| **Rapport qualité** | interprétation de la satisfaction ET de la conformité, tenues séparées | agent analyste `qualite_coach_client.txt` (`analyzeQuality`) |
 
 ---
 
@@ -125,6 +128,7 @@ Les prompts/agents sont éditables dans la page **Agents** (`#/agents`) et relus
 Deux prompts **ne sont pas des agents de coach** (ils n'apparaissent donc pas dans `agents.json`, mais restent éditables sur la page **Agents**) :
 - **`suivi.txt`** — agent de **fin de conversation** : produit le dossier de suivi conseiller (+ brouillon client + événements marketing). Appelé uniquement par `ConversationClosureService` (`AgentFiles.suiviSystemPrompt()`).
 - **`marketing.txt`** — agent **analyste marketing** : rédige le rapport à partir des agrégats déjà calculés. Appelé uniquement par `MarketingReportService` (`AgentFiles.marketingSystemPrompt()`).
+- **`qualite_coach_client.txt`** — agent **analyste qualité & satisfaction** : rédige le rapport qualité à partir des agrégats de satisfaction **et** de conformité. Appelé uniquement par `QualityReportService` (`AgentFiles.qualitySystemPrompt()`).
 
 ---
 
@@ -203,3 +207,33 @@ Règles structurantes :
 - **Aucun SGBD** : JSONL (événements) + JSON (agrégats, rapports) ; Parquet écarté volontairement (POC).
 - **API à la demande** vs **batch** : la page interroge l'API pour la période choisie ; le batch fige les mêmes agrégats en fichiers quotidiens (réexécutable sans doublon).
 - **Traçabilité** : chaque génération de rapport mentionne le prompt utilisé (`promptVersion`, `model`, `aiGenerated`).
+
+### 7.4 Chaîne Qualité & Satisfaction (satisfaction client × conformité du Coach)
+
+```mermaid
+flowchart TD
+    END["Fin de conversation<br/>(bouton « Terminer et envoyer au conseiller »)"] --> POP["Pop-in : note 1-5<br/>motifs si note ≤ 3<br/>commentaire facultatif"]
+    POP -->|"Envoyer mon avis"| FB["POST /api/conversations/{id}/feedback<br/>fire-and-forget — jamais bloquant"]
+    POP -->|"Passer"| CLOSE
+    FB --> CLOSE["Clôture : dossier de suivi conseiller"]
+    CLOSE --> CTRL["CoachQualityCheckService<br/>6 contrôles automatiques"]
+    CTRL --> FILES["quality/feedback/*.jsonl<br/>quality/checks/*.jsonl"]
+    FB --> FILES
+    FILES --> AGG["QualityAnalyticsService<br/>satisfaction + conformité SÉPARÉES<br/>+ croisement A/B/C/D"]
+    AGG --> BATCH["QualityBatchService<br/>aggregates/coach_quality_daily_&lt;date&gt;.json"]
+    AGG --> REP["QualityReportService<br/>agent qualite_coach_client.txt"]
+    REP --> RJSON["reports/coach_quality_report_&lt;date&gt;.json"]
+    AGG --> PAGE["Page #/quality"]
+    RJSON --> PAGE
+    DEMO2["QualityDemoDataService<br/>(source=DEMO, rejouable)"] --> FILES
+```
+
+Règles structurantes :
+
+- **Séparation stricte** : la satisfaction vient du client, la conformité vient des contrôles. Une mauvaise note **ne crée jamais** d'anomalie ; une plainte ne devient une anomalie que si un contrôle la confirme.
+- **Cas C (important)** : client insatisfait + Coach conforme → l'amélioration porte sur la **pédagogie** (expliquer la règle, mieux guider vers le simulateur officiel), **jamais** sur la suppression du garde-fou.
+- **Cas D (prioritaire)** : client insatisfait + anomalie confirmée → traitement conjoint.
+- **Aucune statistique inventée** : un indicateur non calculable reste `null`/vide ; un contrôle **non implémenté** est listé à part et n'apparaît jamais comme un « 0 ».
+- **Anonymat** : identifiant client pseudonymisé, commentaires nettoyés (emails/téléphones masqués) avant stockage, affichage ou envoi à l'IA ; le commentaire reste une donnée **non fiable** (jamais une instruction).
+- **Idempotence** : `feedbackId` déterministe + une seule réponse par conversation ; identifiants de contrôle déterministes ; batch réexécutable.
+- **L'IA propose, l'humain décide** : le module ne modifie jamais le prompt, les règles métier, les catalogues ou le code.

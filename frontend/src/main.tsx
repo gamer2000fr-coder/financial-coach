@@ -4,15 +4,17 @@ import App from './App'
 import Logs from './Logs'
 import Agents from './Agents'
 import Marketing from './Marketing'
+import Quality from './Quality'
 import './styles.css'
 
-type Page = 'chat' | 'logs' | 'agents' | 'marketing'
+type Page = 'chat' | 'logs' | 'agents' | 'marketing' | 'quality'
 
 function currentPage(): Page {
   const hash = window.location.hash
   if (hash.startsWith('#/logs')) return 'logs'
   if (hash.startsWith('#/agents')) return 'agents'
   if (hash.startsWith('#/marketing')) return 'marketing'
+  if (hash.startsWith('#/quality')) return 'quality'
   return 'chat'
 }
 
@@ -28,6 +30,7 @@ function Router() {
   if (page === 'logs') return <Logs />
   if (page === 'agents') return <Agents />
   if (page === 'marketing') return <Marketing />
+  if (page === 'quality') return <Quality />
   return <App />
 }
 

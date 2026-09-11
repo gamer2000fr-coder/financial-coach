@@ -420,6 +420,45 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .mkt-drawer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .mkt-metric { display: flex; flex-direction: column; gap: 2px; background: #f8f9fb; border-radius: 8px; padding: 8px 10px; }
 
+/* ---- Pop-in de satisfaction (fin de conversation) + page Qualité (#/quality) ---- */
+.qlt-popup-backdrop {
+  position: fixed; inset: 0; background: rgba(15, 20, 30, .45);
+  display: flex; align-items: center; justify-content: center; z-index: 60; padding: 16px;
+}
+.qlt-popup {
+  background: #fff; border-radius: 14px; max-width: 540px; width: 100%; padding: 20px;
+  box-shadow: 0 24px 60px rgba(15, 20, 30, .28); max-height: 90vh; overflow: auto;
+}
+.qlt-popup h2 { margin: 0 0 4px; font-size: 17px; }
+.qlt-stars { display: flex; gap: 6px; justify-content: center; margin: 10px 0 6px; }
+.qlt-star { background: transparent; border: none; color: #c9ced8; cursor: pointer; padding: 2px; line-height: 0; }
+.qlt-star.active { color: #f5a623; }
+.qlt-thanks { text-align: center; color: #15803d; font-size: 12px; margin: 2px 0 8px; }
+.qlt-reasons { margin: 10px 0; }
+.qlt-reasons-title { font-size: 13px; font-weight: 600; margin: 0 0 6px; }
+.qlt-reason { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; padding: 4px 0; cursor: pointer; }
+.qlt-comment {
+  width: 100%; border: 1px solid #e4e7ee; border-radius: 8px; padding: 8px; margin-top: 6px;
+  font-family: inherit; font-size: 13px; resize: vertical;
+}
+.qlt-popup-actions { display: flex; gap: 8px; margin-top: 12px; }
+.qlt-send {
+  flex: 1; background: var(--accent); color: #fff; border: none; border-radius: 999px;
+  padding: 10px 14px; font-weight: 700; cursor: pointer; font-size: 13px;
+}
+.qlt-send:hover:not(:disabled) { background: var(--accent-dark); }
+.qlt-send:disabled { opacity: .5; cursor: default; }
+.qlt-matrix { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.qlt-cell {
+  display: flex; flex-direction: column; gap: 4px; border-radius: 10px; padding: 10px 12px;
+  border: 1px solid #e4e7ee; background: #fafbfc;
+}
+.qlt-cell strong { font-size: 20px; }
+.qlt-cell.ok { background: #f2fbf5; border-color: #c7e8d3; }
+.qlt-cell.watch { background: #fdf9ee; border-color: #f0e0b8; }
+.qlt-cell.friction { background: #eef4ff; border-color: #c9d8f6; }
+.qlt-cell.critical { background: #fdecec; border-color: #f3c0c0; }
+
 /* ---- Page Logs (traces des appels IA) ---- */
 .logs-shell {
   max-width: 960px;

@@ -1,0 +1,55 @@
+[ {
+  "checkType" : "EXCESSIVE_REPETITION",
+  "label" : "Répétition excessive",
+  "severity" : "LOW",
+  "checksRun" : 8,
+  "detected" : 2,
+  "detectionRate" : 0.25,
+  "previousDetected" : 2,
+  "evolutionPercent" : 0.0
+}, {
+  "checkType" : "CREDIT_SIMULATION_VIOLATION",
+  "label" : "Simulation de crédit interdite",
+  "severity" : "HIGH",
+  "checksRun" : 8,
+  "detected" : 0,
+  "detectionRate" : 0.0,
+  "previousDetected" : 0,
+  "evolutionPercent" : null
+}, {
+  "checkType" : "INVENTED_URL",
+  "label" : "URL inventée",
+  "severity" : "HIGH",
+  "checksRun" : 8,
+  "detected" : 0,
+  "detectionRate" : 0.0,
+  "previousDetected" : 0,
+  "evolutionPercent" : null
+}, {
+  "checkType" : "MISSING_DATA_NOT_RETRIEVED",
+  "label" : "Donnée demandée non récupérée",
+  "severity" : "MEDIUM",
+  "checksRun" : 8,
+  "detected" : 0,
+  "detectionRate" : 0.0,
+  "previousDetected" : 1,
+  "evolutionPercent" : -100.0
+}, {
+  "checkType" : "PRODUCT_MISMATCH",
+  "label" : "Produit incompatible",
+  "severity" : "HIGH",
+  "checksRun" : 8,
+  "detected" : 0,
+  "detectionRate" : 0.0,
+  "previousDetected" : 0,
+  "evolutionPercent" : null
+}, {
+  "checkType" : "UNANSWERED_REQUEST",
+  "label" : "Demande non résolue",
+  "severity" : "MEDIUM",
+  "checksRun" : 8,
+  "detected" : 0,
+  "detectionRate" : 0.0,
+  "previousDetected" : 1,
+  "evolutionPercent" : -100.0
+} ]

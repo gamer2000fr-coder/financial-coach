@@ -1,9 +1,11 @@
 package com.coach.financier.controller;
 
 import com.coach.financier.model.ConversationModels;
+import com.coach.financier.model.QualityModels;
 import com.coach.financier.model.SuiviModels;
 import com.coach.financier.service.ConversationClosureService;
 import com.coach.financier.service.ConversationService;
+import com.coach.financier.service.QualityFeedbackService;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -24,11 +26,14 @@ import java.util.Map;
 public class ConversationController {
     private final ConversationService conversationService;
     private final ConversationClosureService closureService;
+    private final QualityFeedbackService qualityFeedbackService;
 
     public ConversationController(ConversationService conversationService,
-                                  ConversationClosureService closureService) {
+                                  ConversationClosureService closureService,
+                                  QualityFeedbackService qualityFeedbackService) {
         this.conversationService = conversationService;
         this.closureService = closureService;
+        this.qualityFeedbackService = qualityFeedbackService;
     }
 
     /** Historique complet d'une session (messages client/coach), pour la page Logs. */
@@ -57,5 +62,17 @@ public class ConversationController {
             @PathVariable String sessionId,
             @RequestBody(required = false) SuiviModels.CloseConversationRequest request) {
         return closureService.close(sessionId, request);
+    }
+
+    /**
+     * FEEDBACK CLIENT de fin de conversation (pop-in 1 à 5 étoiles, commentaire facultatif, motifs
+     * conditionnels). Toujours OPTIONNEL : un corps vide (« Passer ») ou une erreur de stockage ne
+     * bloque jamais la clôture de la conversation (§43). Réponse idempotente par session (§44).
+     */
+    @PostMapping("/{sessionId}/feedback")
+    public QualityFeedbackService.FeedbackResponse feedback(
+            @PathVariable String sessionId,
+            @RequestBody(required = false) QualityModels.FeedbackRequest request) {
+        return qualityFeedbackService.submit(sessionId, request);
     }
 }

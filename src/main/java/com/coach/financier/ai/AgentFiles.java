@@ -28,6 +28,8 @@ public final class AgentFiles {
     public static final String SUIVI_PROMPT_FILE = "suivi.txt";
     /** Fichier du prompt de l'agent ANALYSTE MARKETING (rapport quotidien). */
     public static final String MARKETING_PROMPT_FILE = "marketing.txt";
+    /** Fichier du prompt de l'agent ANALYSTE QUALITÉ & SATISFACTION (rapport qualité quotidien). */
+    public static final String QUALITY_PROMPT_FILE = "qualite_coach_client.txt";
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private AgentFiles() {
@@ -124,6 +126,31 @@ public final class AgentFiles {
     public static String marketingSystemPrompt() {
         return readPromptOrDefault(MARKETING_PROMPT_FILE, FALLBACK_MARKETING_PROMPT);
     }
+
+    /**
+     * Prompt système de l'AGENT ANALYSTE QUALITÉ ({@code ./agent/qualite_coach_client.txt} puis
+     * classpath) : interprète des statistiques de satisfaction et de conformité déjà calculées.
+     * Source unique partagée entre {@link RemoteAIService} et {@code QualityReportService}.
+     */
+    public static String qualitySystemPrompt() {
+        return readPromptOrDefault(QUALITY_PROMPT_FILE, FALLBACK_QUALITY_PROMPT);
+    }
+
+    /** Filet de sécurité MINIMAL si {@code qualite_coach_client.txt} est absent. */
+    private static final String FALLBACK_QUALITY_PROMPT =
+            "Tu es l'Analyste Qualité & Satisfaction du Coach IA. Tu reçois des statistiques DÉJÀ "
+            + "CALCULÉES (satisfaction client d'un côté, conformité du Coach de l'autre) et des "
+            + "commentaires anonymisés. Tu ne calcules JAMAIS de chiffre, tu ne confonds jamais "
+            + "insatisfaction client et anomalie du Coach, tu ne proposes jamais de supprimer un "
+            + "garde-fou. Réponds UNIQUEMENT en JSON avec les champs : reportDate, period{from,to}, "
+            + "executiveSummary{status(GOOD|WATCH|ATTENTION|INSUFFICIENT_DATA),summary}, "
+            + "satisfactionAnalysis{summary,positivePoints[],mainIrritants[]}, "
+            + "qualityAndCompliance{summary,mainIssues[],criticalIssues[]}, "
+            + "satisfactionVsCompliance{summary,notableCases[]}, "
+            + "ruleFriction[]{rule,observation,coachCompliant,recommendation}, "
+            + "trends[]{type(IMPROVING|DEGRADING|STABLE|NEW|INSUFFICIENT_DATA),topic,observation}, "
+            + "priorityImprovements[]{priority(HIGH|MEDIUM|LOW),title,observation,recommendation,expectedBenefit}, "
+            + "alerts[]{level(INFO|WATCH|IMPORTANT),title,description}, finalAssessment.";
 
     /** Filet de sécurité MINIMAL si {@code marketing.txt} est absent (le vrai prompt vit dans ./agent). */
     private static final String FALLBACK_MARKETING_PROMPT =

@@ -18,7 +18,9 @@ import java.util.Map;
 /**
  * Édition des prompts d'agents (./agent/&lt;file&gt;) pour la page « Agents » :
  * l'« agent principal » (principal.txt), l'agent générique, les agents spécialisés
- * déclarés dans agents.json, et l'« agent de suivi » (suivi.txt, synthèse de fin de conversation).
+ * déclarés dans agents.json, l'« agent de suivi » (suivi.txt, synthèse de fin de conversation),
+ * l'« agent analyste marketing » (marketing.txt) et l'« agent analyste qualité »
+ * (qualite_coach_client.txt, rapport qualité quotidien).
  * Lecture fichiersystem puis classpath ; écriture fichiersystem + copie classpath — le contenu est
  * relu à chaque appel IA (prise en compte immédiate).
  */
@@ -30,6 +32,8 @@ public class AgentPromptStore {
     public static final String SUIVI_KEY = "suivi";
     /** Agent ANALYSTE MARKETING (rapport quotidien à partir des agrégats). */
     public static final String MARKETING_KEY = "marketing";
+    /** Agent ANALYSTE QUALITÉ & SATISFACTION (rapport qualité quotidien à partir des agrégats). */
+    public static final String QUALITY_KEY = "qualite";
     private static final String GENERIC_THEME = "generic";
 
     /**
@@ -54,6 +58,7 @@ public class AgentPromptStore {
         result.add(entry(PRINCIPAL_KEY, "Agent principal", PRINCIPAL_FILE));
         result.add(entry(SUIVI_KEY, "Agent de suivi (fin de conversation)", AgentFiles.SUIVI_PROMPT_FILE));
         result.add(entry(MARKETING_KEY, "Agent analyste marketing", AgentFiles.MARKETING_PROMPT_FILE));
+        result.add(entry(QUALITY_KEY, "Agent analyste qualité & satisfaction", AgentFiles.QUALITY_PROMPT_FILE));
         for (AgentDefinition agent : agents) {
             if (GENERIC_THEME.equalsIgnoreCase(agent.getTheme())) {
                 continue;

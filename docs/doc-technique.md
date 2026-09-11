@@ -10,7 +10,7 @@
 ```mermaid
 flowchart TB
     subgraph Frontend [Frontend React + Vite (port 9898)]
-        UI[App.tsx · Logs.tsx · Agents.tsx · Marketing.tsx]
+        UI[App.tsx · Logs.tsx · Agents.tsx · Marketing.tsx · Quality.tsx · FeedbackPopup.tsx]
         API[api.ts]
     end
     subgraph Backend [Backend Spring Boot (port 9797)]
@@ -21,6 +21,7 @@ flowchart TB
         METIER[Services métier Java]
         CLOSE[ConversationClosureService + MailService]
         MKT[Marketing: extraction, store, analyse, batch, rapport]
+        QLT[Qualité: feedback, contrôles, analyse, batch, rapport]
         LOG[AILogService]
     end
     subgraph Data [Système de fichiers ./data]
@@ -29,6 +30,7 @@ flowchart TB
         CAT[catalogue/*.json + cascade/*.txt]
         TX[transaction/*.json]
         MKTFS[marketing/events/*.jsonl · aggregates/*.json · reports/*.json]
+        QLTFS[quality/feedback/*.jsonl · checks/*.jsonl · aggregates/*.json · reports/*.json]
     end
     UI --> API
     API --> CTRL
@@ -41,7 +43,9 @@ flowchart TB
     METIER --> DATA
     CLOSE --> AI
     CLOSE --> MKT
+    CLOSE --> QLT
     MKT --> MKTFS
+    QLT --> QLTFS
     ORCH --> LOG
 ```
 
@@ -58,9 +62,10 @@ controller/
   FinancialController     # GET /api/financial-summary, /api/banking-data
   LogsController          # GET /api/logs, GET /api/logs/{id}/prompt, /{id}/answer, /stats, DELETE /api/logs
   AgentPromptController   # GET /api/agents, GET/PUT /api/agents/{key}/prompt
-  ConversationController  # GET /api/conversations/{sessionId}, POST /api/conversations/{sessionId}/close
+  ConversationController  # GET /api/conversations/{sessionId}, POST /{sessionId}/close, POST /{sessionId}/feedback
   MailController          # GET /api/mail/status
   MarketingController     # GET/POST /api/marketing/**
+  QualityController       # GET/POST /api/quality/**
   HealthController        # /api/health
 service/
   ConversationService          # sessions en mémoire (sessionId → Conversation)
@@ -85,6 +90,15 @@ service/
   MarketingReportStore         # lecture/écriture des rapports JSON
   MarketingReportService       # génération du rapport via l'agent analyste marketing
   MarketingDemoDataService     # jeu de démonstration déterministe (demo=true)
+  JsonlFiles                   # utilitaires JSONL partagés (un fichier par jour, lignes invalides comptées)
+  QualityFeedbackService       # pop-in : enregistrement du feedback (facultatif, idempotent, jamais bloquant)
+  QualityFeedbackStore         # feedbacks JSONL + déduplication par feedbackId ET par session
+  QualityCheckStore            # contrôles JSONL (un événement par contrôle exécuté, ids déterministes)
+  CoachQualityCheckService     # contrôles AUTOMATIQUES de conformité (6 implémentés)
+  QualityAnalyticsService      # agrégats DÉTERMINISTES satisfaction + conformité + croisement
+  QualityBatchService          # batch quotidien (agrégat consolidé + fichiers par section + rapport)
+  QualityReportService/Store   # rapport IA qualité (agent qualite_coach_client.txt)
+  QualityDemoDataService       # avis + contrôles de démonstration (source=DEMO)
 repository/
   BankingDataRepository        # charge banking_demo_normalized.json (FS puis classpath)
 ai/
@@ -95,12 +109,12 @@ ai/
   AIServiceFactory             # sélection GPT / DEEPSEEK / MOCK
   AgentFiles                   # agents.json + prompts système par agent (./agent puis classpath)
 config/
-  JacksonConfig  WebConfig  MarketingProperties
+  JacksonConfig  WebConfig  MarketingProperties  QualityProperties
 model/
   AIModels, ChatModels, FinancialSummary, BankingModels, ConversationModels
   IntentClassification, CurrentProject, ProjectType, FinancialIntent, AgentDefinition,
   ProductFamily, ConfidenceLevel, BankProduct, CreditSimulation(Request), LogEntry
-  SuiviModels, MarketingModels
+  SuiviModels, MarketingModels, QualityModels
 ```
 
 ### 2.2 Rôles des services
@@ -125,6 +139,10 @@ model/
 | `MarketingBatchService` | Agrégats quotidiens en fichiers + rapport (réexécutable sans doublon) |
 | `MarketingReportService` | Rapport IA du jour (`agent/marketing.txt`) à partir des agrégats déjà calculés |
 | `MarketingDemoDataService` | Jeu de démonstration déterministe (`demo=true`), pour la page Marketing |
+| `QualityFeedbackService` / `QualityFeedbackStore` | Feedback de la pop-in : facultatif, idempotent (une seule réponse par conversation), stockage anonymisé |
+| `CoachQualityCheckService` | Contrôles **automatiques** de conformité : exécutés à chaque clôture, indépendants de la satisfaction |
+| `QualityAnalyticsService` | **Tous les calculs** du module Qualité (satisfaction, conformité, croisement) |
+| `QualityBatchService` / `QualityReportService` | Batch quotidien + rapport IA à partir des agrégats calculés |
 
 ---
 
@@ -146,6 +164,10 @@ Tous les fichiers sont lus **depuis le système de fichiers `./data`** (racine d
 | `marketing/events/marketing_events_<date>.jsonl` | Événements marketing (1 par ligne, append-only, dédoublonnés par `eventId`) |
 | `marketing/aggregates/*.json` | Agrégats figés du jour (batch) |
 | `marketing/reports/marketing_report_<date>.json` | Rapport IA du jour |
+| `quality/feedback/coach_feedback_<date>.jsonl` | Avis clients (note, motifs, commentaire nettoyé) |
+| `quality/checks/coach_quality_checks_<date>.jsonl` | Un événement par contrôle exécuté (détecté ou non) |
+| `quality/aggregates/coach_quality_daily_<date>.json` | Agrégat consolidé du jour (+ fichiers par section) |
+| `quality/reports/coach_quality_report_<date>.json` | Rapport IA qualité du jour |
 
 > Les **fiches produits** (`catalogue/*.json`) documentent des familles via la table `catalogueDocFamilies` (ex. `credit_immo` → MORTGAGE/HOME_IMPROVEMENT_LOAN). C'est ce qui permet la **restriction du catalogue** en contexte financement.
 
@@ -184,6 +206,17 @@ app.marketing.hash-salt: ${MARKETING_HASH_SALT:…}
 app.marketing.amount-bounds: ${MARKETING_AMOUNT_BOUNDS:2000,5000,10000,15000,30000}
 app.marketing.extractor-version / prompt-version: ${…}
 app.marketing.score.*: ${…}                                      # poids du score d'intérêt
+# --- Module Qualité & Satisfaction (fichiers, sans base de données) ---
+app.quality.enabled: ${QUALITY_ENABLED:true}
+app.quality.demo-mode: ${QUALITY_DEMO_MODE:false}
+app.quality.dir: ${QUALITY_DIR:./data/quality}
+app.quality.hash-salt: ${QUALITY_HASH_SALT:…}
+app.quality.comment-max-length: ${QUALITY_COMMENT_MAX_LENGTH:1000}
+app.quality.max-comments-to-analyze: ${QUALITY_MAX_COMMENTS:30}
+app.quality.sufficient-sample-size: ${QUALITY_SAMPLE_SIZE:10}
+app.quality.prompt-version: ${QUALITY_PROMPT_VERSION:quality-report-v1}
+app.quality.checks: ${QUALITY_CHECKS:}                            # vide = les 6 contrôles implémentés
+app.quality.severity.*: ${…}                                      # sévérité par contrôle (§21)
 ```
 
 - Clés API : `OPENAI_API_KEY`, `DEEPSEEK_API_KEY` — **aucune clé en dur** (variables d'environnement).
@@ -210,6 +243,9 @@ app.marketing.score.*: ${…}                                      # poids du sc
 | GET/PUT | `/api/agents/{key}/prompt` | Lire / écrire le prompt d'un agent |
 | GET | `/api/marketing/status`, `/overview`, `/products`, `/products/{id}`, `/projects`, `/trends`, `/rejections`, `/cross-sell`, `/unmet-needs`, `/missing-information`, `/reports/daily`, `/export/products.csv` | **Module Marketing** : lecture (paramètres `period=today\|yesterday\|7d\|30d\|custom`, `from`, `to`, filtres produit/famille/projet/événement) |
 | POST | `/api/marketing/reports/daily/regenerate`, `/batch`, `/demo-data` | Génération du rapport IA, batch quotidien (agrégats + rapport), jeu de démonstration |
+| POST | `/api/conversations/{sessionId}/feedback` | **Pop-in de satisfaction** : `{rating, selectedReasons[], comment}` — facultatif, idempotent par session, jamais bloquant |
+| GET | `/api/quality/status`, `/overview`, `/ratings`, `/issues`, `/feedback-categories`, `/trends`, `/report`, `/export/satisfaction.csv` | **Module Qualité** : satisfaction et conformité **séparées** (paramètres `period=today\|yesterday\|7d\|30d\|custom`, `from`, `to`, `rating`, `checkType`, `severity`) |
+| POST | `/api/quality/report/regenerate`, `/batch`, `/demo-data` | Rapport IA, batch quotidien, jeu de démonstration |
 | GET | `/api/health` | Healthcheck (expose le fournisseur par défaut) |
 
 ### Exemple — POST /api/chat
@@ -380,8 +416,9 @@ flowchart LR
 |---|---|---|---|
 | `suivi` | `suivi.txt` | `ConversationClosureService` | Contexte de la conversation → `SuiviResult` (résumé, produits d'intérêt, brouillon client, `marketingEvents`) |
 | `marketing` | `marketing.txt` | `MarketingReportService` | Agrégats **déjà calculés** → `MarketingReport` (interprétation rédactionnelle) |
+| `qualite` | `qualite_coach_client.txt` | `QualityReportService` | Agrégats de satisfaction **et** de conformité + commentaires anonymisés → `QualityReport` |
 
-Ils ne figurent **pas** dans `agents.json` (donc jamais sélectionnables comme agent de coach) mais apparaissent dans `AgentPromptStore.entries()` après « Agent principal » (`SUIVI_KEY`, `MARKETING_KEY`), et sont éditables dans la page **Agents**.
+Ils ne figurent **pas** dans `agents.json` (donc jamais sélectionnables comme agent de coach) mais apparaissent dans `AgentPromptStore.entries()` après « Agent principal » (`SUIVI_KEY`, `MARKETING_KEY`, `QUALITY_KEY`), et sont éditables dans la page **Agents**.
 
 ### Cascade produit
 Quand l'IA demande un JSON `/data/catalogue/*.json` et que `cascade=true`, `DataRequestService.fetch` joint automatiquement `/data/catalogue/cascade/<même_nom>.txt` (arbres de décision) en plus de la fiche. Les données de chaque agent (`data[]` = fiche + cascade) sont par ailleurs injectées **d'office** dans `providedData`.
@@ -404,14 +441,17 @@ Quand l'IA demande un JSON `/data/catalogue/*.json` et que `cascade=true`, `Data
 ### 11.1 Structure
 ```
 frontend/src/
-  main.tsx       # routage par hash : #/logs, #/agents, #/marketing, sinon App
-  App.tsx        # page coach (chat + vue d'ensemble + réglages avancés/audio + bouton de clôture)
+  main.tsx       # routage par hash : #/logs, #/agents, #/marketing, #/quality, sinon App
+  App.tsx        # page coach (chat + vue d'ensemble + réglages avancés/audio + bouton de clôture + pop-in)
+  FeedbackPopup.tsx # pop-in de satisfaction de fin de conversation (note, motifs, commentaire, Passer)
   Logs.tsx       # page logs (polling, prompt/filtrage/réponse/historique)
-  Agents.tsx     # page édition des prompts d'agents (dont suivi.txt et marketing.txt)
+  Agents.tsx     # page édition des prompts d'agents (dont suivi, marketing et qualité)
   Marketing.tsx  # page marketing (KPI, produits, projets, refus, rapport IA, CSV)
-  api.ts         # client API (fetch, API_BASE_URL dynamique)
-  types.ts       # types partagés
-  styles.css     # classes préfixées (logs-*, agent-*, mkt-*, …)
+  Quality.tsx    # page qualité & satisfaction (satisfaction, conformité, croisement, rapport IA, CSV)
+  types.ts       # types partagés (chat, logs, agents, marketing)
+  types.quality.ts # types du module Qualité
+  api.ts         # client API (fetch, API_BASE_URL dynamique) + fonctions marketing et qualité
+  styles.css     # classes préfixées (logs-*, agent-*, mkt-*, qlt-*)
   vite-env.d.ts  # référence vite/client
 ```
 
@@ -422,9 +462,11 @@ flowchart LR
     A[App] --> B[fetchFinancialSummary]
     A --> C[sendChat]
     A --> F[closeConversation]
+    A --> Q[sendConversationFeedback]
     L[Logs] --> D[fetchLogs / clearLogs / fetchLogPrompt / fetchLogAnswer / fetchConversation]
     G[Agents] --> E[fetchAgents / fetchAgentPrompt / saveAgentPrompt]
     M[Marketing] --> N[fetchMarketingOverview / fetchMarketingProduct / fetchMarketingReport / regenerateMarketingReport / generateMarketingDemoData]
+    S[Quality] --> T[fetchQualityOverview / fetchQualityReport / runQualityBatch / generateQualityDemoData / export CSV]
 ```
 
 ### 11.3 Points notables
@@ -447,6 +489,7 @@ flowchart LR
 | Réponse coach | Message générique (mode démo) | LLM via le prompt de l'agent actif (`generic.txt` + `principal.txt` + spécialisé) |
 | Synthèse de fin de conversation | **Déterministe** : niveaux d'intérêt déduits des messages (HIGH si le client cite le produit, MEDIUM si le coach, LOW sinon, REJECTED si refus explicite) + brouillon client | LLM via `suivi.txt` |
 | Rapport marketing | **Déterministe** : rapport construit à partir des agrégats | LLM via `marketing.txt` (interprétation) |
+| Rapport qualité | **Déterministe** : sépare satisfaction et conformité, signale les règles conformes frustrantes | LLM via `qualite_coach_client.txt` |
 | Réseau / clé API | Aucun | Requis (`OPENAI_API_KEY`, `DEEPSEEK_API_KEY`) |
 | Simulation / calculs / statistiques | Identiques (Java) | Identiques (Java) |
 
@@ -630,3 +673,88 @@ curl "http://localhost:9797/api/marketing/overview?period=30d"
 - Les conversations vivent **en mémoire** : une session perdue (redémarrage) ne produit pas d'événement.
 - Les événements de démonstration (`demo=true`) et réels cohabitent : le bandeau de la page le signale ; filtrer/supprimer `data/marketing` avant toute lecture sérieuse.
 - L'extraction dépend de la qualité du prompt `agent/marketing.txt` (le taux de `confidence` faible est conservé, pas corrigé).
+
+---
+
+## 17. Module Qualité & Satisfaction du Coach IA (POC, sans base de données)
+
+### 17.1 Principe : deux dimensions jamais fusionnées
+
+| Dimension | Question | Source | Calcul |
+|---|---|---|---|
+| **Satisfaction client** | « Le client a-t-il apprécié son expérience ? » | Note 1 à 5, motifs, commentaire | `QualityAnalyticsService` (déterministe) |
+| **Qualité / conformité** | « Le Coach a-t-il correctement fonctionné ? » | Contrôles automatiques | `CoachQualityCheckService` + agrégations |
+
+> **Règle absolue** : une mauvaise note n'est jamais convertie en anomalie du Coach. Une plainte devient une anomalie **uniquement** si un contrôle automatique la confirme.
+
+### 17.2 Fichiers (`data/quality`, configurable via `app.quality.dir`)
+
+| Chemin | Contenu |
+|---|---|
+| `feedback/coach_feedback_<AAAA-MM-JJ>.jsonl` | 1 avis par ligne (idempotent par `feedbackId` **et** par session) |
+| `checks/coach_quality_checks_<AAAA-MM-JJ>.jsonl` | 1 ligne par contrôle **exécuté** (avec `detected`, sévérité, détail) |
+| `aggregates/coach_quality_daily_<date>.json` | Agrégat consolidé du jour + fichiers par section (satisfaction, conformité, notes, motifs, thèmes, contrôles, croisement, série) |
+| `reports/coach_quality_report_<date>.json` | Rapport IA qualité du jour |
+
+### 17.3 Format d'un avis client
+
+```json
+{
+  "feedbackId": "fb-37520825-1890-335a-901f-b57ca0751a0b",
+  "timestamp": "2026-09-11T09:42:29", "sessionId": "web-…",
+  "anonymousCustomerId": "customer_hash_97cd4fd9c04f522a",
+  "rating": 2, "customerSelectedReasons": ["TOO_REPETITIVE", "MISSING_INFORMATION"],
+  "aiDetectedReasons": [], "comment": "… rappelez-moi au [numéro masqué]",
+  "source": "END_CONVERSATION_POPUP", "createdAt": "2026-09-11T09:42:29"
+}
+```
+
+Motifs (`user`/`client`) : `NOT_ANSWERING_QUESTION`, `HARD_TO_UNDERSTAND`, `TOO_LONG`, `TOO_REPETITIVE`, `PRODUCT_NOT_RELEVANT`, `MISSING_INFORMATION`, `ACTION_NOT_POSSIBLE`, `OTHER`. Les libellés affichés sont séparés des codes (reformulables sans casser l'analytique).
+
+### 17.4 Contrôles automatiques réellement implémentés (§15 à §21)
+
+| Contrôle | Sévérité par défaut | Ce qui est détecté |
+|---|---|---|
+| `CREDIT_SIMULATION_VIOLATION` | HIGH | Le Coach produit lui-même un chiffrage (mensualité, coût total, intérêts, capacité d'emprunt). Une **redirection** vers le simulateur officiel est conforme (aucune alerte) ; les rappels de crédit **existant** sont hors périmètre |
+| `PRODUCT_MISMATCH` | HIGH | Une offre présentée dont la famille n'est autorisée pour **aucun** projet de la conversation (les crédits existants ne sont pas des offres) |
+| `INVENTED_URL` | HIGH | URL citée (brute ou `[URL|nom|url]`) absente des fiches officielles et du lien de RDV configuré |
+| `UNANSWERED_REQUEST` | MEDIUM | Conversation terminée sur un message client sans réponse, ou appel IA en erreur |
+| `MISSING_DATA_NOT_RETRIEVED` | MEDIUM | Données demandées par l'IA (`NEED_DATA`) jamais fournies |
+| `EXCESSIVE_REPETITION` | LOW | Phrases reformulées à l'identique (≥ 40 caractères, 2 occurrences) ou salutations répétées — contrôle volontairement prudent |
+
+**Non implémentés** (affichés comme tels, jamais comptés comme « 0 ») : `UNNECESSARY_ADVISOR_REDIRECT`, `UNSUPPORTED_PRODUCT_CLAIM`, `INVENTED_DATA`, `CONVERSATION_CONTEXT_LOST`. La liste exécutée et les sévérités sont **configurables** (`app.quality.checks`, `app.quality.severity.*`).
+
+### 17.5 Règles de calcul (côté code uniquement)
+
+- **Note moyenne**, distribution, avis positifs (≥ 4) / négatifs (≤ 2) / neutres (3), taux de participation = avis / conversations terminées (dénominateur = sessions disposant de contrôles) ; `null` si dénominateur nul.
+- **Croisement** satisfaction × conformité : A = satisfait + conforme, B = satisfait + anomalie, C = insatisfait + conforme (**règle correctement appliquée**), D = insatisfait + anomalie (prioritaire). Les notes neutres sont exclues.
+- **Évolutions** : période précédente de même longueur ; `null` si la base est absente ou nulle.
+- **Thèmes de commentaires** : heuristique locale déterministe (accents normalisés, mots-clés) — **aucun appel IA** ; l'analyse IA des commentaires est en P2 (non activée).
+- **Anonymisation** : identifiant client = SHA-256 salé ; emails, téléphones et longues suites de chiffres masqués avant stockage, affichage ou envoi à l'IA.
+
+### 17.6 Endpoints
+
+Voir §5 (`/api/conversations/{sessionId}/feedback` et `/api/quality/**`). Le frontend ne lit **jamais** les fichiers.
+
+### 17.7 Frontend
+
+- `FeedbackPopup.tsx` : pop-in ouverte au clic sur « Terminer et envoyer au conseiller » (suivi actif **et** ≥ 2 échanges) — 5 étoiles, motifs à partir de 3 étoiles ou moins, commentaire facultatif, « Envoyer mon avis » / « Passer ». L'avis part en fire-and-forget **avant** la clôture ; un échec n'empêche rien.
+- `Quality.tsx` (route `#/quality`, lien `BadgeCheck` dans l'en-tête) : filtres de période/note/sévérité, KPI satisfaction **et** conformité, distribution des notes, motifs, thèmes de commentaires, table des contrôles, croisement A/B/C/D, rapport IA, export CSV. Réutilise le design system de la page Marketing (`.mkt-*`) — pas de seconde architecture.
+
+### 17.8 Commandes utiles
+
+```powershell
+# Jeu de démonstration (avis + contrôles marqués DEMO) puis lecture des indicateurs
+curl -X POST "http://localhost:9797/api/quality/demo-data?days=21&reviewsPerDay=5"
+curl "http://localhost:9797/api/quality/overview?period=30d"
+# Batch du jour (agrégat consolidé + rapport IA) et export CSV
+curl -X POST "http://localhost:9797/api/quality/batch?date=2026-09-11"
+curl "http://localhost:9797/api/quality/export/satisfaction.csv?period=7d"
+```
+
+### 17.9 Limites assumées
+
+- Le taux de participation ne compte que les conversations pour lesquelles des contrôles ont été exécutés (une conversation jamais clôturée n'est pas comptée).
+- Les contrôles sont **heuristiques** : ils privilégient la précision à l'exhaustivité (mieux vaut manquer une anomalie que produire un faux positif) ; chaque contrôle est documenté et testé.
+- Les avis de démonstration (`source=DEMO`) cohabitent avec les avis réels : le bandeau de la page le signale.
+- Le rapport IA n'est qu'une **proposition** : le module ne modifie jamais automatiquement le prompt, les règles métier, les catalogues ou le code.

@@ -1,0 +1,234 @@
+{
+  "dateFrom" : "2026-09-11",
+  "dateTo" : "2026-09-11",
+  "satisfaction" : {
+    "conversationsClosed" : 8,
+    "feedbackCount" : 5,
+    "participationRate" : 0.625,
+    "averageRating" : 3.8,
+    "positiveCount" : 3,
+    "negativeCount" : 1,
+    "neutralCount" : 1,
+    "positiveRate" : 0.6,
+    "negativeRate" : 0.2,
+    "previousFeedbackCount" : 5,
+    "previousAverageRating" : 4.6,
+    "averageRatingEvolutionPercent" : -17.3913,
+    "positiveRateEvolutionPercent" : -40.0,
+    "sufficientSample" : false
+  },
+  "conformity" : {
+    "checksRun" : 48,
+    "anomalies" : 2,
+    "highAnomalies" : 0,
+    "mediumAnomalies" : 0,
+    "lowAnomalies" : 2
+  },
+  "ratingDistribution" : [ {
+    "rating" : 5,
+    "count" : 2,
+    "share" : 0.4
+  }, {
+    "rating" : 4,
+    "count" : 1,
+    "share" : 0.2
+  }, {
+    "rating" : 3,
+    "count" : 1,
+    "share" : 0.2
+  }, {
+    "rating" : 2,
+    "count" : 1,
+    "share" : 0.2
+  }, {
+    "rating" : 1,
+    "count" : 0,
+    "share" : 0.0
+  } ],
+  "feedbackCategories" : [ {
+    "reason" : "MISSING_INFORMATION",
+    "label" : "Il manquait des informations",
+    "count" : 2,
+    "share" : 0.6667,
+    "previousCount" : null,
+    "evolutionPercent" : null
+  }, {
+    "reason" : "HARD_TO_UNDERSTAND",
+    "label" : "Les explications étaient difficiles à comprendre",
+    "count" : 1,
+    "share" : 0.3333,
+    "previousCount" : null,
+    "evolutionPercent" : null
+  } ],
+  "commentThemes" : [ {
+    "theme" : "HARD_TO_UNDERSTAND",
+    "label" : "Les explications étaient difficiles à comprendre",
+    "count" : 1,
+    "share" : 0.3333
+  }, {
+    "theme" : "TOO_REPETITIVE",
+    "label" : "Les réponses étaient trop répétitives",
+    "count" : 1,
+    "share" : 0.3333
+  }, {
+    "theme" : "ACTION_NOT_POSSIBLE",
+    "label" : "Je n'ai pas pu réaliser l'action souhaitée",
+    "count" : 1,
+    "share" : 0.3333
+  } ],
+  "qualityChecks" : [ {
+    "checkType" : "EXCESSIVE_REPETITION",
+    "label" : "Répétition excessive",
+    "severity" : "LOW",
+    "checksRun" : 8,
+    "detected" : 2,
+    "detectionRate" : 0.25,
+    "previousDetected" : 2,
+    "evolutionPercent" : 0.0
+  }, {
+    "checkType" : "CREDIT_SIMULATION_VIOLATION",
+    "label" : "Simulation de crédit interdite",
+    "severity" : "HIGH",
+    "checksRun" : 8,
+    "detected" : 0,
+    "detectionRate" : 0.0,
+    "previousDetected" : 0,
+    "evolutionPercent" : null
+  }, {
+    "checkType" : "INVENTED_URL",
+    "label" : "URL inventée",
+    "severity" : "HIGH",
+    "checksRun" : 8,
+    "detected" : 0,
+    "detectionRate" : 0.0,
+    "previousDetected" : 0,
+    "evolutionPercent" : null
+  }, {
+    "checkType" : "MISSING_DATA_NOT_RETRIEVED",
+    "label" : "Donnée demandée non récupérée",
+    "severity" : "MEDIUM",
+    "checksRun" : 8,
+    "detected" : 0,
+    "detectionRate" : 0.0,
+    "previousDetected" : 1,
+    "evolutionPercent" : -100.0
+  }, {
+    "checkType" : "PRODUCT_MISMATCH",
+    "label" : "Produit incompatible",
+    "severity" : "HIGH",
+    "checksRun" : 8,
+    "detected" : 0,
+    "detectionRate" : 0.0,
+    "previousDetected" : 0,
+    "evolutionPercent" : null
+  }, {
+    "checkType" : "UNANSWERED_REQUEST",
+    "label" : "Demande non résolue",
+    "severity" : "MEDIUM",
+    "checksRun" : 8,
+    "detected" : 0,
+    "detectionRate" : 0.0,
+    "previousDetected" : 1,
+    "evolutionPercent" : -100.0
+  } ],
+  "implementedChecks" : [ "CREDIT_SIMULATION_VIOLATION", "PRODUCT_MISMATCH", "INVENTED_URL", "UNANSWERED_REQUEST", "MISSING_DATA_NOT_RETRIEVED", "EXCESSIVE_REPETITION" ],
+  "notImplementedChecks" : [ "UNNECESSARY_ADVISOR_REDIRECT", "UNSUPPORTED_PRODUCT_CLAIM", "INVENTED_DATA", "CONVERSATION_CONTEXT_LOST" ],
+  "satisfactionVsCompliance" : {
+    "satisfiedCompliant" : 3,
+    "satisfiedAnomaly" : 0,
+    "unsatisfiedCompliant" : 0,
+    "unsatisfiedAnomaly" : 1,
+    "unsatisfiedCompliantShare" : 0.0,
+    "unsatisfiedAnomalyShare" : 1.0,
+    "unratedWithAnomaly" : 1
+  },
+  "series" : [ {
+    "date" : "2026-09-11",
+    "feedbackCount" : 5,
+    "averageRating" : 3.8,
+    "positiveCount" : 3,
+    "negativeCount" : 1,
+    "anomalies" : 2
+  } ],
+  "trends" : [ {
+    "entityType" : "CHECK",
+    "entityId" : "UNANSWERED_REQUEST",
+    "entityName" : "Demande non résolue",
+    "current" : 0,
+    "previous" : 1,
+    "evolutionPercent" : -100.0
+  }, {
+    "entityType" : "CHECK",
+    "entityId" : "MISSING_DATA_NOT_RETRIEVED",
+    "entityName" : "Donnée demandée non récupérée",
+    "current" : 0,
+    "previous" : 1,
+    "evolutionPercent" : -100.0
+  }, {
+    "entityType" : "OVERVIEW",
+    "entityId" : "anomalies",
+    "entityName" : "Anomalies détectées",
+    "current" : 2,
+    "previous" : 4,
+    "evolutionPercent" : -50.0
+  }, {
+    "entityType" : "OVERVIEW",
+    "entityId" : "feedback",
+    "entityName" : "Avis reçus",
+    "current" : 5,
+    "previous" : 5,
+    "evolutionPercent" : 0.0
+  }, {
+    "entityType" : "CHECK",
+    "entityId" : "EXCESSIVE_REPETITION",
+    "entityName" : "Répétition excessive",
+    "current" : 2,
+    "previous" : 2,
+    "evolutionPercent" : 0.0
+  }, {
+    "entityType" : "REASON",
+    "entityId" : "MISSING_INFORMATION",
+    "entityName" : "Il manquait des informations",
+    "current" : 2,
+    "previous" : 0,
+    "evolutionPercent" : null
+  }, {
+    "entityType" : "REASON",
+    "entityId" : "HARD_TO_UNDERSTAND",
+    "entityName" : "Les explications étaient difficiles à comprendre",
+    "current" : 1,
+    "previous" : 0,
+    "evolutionPercent" : null
+  }, {
+    "entityType" : "CHECK",
+    "entityId" : "CREDIT_SIMULATION_VIOLATION",
+    "entityName" : "Simulation de crédit interdite",
+    "current" : 0,
+    "previous" : 0,
+    "evolutionPercent" : null
+  }, {
+    "entityType" : "CHECK",
+    "entityId" : "PRODUCT_MISMATCH",
+    "entityName" : "Produit incompatible",
+    "current" : 0,
+    "previous" : 0,
+    "evolutionPercent" : null
+  }, {
+    "entityType" : "CHECK",
+    "entityId" : "INVENTED_URL",
+    "entityName" : "URL inventée",
+    "current" : 0,
+    "previous" : 0,
+    "evolutionPercent" : null
+  } ],
+  "anonymizedComments" : [ {
+    "commentRef" : "fb-73442618-f251-306f-9def-8a9d91257952",
+    "text" : "Échanges utiles et clairs, merci."
+  }, {
+    "commentRef" : "fb-542b2154-af2b-327b-b8af-1697a295bb3d",
+    "text" : "Je n'ai pas obtenu la mensualité de mon crédit, il m'a renvoyé vers un simulateur."
+  } ],
+  "invalidLines" : 0,
+  "demo" : true,
+  "generatedAt" : "2026-09-11T09:42:11.897649Z"
+}

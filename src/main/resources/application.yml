@@ -70,6 +70,35 @@ app:
       subscription: ${MARKETING_SCORE_SUBSCRIPTION:4}
       appointment: ${MARKETING_SCORE_APPOINTMENT:5}
       rejected: ${MARKETING_SCORE_REJECTED:-5}
+  # --- Module Qualité & Satisfaction du Coach IA (POC, AUCUNE base de données) ---
+  # Deux dimensions SÉPARÉES : satisfaction client (pop-in de fin de conversation) et conformité du
+  # Coach (contrôles automatiques). Les contrôles réellement exécutés sont listés ci-dessous : ceux
+  # qui ne sont pas listés ne sont NI exécutés NI affichés (jamais de faux « 0 »).
+  quality:
+    enabled: ${QUALITY_ENABLED:true}
+    demo-mode: ${QUALITY_DEMO_MODE:false}
+    dir: ${QUALITY_DIR:./data/quality}
+    # Sel de pseudonymisation des identifiants clients (aucun identifiant en clair sur disque).
+    hash-salt: ${QUALITY_HASH_SALT:coach-financier-poc}
+    # Longueur maximale du commentaire libre (tronqué, jamais interprété comme une instruction).
+    comment-max-length: ${QUALITY_COMMENT_MAX_LENGTH:1000}
+    # Nombre maximal de commentaires anonymisés transmis à l'agent IA Qualité.
+    max-comments-to-analyze: ${QUALITY_MAX_COMMENTS:30}
+    # En dessous de ce volume d'avis, le rapport IA doit rester prudent (échantillon insuffisant).
+    sufficient-sample-size: ${QUALITY_SAMPLE_SIZE:10}
+    prompt-version: ${QUALITY_PROMPT_VERSION:quality-report-v1}
+    # Contrôles exécutés (vide = valeur par défaut) :
+    # CREDIT_SIMULATION_VIOLATION, PRODUCT_MISMATCH, INVENTED_URL, UNANSWERED_REQUEST,
+    # MISSING_DATA_NOT_RETRIEVED, EXCESSIVE_REPETITION
+    checks: ${QUALITY_CHECKS:}
+    # Sévérités (configurables, §21) — valeurs par défaut en commentaire.
+    severity:
+      credit-simulation: ${QUALITY_SEVERITY_CREDIT:HIGH}
+      product-mismatch: ${QUALITY_SEVERITY_PRODUCT:HIGH}
+      invented-url: ${QUALITY_SEVERITY_URL:HIGH}
+      unanswered-request: ${QUALITY_SEVERITY_UNANSWERED:MEDIUM}
+      missing-data: ${QUALITY_SEVERITY_MISSING_DATA:MEDIUM}
+      excessive-repetition: ${QUALITY_SEVERITY_REPETITION:LOW}
   mail:
     # Active/désactive l'envoi de mails (permet de démarrer sans configuration mail).
     enabled: ${MAIL_ENABLED:true}

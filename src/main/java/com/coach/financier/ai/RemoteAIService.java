@@ -190,6 +190,107 @@ public abstract class RemoteAIService implements AIService {
         return values == null ? List.of() : List.copyOf(values);
     }
 
+    @Override
+    public com.coach.financier.model.QualityModels.QualityReport analyzeQuality(
+            com.coach.financier.model.QualityModels.QualityAggregates aggregates,
+            AIModels.AIProvider provider) {
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new IllegalStateException("Clé API absente pour le fournisseur " + providerName);
+        }
+        // L'analyste qualité ne reçoit QUE des agrégats calculés + des commentaires anonymisés
+        // (jamais de donnée bancaire, jamais d'identité client).
+        String system = AgentFiles.qualitySystemPrompt();
+        String user;
+        try {
+            user = objectMapper.writeValueAsString(qualityPayload(aggregates));
+        } catch (Exception e) {
+            throw new IllegalStateException("Agrégats qualité non sérialisables", e);
+        }
+        String content = call(system, user);
+        try {
+            com.coach.financier.model.QualityModels.QualityReport parsed =
+                    objectMapper.readValue(content, com.coach.financier.model.QualityModels.QualityReport.class);
+            return withQualityMeta(parsed, aggregates);
+        } catch (Exception e) {
+            throw new IllegalStateException("Rapport qualité invalide: " + content, e);
+        }
+    }
+
+    /**
+     * Payload envoyé à l'agent Qualité, calqué sur la structure d'entrée documentée par le prompt
+     * (période, satisfaction, catégories, contrôles, conformité, croisement, tendances). Les valeurs
+     * sont STRICTEMENT celles calculées par le backend.
+     */
+    private static Map<String, Object> qualityPayload(
+            com.coach.financier.model.QualityModels.QualityAggregates aggregates) {
+        if (aggregates == null) {
+            return Map.of();
+        }
+        Map<String, Object> payload = new java.util.LinkedHashMap<>();
+        payload.put("period", Map.of(
+                "from", aggregates.dateFrom(),
+                "to", aggregates.dateTo(),
+                "comparisonPeriod", "PREVIOUS_PERIOD"));
+        payload.put("satisfaction", aggregates.satisfaction());
+        payload.put("ratingDistribution", aggregates.ratingDistribution());
+        payload.put("feedbackCategories", aggregates.feedbackCategories());
+        payload.put("commentThemes", aggregates.commentThemes());
+        payload.put("anonymizedComments", aggregates.anonymizedComments());
+        payload.put("qualityChecks", aggregates.qualityChecks());
+        payload.put("implementedChecks", aggregates.implementedChecks());
+        payload.put("notImplementedChecks", aggregates.notImplementedChecks());
+        payload.put("compliance", aggregates.conformity());
+        payload.put("satisfactionVsCompliance", aggregates.satisfactionVsCompliance());
+        payload.put("trends", aggregates.trends());
+        payload.put("series", aggregates.series());
+        payload.put("demoData", aggregates.demo());
+        payload.put("invalidLines", aggregates.invalidLines());
+        return payload;
+    }
+
+    /** Complète le rapport avec les métadonnées système et NORMALISE les valeurs d'énumération. */
+    private com.coach.financier.model.QualityModels.QualityReport withQualityMeta(
+            com.coach.financier.model.QualityModels.QualityReport report,
+            com.coach.financier.model.QualityModels.QualityAggregates aggregates) {
+        com.coach.financier.model.QualityModels.QualityReport source = report == null
+                ? new com.coach.financier.model.QualityModels.QualityReport(null, null, null, null, null, null,
+                List.of(), List.of(), List.of(), List.of(), null, null, null, null, null) : report;
+        String date = aggregates == null || aggregates.dateTo() == null
+                ? source.reportDate() : aggregates.dateTo();
+        com.coach.financier.model.QualityModels.ExecutiveSummary summary = source.executiveSummary() == null
+                ? new com.coach.financier.model.QualityModels.ExecutiveSummary(
+                com.coach.financier.model.QualityModels.STATUS_INSUFFICIENT, "")
+                : new com.coach.financier.model.QualityModels.ExecutiveSummary(
+                com.coach.financier.model.QualityModels.normalizeReportStatus(source.executiveSummary().status()),
+                source.executiveSummary().summary());
+        List<com.coach.financier.model.QualityModels.QualityTrend> trends = source.trends().stream()
+                .map(trend -> new com.coach.financier.model.QualityModels.QualityTrend(
+                        com.coach.financier.model.QualityModels.normalizeQualityTrendType(trend.type()),
+                        trend.topic(), trend.observation()))
+                .toList();
+        List<com.coach.financier.model.QualityModels.PriorityImprovement> improvements =
+                source.priorityImprovements().stream()
+                        .map(item -> new com.coach.financier.model.QualityModels.PriorityImprovement(
+                                com.coach.financier.model.QualityModels.normalizePriority(item.priority()),
+                                item.title(), item.observation(), item.recommendation(), item.expectedBenefit()))
+                        .limit(5) // §22 : au maximum 5 améliorations prioritaires
+                        .toList();
+        List<com.coach.financier.model.QualityModels.QualityAlert> alerts = source.alerts().stream()
+                .map(alert -> new com.coach.financier.model.QualityModels.QualityAlert(
+                        com.coach.financier.model.QualityModels.normalizeAlertLevel(alert.level()),
+                        alert.title(), alert.description()))
+                .limit(8) // §23 : au maximum 5 à 8 signaux
+                .toList();
+        com.coach.financier.model.QualityModels.ReportPeriod period = aggregates == null
+                ? source.period()
+                : new com.coach.financier.model.QualityModels.ReportPeriod(
+                aggregates.dateFrom(), aggregates.dateTo());
+        return new com.coach.financier.model.QualityModels.QualityReport(
+                date, period, summary, source.satisfactionAnalysis(), source.qualityAndCompliance(),
+                source.satisfactionVsCompliance(), source.ruleFriction(), trends, improvements, alerts,
+                source.finalAssessment(), java.time.Instant.now().toString(), model, Boolean.TRUE, null);
+    }
+
     private String call(String system, String user) {
         Map<String, Object> request = Map.of(
                 "model", model,

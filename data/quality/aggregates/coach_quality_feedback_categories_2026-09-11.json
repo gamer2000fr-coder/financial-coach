@@ -1,0 +1,15 @@
+[ {
+  "reason" : "MISSING_INFORMATION",
+  "label" : "Il manquait des informations",
+  "count" : 2,
+  "share" : 0.6667,
+  "previousCount" : null,
+  "evolutionPercent" : null
+}, {
+  "reason" : "HARD_TO_UNDERSTAND",
+  "label" : "Les explications étaient difficiles à comprendre",
+  "count" : 1,
+  "share" : 0.3333,
+  "previousCount" : null,
+  "evolutionPercent" : null
+} ]

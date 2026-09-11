@@ -1,0 +1,21 @@
+[ {
+  "rating" : 5,
+  "count" : 2,
+  "share" : 0.4
+}, {
+  "rating" : 4,
+  "count" : 1,
+  "share" : 0.2
+}, {
+  "rating" : 3,
+  "count" : 1,
+  "share" : 0.2
+}, {
+  "rating" : 2,
+  "count" : 1,
+  "share" : 0.2
+}, {
+  "rating" : 1,
+  "count" : 0,
+  "share" : 0.0
+} ]

@@ -68,6 +68,7 @@ public class ConversationClosureService {
     private final MarketingProperties marketingProperties;
     private final MarketingEventStore marketingEventStore;
     private final MarketingExtractionService marketingExtractionService;
+    private final CoachQualityCheckService coachQualityCheckService;
 
     private final String configuredAdvisorName;
     private final String configuredAdvisorEmail;
@@ -89,6 +90,7 @@ public class ConversationClosureService {
                                       MarketingProperties marketingProperties,
                                       MarketingEventStore marketingEventStore,
                                       MarketingExtractionService marketingExtractionService,
+                                      CoachQualityCheckService coachQualityCheckService,
                                       @Value("${app.advisor.name:}") String configuredAdvisorName,
                                       @Value("${app.advisor.email:}") String configuredAdvisorEmail,
                                       @Value("${app.customer.name:}") String configuredCustomerName,
@@ -108,6 +110,7 @@ public class ConversationClosureService {
         this.marketingProperties = marketingProperties;
         this.marketingEventStore = marketingEventStore;
         this.marketingExtractionService = marketingExtractionService;
+        this.coachQualityCheckService = coachQualityCheckService;
         this.configuredAdvisorName = configuredAdvisorName;
         this.configuredAdvisorEmail = configuredAdvisorEmail;
         this.configuredCustomerName = configuredCustomerName;
@@ -199,6 +202,10 @@ public class ConversationClosureService {
         // 5bis) Signaux Marketing issus du MÊME appel IA, persistés en JSONL (anonymisés).
         int marketingEventCount = persistMarketingEvents(conversation, sessionId, provider, result, warnings);
 
+        // 5ter) Contrôles qualité automatiques (CONFORMITÉ du Coach), indépendants de la satisfaction
+        //       client : ils sont exécutés à chaque clôture et ne bloquent jamais le dossier de suivi.
+        int qualityCheckCount = runQualityChecks(conversation, sessionId, warnings);
+
         // 6) Pièce jointe générée à partir du brouillon client : destinataire = mail du client
         //    (fiche customer.mail), expéditeur = mail du conseiller (évite « unknown sender »).
         SuiviModels.Attachment attachment = attachmentBuilder.build(format, validated.preparedCustomerEmail(),
@@ -246,7 +253,7 @@ public class ConversationClosureService {
         logSuiviCall(sessionId, conversation, suiviPrompt, context, sentChars, result,
                 candidateProducts.size(), provider, validated, format, attachment.filename(),
                 status, mailService.describeTarget(), mailError, advisorAddress, warnings,
-                marketingEventCount);
+                marketingEventCount, qualityCheckCount);
 
         return new SuiviModels.CloseConversationResponse(
                 sessionId, status, advisorName, advisorAddress, attachment.filename(), sentTo,
@@ -378,8 +385,7 @@ public class ConversationClosureService {
      */
     private int persistMarketingEvents(ConversationModels.Conversation conversation, String sessionId,
                                        AIModels.AIProvider provider, SuiviModels.SuiviResult result,
-                                       List<String> warnings) {
-        if (!marketingProperties.isEnabled() || result == null || result.marketingEvents().isEmpty()) {
+                                       List<String> warnings) {        if (!marketingProperties.isEnabled() || result == null || result.marketingEvents().isEmpty()) {
             return 0;
         }
         try {
@@ -393,15 +399,32 @@ public class ConversationClosureService {
         }
     }
 
+    /**
+     * Exécute les CONTRÔLES QUALITÉ automatiques de la conversation (module Qualité, dimension
+     * « conformité du Coach »). Best effort : un échec n'empêche jamais l'envoi du dossier conseiller
+     * (les contrôles sont indépendants de la satisfaction client).
+     */
+    private int runQualityChecks(ConversationModels.Conversation conversation, String sessionId,
+                                 List<String> warnings) {
+        try {
+            return coachQualityCheckService.run(sessionId, conversation).size();
+        } catch (Exception e) {
+            warnings.add("Contrôles qualité non exécutés : " + e.getMessage());
+            log.warn("Contrôles qualité impossibles (session {}) : {}", sessionId, e.getMessage());
+            return 0;
+        }
+    }
+
     private void logSuiviCall(String sessionId, ConversationModels.Conversation conversation,
                               String systemPrompt, Map<String, Object> context, long charCount,
                               SuiviModels.SuiviResult result, int candidateCount, AIModels.AIProvider provider,
                               Validated validated, String attachmentFormat, String attachmentName,
                               String sendStatus, String mailTarget, String mailError,
-                              String advisorAddress, List<String> warnings, int marketingEventCount) {
+                              String advisorAddress, List<String> warnings, int marketingEventCount,
+                              int qualityCheckCount) {
         String debug = suiviDebug(provider, conversation.transcript().size(), candidateCount, validated,
                 attachmentFormat, attachmentName, sendStatus, mailTarget, mailError, advisorAddress, warnings,
-                marketingEventCount);
+                marketingEventCount, qualityCheckCount);
 
         aiLogService.log(sessionId, CLOSE_TRACE_MESSAGE, suiviDataSent(conversation, candidateCount),
                 conversation.transcript().size(), charCount, AIModels.AIStatus.ANSWER, List.of(),
@@ -475,7 +498,8 @@ public class ConversationClosureService {
     private static String suiviDebug(AIModels.AIProvider provider, int historyCount, int candidateCount,
                                      Validated validated, String attachmentFormat, String attachmentName,
                                      String sendStatus, String mailTarget, String mailError,
-                                     String advisorAddress, List<String> warnings, int marketingEventCount) {
+                                     String advisorAddress, List<String> warnings, int marketingEventCount,
+                                     int qualityCheckCount) {
         long high = countLevel(validated.products(), SuiviModels.InterestLevel.HIGH);
         long medium = countLevel(validated.products(), SuiviModels.InterestLevel.MEDIUM);
         long low = countLevel(validated.products(), SuiviModels.InterestLevel.LOW);
@@ -492,6 +516,7 @@ public class ConversationClosureService {
         sb.append("attachmentFormat=").append(attachmentFormat).append('\n');
         sb.append("attachmentName=").append(attachmentName).append('\n');
         sb.append("marketingEvents=").append(marketingEventCount).append('\n');
+        sb.append("qualityChecks=").append(qualityCheckCount).append('\n');
         sb.append("mailStatus=").append(sendStatus).append('\n');
         sb.append("mailSent=").append("SENT".equals(sendStatus)).append('\n');
         sb.append("mailTarget=").append(nullToEmpty(mailTarget)).append('\n');

@@ -5,6 +5,7 @@ import com.coach.financier.model.ConversationModels;
 import com.coach.financier.model.FinancialSummary;
 import com.coach.financier.model.IntentClassification;
 import com.coach.financier.model.MarketingModels;
+import com.coach.financier.model.QualityModels;
 import com.coach.financier.model.SuiviModels;
 
 import java.util.List;
@@ -43,4 +44,13 @@ public interface AIService {
      * calcule aucun chiffre. Le rapport est ensuite stocké dans {@code data/marketing/reports}.</n     */
     MarketingModels.MarketingReport analyzeMarketing(MarketingModels.MarketingAggregates aggregates,
                                                      AIModels.AIProvider provider);
+
+    /**
+     * Appel IA de l'ANALYSTE QUALITÉ ({@code agent/qualite_coach_client.txt}) : l'IA INTERPRÈTE des
+     * statistiques déjà calculées (satisfaction client ET conformité du Coach, tenues séparées) et des
+     * commentaires anonymisés. Elle ne calcule aucun chiffre, ne reçoit aucune donnée bancaire et ne
+     * modifie jamais le Coach : elle propose des améliorations, un humain décide.
+     */
+    QualityModels.QualityReport analyzeQuality(QualityModels.QualityAggregates aggregates,
+                                               AIModels.AIProvider provider);
 }

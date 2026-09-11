@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   ArrowUpRight,
+  BadgeCheck,
   Bot,
   ChevronDown,
   CircleAlert,
@@ -20,7 +21,9 @@ import {
   Wallet,
   X,
 } from 'lucide-react'
-import { API_BASE_URL, closeConversation, fetchFinancialSummary, sendChat } from './api'
+import { API_BASE_URL, closeConversation, fetchFinancialSummary, sendChat, sendConversationFeedback } from './api'
+import FeedbackPopup from './FeedbackPopup'
+import type { QualityFeedbackRequest } from './types.quality'
 import type { AIProvider, ChatMessage, FinancialSummary } from './types'
 
 const SESSION_STORAGE_KEY = 'financial-coach-session-id'
@@ -229,6 +232,8 @@ function App() {
   const [guardEnabled, setGuardEnabled] = useState(() => localStorage.getItem(GUARD_STORAGE_KEY) !== 'false')
   // Suivi (dossier de suivi conseiller à la clôture) : activé uniquement si explicitement mis à 'true'.
   const [suiviEnabled, setSuiviEnabled] = useState(() => localStorage.getItem(SUIVI_STORAGE_KEY) === 'true')
+  // Pop-in de satisfaction (module Qualité) : ouverte AVANT la clôture, avis facultatif.
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
   const [advanced, setAdvanced] = useState(() => localStorage.getItem(ADVANCED_STORAGE_KEY) === 'true')
   const [listening, setListening] = useState(false)
   const [speechSupported] = useState<boolean>(
@@ -733,6 +738,38 @@ function App() {
     resetConversation()
   }
 
+  /**
+   * Clic sur « Terminer et envoyer au conseiller » : la pop-in de satisfaction s'ouvre d'abord (§43),
+   * puis la clôture suit (avec ou sans avis). Suivi désactivé ou conversation trop courte :
+   * aucune question n'est posée, le comportement « nouvelle conversation » est conservé.
+   */
+  function requestFinish() {
+    const exchanges = messages.filter((message) => message.role === 'user').length
+    if (!suiviEnabled || exchanges < MIN_EXCHANGES_TO_CLOSE) {
+      finishConversation()
+      return
+    }
+    setFeedbackOpen(true)
+  }
+
+  /**
+   * Envoi de l'avis puis clôture : l'appel est en FIRE-AND-FORGET et son échec est sans conséquence
+   * (un avis non enregistré ne doit jamais empêcher la clôture — §43).
+   */
+  function submitFeedbackAndFinish(payload: QualityFeedbackRequest) {
+    setFeedbackOpen(false)
+    void sendConversationFeedback(sessionId, payload)
+      .then((result) => console.info('[qualité] avis traité :', result.status, result))
+      .catch((error) => console.error('[qualité] avis non enregistré :', error))
+    finishConversation()
+  }
+
+  /** « Passer » : aucun avis, la conversation se clôture normalement. */
+  function skipFeedbackAndFinish() {
+    setFeedbackOpen(false)
+    finishConversation()
+  }
+
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -875,6 +912,9 @@ function App() {
               <a className="icon-button logs-link" href="#/marketing" target="_blank" rel="noopener noreferrer" title="Marketing Intelligence">
                 <TrendingUp size={20} />
               </a>
+              <a className="icon-button logs-link" href="#/quality" target="_blank" rel="noopener noreferrer" title="Qualité & Satisfaction du Coach">
+                <BadgeCheck size={20} />
+              </a>
               <a className="icon-button logs-link" href="#/logs" target="_blank" rel="noopener noreferrer" title="Logs des appels IA">
                 <Settings size={20} />
               </a>
@@ -885,7 +925,6 @@ function App() {
           </button>
         </div>
       </header>
-
       {mobileMenuOpen && (
         <div className="mobile-panel">
           <label
@@ -931,7 +970,7 @@ function App() {
             <button
               className="close-conversation-button"
               type="button"
-              onClick={finishConversation}
+              onClick={requestFinish}
               title={
                 suiviEnabled
                   ? "Terminer la conversation : préparer le dossier de suivi et l'envoyer au conseiller (fire-and-forget, si au moins 2 échanges client), puis vider le chat. Le brouillon d'email client est joint : il n'est jamais envoyé automatiquement."
@@ -1158,6 +1197,12 @@ function App() {
         <span>POC — Coach financier conversationnel</span>
         <span>API : {API_BASE_URL}</span>
       </footer>
+
+      {/* Pop-in de satisfaction : ouverte au clic sur « Terminer et envoyer au conseiller »,
+          AVANT la clôture. « Envoyer mon avis » comme « Passer » mènent à la clôture. */}
+      {feedbackOpen && (
+        <FeedbackPopup onSubmit={submitFeedbackAndFinish} onSkip={skipFeedbackAndFinish} />
+      )}
     </div>
   )
 }
