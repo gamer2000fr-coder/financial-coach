@@ -1,0 +1,143 @@
+package com.coach.financier.controller;
+
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.context.WebApplicationContext;
+
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+/**
+ * Contrat HTTP de l'atelier d'optimisation des prompts (IHM {@code #/prompt-lab}).
+ * <p>
+ * Vérifie ce que l'IHM consomme réellement : la liste des zones optimisables, et surtout les DEUX formes
+ * d'erreur sur lesquelles elle s'appuie ({@code 400 BAD_REQUEST} / {@code 409 CONFLICT}, avec un
+ * {@code message} lisible en français — c'est ce que lit {@code apiFetch}).
+ * <p>
+ * Aucun de ces appels n'ÉCRIT quoi que ce soit : les campagnes refusées ne sont jamais créées et aucune
+ * itération n'est lancée (le mode MOCK est justement refusé par l'atelier, et le refus arrive AVANT tout
+ * appel au fournisseur).
+ * <p>
+ * {@code MockMvc} est construit explicitement : Spring Boot 4 n'expose plus
+ * {@code @AutoConfigureMockMvc} parmi les modules de test disponibles dans ce POC.
+ */
+@SpringBootTest
+class PromptOptimizationControllerTest {
+
+    private static final String QUESTION = "Je souhaite financer une voiture d'occasion à 15000 euros.";
+
+    @Autowired
+    private WebApplicationContext context;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    private MockMvc mockMvc;
+
+    @BeforeEach
+    void setUp() {
+        mockMvc = MockMvcBuilders.webAppContextSetup(context).build();
+    }
+
+    private Map<String, Object> getBody(String url, int expectedStatus) throws Exception {
+        String json = mockMvc.perform(get(url))
+                .andExpect(status().is(expectedStatus))
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        return objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {
+        });
+    }
+
+    private Map<String, Object> postBody(String url, String body, int expectedStatus) throws Exception {
+        String json = mockMvc.perform(post(url).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().is(expectedStatus))
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        return objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {
+        });
+    }
+
+    @Test
+    void exposesTheOptimizableZonesAndTheCumulatedCeiling() throws Exception {
+        Map<String, Object> body = getBody("/api/prompt-optimization/agents", 200);
+
+        assertEquals(Boolean.TRUE, body.get("enabled"));
+        assertTrue(((Number) body.get("maxIterations")).intValue() >= 1, "le plafond est exposé à l'IHM");
+        List<?> zones = (List<?>) body.get("zones");
+        assertEquals(7, zones.size(), "les 7 agents de coach disposent d'une zone optimisable");
+        Map<?, ?> first = (Map<?, ?>) zones.get(0);
+        assertEquals(Boolean.TRUE, first.get("optimizable"));
+        assertTrue(first.get("zoneFile") instanceof String && first.get("editableSection") instanceof String);
+        assertTrue(first.get("zoneKey") instanceof String);
+    }
+
+    @Test
+    void listsTheCampaignsAsAnArray() throws Exception {
+        String json = mockMvc.perform(get("/api/prompt-optimization/campaigns"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+
+        List<?> campaigns = objectMapper.readValue(json, new TypeReference<List<Object>>() {
+        });
+        assertEquals(campaigns.size(), campaigns.size(), "la liste est bien un tableau JSON");
+    }
+
+    @Test
+    void refusesTheDemoProviderWithAnExplicitMessage() throws Exception {
+        Map<String, Object> body = postBody("/api/prompt-optimization/campaigns", """
+                {"agentId":"credit_conso","question":"%s","iterations":1,"provider":"MOCK"}
+                """.formatted(QUESTION), 400);
+
+        assertEquals("BAD_REQUEST", body.get("error"));
+        assertTrue(String.valueOf(body.get("message")).contains("fournisseur IA réel"),
+                "le message explique qu'un fournisseur réel est nécessaire");
+    }
+
+    @Test
+    void refusesAnEmptyQuestionAndAnOutOfRangeIterationCount() throws Exception {
+        Map<String, Object> empty = postBody("/api/prompt-optimization/campaigns", """
+                {"agentId":"credit_conso","question":"   ","iterations":3,"provider":"DEEPSEEK"}
+                """, 400);
+        assertTrue(String.valueOf(empty.get("message")).contains("question de test"));
+
+        Map<String, Object> zero = postBody("/api/prompt-optimization/campaigns", """
+                {"agentId":"credit_conso","question":"%s","iterations":0,"provider":"DEEPSEEK"}
+                """.formatted(QUESTION), 400);
+        assertEquals("BAD_REQUEST", zero.get("error"));
+
+        Map<String, Object> tooMany = postBody("/api/prompt-optimization/campaigns", """
+                {"agentId":"credit_conso","question":"%s","iterations":51,"provider":"DEEPSEEK"}
+                """.formatted(QUESTION), 400);
+        assertEquals("BAD_REQUEST", tooMany.get("error"));
+    }
+
+    @Test
+    void anUnknownCampaignIsAReadableError() throws Exception {
+        Map<String, Object> read = getBody("/api/prompt-optimization/campaigns/po-inexistante", 400);
+        assertEquals("BAD_REQUEST", read.get("error"));
+        assertTrue(read.get("message") instanceof String);
+
+        Map<String, Object> iterate = postBody("/api/prompt-optimization/campaigns/po-inexistante/iterate",
+                "{}", 400);
+        assertEquals("BAD_REQUEST", iterate.get("error"));
+    }
+
+    @Test
+    void anInvalidCampaignIdentifierIsRefused() throws Exception {
+        // L'identifiant est validé (anti-traversée de chemin) AVANT toute lecture de fichier.
+        Map<String, Object> body = getBody("/api/prompt-optimization/campaigns/po-%40%40%40", 400);
+        assertEquals("BAD_REQUEST", body.get("error"));
+    }
+}

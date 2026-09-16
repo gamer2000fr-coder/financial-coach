@@ -1,0 +1,171 @@
+package com.coach.financier.service;
+
+import com.coach.financier.model.ConfidenceLevel;
+import com.coach.financier.model.CurrentProject;
+import com.coach.financier.model.FinancialIntent;
+import com.coach.financier.model.IntentClassification;
+import com.coach.financier.model.ProductFamily;
+import com.coach.financier.model.ProjectType;
+import com.coach.financier.repository.BankingDataRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * Filet de NON-RÉGRESSION du {@link CoachContextBuilder}, extrait de {@code ChatController}.
+ * <p>
+ * Le contexte est construit à partir des données RÉELLES du POC ({@code ./data}) : les assertions
+ * portent donc sur des faits stables (agent sélectionné, restriction de catalogue) et jamais sur des
+ * listes figées qui changeraient avec le catalogue produit.
+ */
+class CoachContextBuilderTest {
+
+    private static final String DATA_DIR = "./data";
+
+    private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    private CoachContextBuilder builder;
+
+    @BeforeEach
+    void setUp() throws Exception {
+        ProjectProductMappingService mapping = new ProjectProductMappingService();
+        BankingDataRepository banking =
+                new BankingDataRepository(objectMapper, DATA_DIR + "/banking_demo_normalized.json");
+        builder = new CoachContextBuilder(
+                new FinancialAnalysisService(banking),
+                new DataRequestService(objectMapper, DATA_DIR, true),
+                new FinancialSynthesisStore(objectMapper, DATA_DIR + "/synthese_financier.json"),
+                new ProductCatalogueService(objectMapper, mapping, DATA_DIR),
+                mapping,
+                banking,
+                objectMapper);
+    }
+
+    private static IntentClassification classification(FinancialIntent intent, ProjectType type, BigDecimal amount) {
+        IntentClassification c = new IntentClassification();
+        c.setInScope(true);
+        c.setIntent(intent);
+        c.setProjectType(type);
+        c.setAmount(amount);
+        c.setCurrency("EUR");
+        c.setConfidence(ConfidenceLevel.HIGH);
+        return c;
+    }
+
+    private static CurrentProject project(IntentClassification classification) {
+        CurrentProject p = new CurrentProject();
+        p.apply(classification);
+        return p;
+    }
+
+    /** Financement véhicule : agent « crédit conso » + catalogue RESTREINT (pas de crédit immo). */
+    @Test
+    void vehicleFinancingIsRoutedToConsumerCreditAgentAndRestrictsCatalogue() {
+        IntentClassification c = classification(FinancialIntent.FINANCING_REQUEST, ProjectType.VEHICLE,
+                new BigDecimal("15000"));
+        CurrentProject p = project(c);
+
+        CoachContext ctx = builder.build("Je veux financer une voiture à 15000 euros", c, p, List.of());
+
+        assertEquals("credit_conso", ctx.agentTheme());
+        assertEquals("Crédit à la consommation", ctx.agentLibelle());
+        assertFalse(ctx.clarificationRequired());
+        assertTrue(ctx.restrictedCatalog());
+        assertNotNull(ctx.allowedCatalogPaths());
+        assertTrue(ctx.allowedCatalogPaths().contains("/data/catalogue/credit_conso.json"),
+                "la fiche crédit conso reste visible");
+        assertFalse(ctx.allowedCatalogPaths().contains("/data/catalogue/credit_immo.json"),
+                "la fiche crédit immo est masquée hors périmètre");
+        assertFalse(ctx.allowedCatalogPaths().contains("/data/catalogue/assurance_auto.json"),
+                "les fiches d'assurance sont masquées hors périmètre");
+        assertTrue(ctx.allowedCatalogPaths().contains("/data/transaction/transactions_2026_08.json"),
+                "les fichiers hors /data/catalogue restent toujours visibles");
+        assertFalse(ctx.compatibleProducts().isEmpty(), "des produits compatibles sont filtrés par le backend");
+        assertTrue(ctx.allowedFamilies().contains(ProductFamily.AUTO_LOAN));
+        assertTrue(ctx.debug().contains("[AGENT]") && ctx.debug().contains("theme=credit_conso"));
+        assertTrue(ctx.debug().contains("[PRODUCT_FILTER]") && ctx.debug().contains("restrictedCatalog=true"));
+        assertTrue(ctx.debug().contains("[COACH]"));
+    }
+
+    /** Question générique : agent générique, aucun produit, aucune restriction de catalogue. */
+    @Test
+    void genericQuestionUsesGenericAgentAndKeepsTheFullCatalogue() {
+        IntentClassification c = classification(FinancialIntent.BUDGET_ANALYSIS, ProjectType.UNKNOWN, null);
+
+        CoachContext ctx = builder.build("Combien ai-je dépensé le mois dernier ?", c, null, List.of());
+
+        assertEquals("generic", ctx.agentTheme());
+        assertFalse(ctx.requiresProducts());
+        assertFalse(ctx.restrictedCatalog());
+        assertNull(ctx.allowedCatalogPaths());
+        assertTrue(ctx.compatibleProducts().isEmpty());
+        assertTrue(ctx.allowedFamilies().isEmpty());
+        assertNull(ctx.project());
+        assertFalse(ctx.additionalData().containsKey("currentProject"),
+                "aucun projet courant : la clé n'est pas ajoutée au contexte envoyé au Coach");
+    }
+
+    /** Financement sans projet utilisable : le chat répond une clarification SANS appeler le Coach. */
+    @Test
+    void unknownProjectOnFinancingRequestRequiresClarification() {
+        IntentClassification c = classification(FinancialIntent.FINANCING_REQUEST, ProjectType.UNKNOWN, null);
+
+        CoachContext ctx = builder.build("Je veux financer un achat", c, null, List.of());
+
+        assertTrue(ctx.clarificationRequired());
+        assertTrue(ctx.compatibleProducts().isEmpty());
+        assertNotNull(CoachContextBuilder.CLARIFICATION_MESSAGE);
+    }
+
+    /** Le contexte expose exactement les clés attendues, dans l'ordre attendu par le payload du Coach. */
+    @Test
+    void additionalDataExposesTheFrozenContextInOrder() {
+        IntentClassification c = classification(FinancialIntent.FINANCING_REQUEST, ProjectType.VEHICLE,
+                new BigDecimal("15000"));
+        CurrentProject p = project(c);
+
+        CoachContext ctx = builder.build("Je veux financer une voiture", c, p, List.of());
+
+        assertEquals(List.of("providedData", "currentProject", "existingCredits", "compatibleProducts",
+                        "agent", "agentLibelle"),
+                new ArrayList<>(ctx.additionalData().keySet()));
+
+        assertEquals("Synthèse financière", ctx.providedData().get(0).get("description"));
+        assertTrue(ctx.providedData().size() > 1, "les données de l'agent actif sont injectées d'office");
+        assertEquals(ctx.providedData(), ctx.additionalData().get("providedData"),
+                "additionalData.providedData référence la MÊME liste (alimentée par la boucle NEED_DATA)");
+        assertFalse(ctx.existingCredits().isEmpty(), "les engagements réels du client sont fournis");
+        assertEquals("MORTGAGE", ctx.existingCredits().get(0).get("type"));
+    }
+
+    /** Les compteurs et le prompt de l'agent sont exposés pour les Logs (page « Voir le prompt »). */
+    @Test
+    void payloadMetricsAndAgentPromptAreAvailableForLogs() {
+        IntentClassification c = classification(FinancialIntent.FINANCING_REQUEST, ProjectType.VEHICLE,
+                new BigDecimal("15000"));
+
+        CoachContext ctx = builder.build("Je veux financer une voiture", c, project(c), List.of());
+
+        long chars = builder.payloadCharCount(ctx, "Je veux financer une voiture");
+        assertTrue(chars > 0, "le compteur de caractères est calculé sur le prompt réel");
+        assertEquals(chars, builder.payloadCharCount(ctx, "Je veux financer une voiture"),
+                "le compteur est déterministe pour un même contexte");
+        String logged = builder.loggedPrompt(ctx, "Je veux financer une voiture");
+        assertTrue(logged.startsWith("=== PROMPT SYSTÈME ==="));
+        assertTrue(logged.contains("=== PAYLOAD UTILISATEUR"));
+        assertTrue(ctx.systemPrompt().contains("Crédit à la consommation"), "prompt de l'agent actif");
+        assertFalse(ctx.systemPrompt().contains("[["), "aucun marqueur de zone éditable n'est envoyé au LLM");
+        assertTrue(ctx.catalogAfter() <= ctx.catalogBefore(),
+                "le catalogue restreint expose moins d'entrées que le catalogue complet");
+    }
+}
