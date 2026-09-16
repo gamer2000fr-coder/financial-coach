@@ -32,6 +32,19 @@ public final class AgentFiles {
     public static final String QUALITY_PROMPT_FILE = "qualite_coach_client.txt";
     /** Fichier du prompt de l'agent ANALYSTE FEEDBACK CONSEILLER (rapport de pertinence du Coach). */
     public static final String ADVISOR_FEEDBACK_PROMPT_FILE = "feedback_conseiller.txt";
+    /** Fichier du prompt de l'AGENT CONTRÔLEUR QUALITÉ de l'atelier d'optimisation (« Agent B »). */
+    public static final String PROMPT_CONTROLLER_PROMPT_FILE = "prompt_controller.txt";
+    /** Fichier du prompt de l'AGENT ÉDITEUR DE PROMPTS de l'atelier d'optimisation (« Agent A »). */
+    public static final String PROMPT_EDITOR_PROMPT_FILE = "prompt_editor.txt";
+    /** Marqueur d'OUVERTURE de la zone éditable (atelier d'optimisation des prompts). */
+    public static final String ZONE_START = "[[[";
+    /** Marqueur de FERMETURE de la zone éditable (atelier d'optimisation des prompts). */
+    public static final String ZONE_END = "]]]";
+    /** Balise du gabarit remplacée par le prompt de l'agent principal. */
+    public static final String PRINCIPAL_TAG = "[agent_principal]";
+    /** Balise du gabarit remplacée par le prompt de l'agent spécialisé du thème. */
+    public static final String SPECIALIZED_TAG = "[agent]";
+    public static final String PRINCIPAL_PROMPT_FILE = "principal.txt";
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private AgentFiles() {
@@ -103,7 +116,42 @@ public final class AgentFiles {
         boolean selfGeneric = active != null && GENERIC_THEME.equalsIgnoreCase(active.getTheme());
         String specialized = (!selfGeneric && active != null && active.getPrompt() != null)
                 ? readPromptOrDefault(active.getPrompt(), "") : "";
-        return injectPrincipal(template).replace("[agent]", specialized);
+        String principal = template.contains(PRINCIPAL_TAG)
+                ? readPromptOrDefault(PRINCIPAL_PROMPT_FILE, "").strip() : "";
+        return composeSystemPrompt(template, principal, specialized);
+    }
+
+    /**
+     * Compose le prompt système à partir de contenus DÉJÀ LUS (fonction PURE, sans I/O) :
+     * gabarit {@code generic.txt} + agent principal ({@code [agent_principal]}) + agent spécialisé
+     * ({@code [agent]}).
+     * <p>
+     * Source unique partagée entre {@link #systemPromptFor(String)} (lecture disque, production) et
+     * l'atelier d'optimisation des prompts, qui doit rejouer une version FIGÉE du prompt
+     * (reproductibilité d'une campagne). Les lignes de marqueur de zone éditable sont retirées :
+     * le LLM reçoit exactement le même prompt qu'avant l'introduction des marqueurs.
+     */
+    public static String composeSystemPrompt(String template, String principalContent,
+                                            String specializedContent) {
+        String base = template == null ? "" : template;
+        if (base.contains(PRINCIPAL_TAG)) {
+            String principal = principalContent == null ? "" : principalContent.strip();
+            base = base.replace(PRINCIPAL_TAG, stripZoneMarkers(principal));
+        }
+        return base.replace(SPECIALIZED_TAG, stripZoneMarkers(specializedContent == null ? "" : specializedContent));
+    }
+
+    /**
+     * Retire les LIGNES de marqueur de zone éditable ({@code [[[} / {@code ]]]}). Ces marqueurs
+     * délimitent la zone modifiable par l'atelier d'optimisation des prompts : ils ne doivent jamais
+     * être envoyés au LLM (le prompt de production reste strictement identique).
+     */
+    public static String stripZoneMarkers(String text) {
+        if (text == null || (text.indexOf(ZONE_START) < 0 && text.indexOf(ZONE_END) < 0)) {
+            return text;
+        }
+        return text.replaceAll("(?m)^[ \\t]*\\[\\[\\[[ \\t]*\\r?\\n?", "")
+                .replaceAll("(?m)^[ \\t]*\\]\\]\\][ \\t]*\\r?\\n?", "");
     }
 
     /** Prompt système par défaut du coach = agent générique + règles (compatibilité). */
@@ -146,6 +194,47 @@ public final class AgentFiles {
     public static String advisorFeedbackSystemPrompt() {
         return readPromptOrDefault(ADVISOR_FEEDBACK_PROMPT_FILE, FALLBACK_ADVISOR_FEEDBACK_PROMPT);
     }
+
+    /**
+     * Prompt système de l'AGENT CONTRÔLEUR QUALITÉ de l'atelier d'optimisation des prompts
+     * ({@code ./agent/prompt_controller.txt} puis classpath) : il DIAGNOSTIQUE la réponse produite par
+     * le Coach et ne modifie jamais un prompt. Source unique partagée entre {@link RemoteAIService}
+     * (appel réel) et l'orchestrateur de campagne (traçabilité).
+     */
+    public static String promptControllerSystemPrompt() {
+        return readPromptOrDefault(PROMPT_CONTROLLER_PROMPT_FILE, FALLBACK_PROMPT_CONTROLLER_PROMPT);
+    }
+
+    /**
+     * Prompt système de l'AGENT ÉDITEUR DE PROMPTS de l'atelier d'optimisation
+     * ({@code ./agent/prompt_editor.txt} puis classpath) : il ne renvoie QUE la zone éditable, le
+     * backend reconstruit et valide le prompt complet (reproductibilité + parties protégées).
+     */
+    public static String promptEditorSystemPrompt() {
+        return readPromptOrDefault(PROMPT_EDITOR_PROMPT_FILE, FALLBACK_PROMPT_EDITOR_PROMPT);
+    }
+
+    /** Filet de sécurité MINIMAL si {@code prompt_controller.txt} est absent (le vrai prompt vit dans ./agent). */
+    private static final String FALLBACK_PROMPT_CONTROLLER_PROMPT =
+            "Tu es le contrôleur qualité d'un coach financier IA. Tu ne modifies jamais le prompt et tu ne "
+            + "réponds jamais au client. Évalue la réponse du Coach (réponse à la question, compréhension, "
+            + "usage du contexte, exactitude, respect des règles, pertinence, pédagogie, professionnalisme, "
+            + "concision, personnalisation). Ne cherche pas artificiellement un défaut : une réponse "
+            + "satisfaisante donne status=GOOD et issues=[]. Réponds UNIQUEMENT en JSON avec les champs : "
+            + "status(GOOD|NEEDS_IMPROVEMENT|BAD), summary, positivePoints[], issues[]{type,severity(LOW|"
+            + "MEDIUM|HIGH),source(PROMPT|DATA|BACKEND_RULE|MODEL_VARIABILITY|UNKNOWN),observation,"
+            + "expectedBehavior}, mustPreserve[], recommendationForPromptEditor, requiresHumanOrBusinessReview.";
+
+    /** Filet de sécurité MINIMAL si {@code prompt_editor.txt} est absent (le vrai prompt vit dans ./agent). */
+    private static final String FALLBACK_PROMPT_EDITOR_PROMPT =
+            "Tu es l'éditeur de prompts du Coach Financier. Tu ne réponds jamais au client. Tu améliores "
+            + "UNIQUEMENT la zone éditable du prompt à partir du feedback du contrôleur et, s'il existe, du "
+            + "feedback humain (prioritaire). Ne modifie rien si aucun changement n'est justifié. N'invente "
+            + "aucune règle bancaire. N'ajoute aucune instruction ultra-spécifique à la question testée et ne "
+            + "renvoie jamais les lignes de délimitation de zone. Réponds UNIQUEMENT en JSON avec les champs : "
+            + "status(UPDATED|NO_CHANGE_REQUIRED|HUMAN_OR_BUSINESS_REVIEW_REQUIRED), editableSection, "
+            + "changeSummary[], feedbackAddressed[], preservedBehaviors[], unresolvedPoints[], "
+            + "humanFeedbackApplied.";
 
     /** Filet de sécurité MINIMAL si {@code feedback_conseiller.txt} est absent. */
     private static final String FALLBACK_ADVISOR_FEEDBACK_PROMPT =
@@ -222,14 +311,7 @@ public final class AgentFiles {
         }
     }
 
-    /** Remplace la balise [agent_principal] par principal.txt (agent principal, relu à chaque appel). */
-    private static String injectPrincipal(String prompt) {
-        if (prompt == null || !prompt.contains("[agent_principal]")) {
-            return prompt;
-        }
-        String principal = readPromptOrDefault("principal.txt", "").strip();
-        return prompt.replace("[agent_principal]", principal);
-    }
+
 
     /** Prompt générique de repli si generic.txt (ou agents.json) est absent. */
     private static String defaultGenericPrompt() {

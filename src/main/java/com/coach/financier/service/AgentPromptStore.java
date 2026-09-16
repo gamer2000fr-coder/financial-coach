@@ -19,9 +19,10 @@ import java.util.Map;
  * Édition des prompts d'agents (./agent/&lt;file&gt;) pour la page « Agents » :
  * l'« agent principal » (principal.txt), l'agent générique, les agents spécialisés
  * déclarés dans agents.json, l'« agent de suivi » (suivi.txt, synthèse de fin de conversation),
- * l'« agent analyste marketing » (marketing.txt) et l'« agent analyste qualité »
- * (qualite_coach_client.txt, rapport qualité quotidien).
- * Lecture fichiersystem puis classpath ; écriture fichiersystem + copie classpath — le contenu est
+ * l'« agent analyste marketing » (marketing.txt), l'« agent analyste qualité »
+ * (qualite_coach_client.txt, rapport qualité quotidien) et les DEUX agents de l'atelier d'optimisation
+ * des prompts (prompt_controller.txt = contrôleur qualité, prompt_editor.txt = éditeur de prompts).
+ * Lecture fichiersystem puis classpath ; écriture fichiersystem — le contenu est
  * relu à chaque appel IA (prise en compte immédiate).
  */
 @Component
@@ -36,6 +37,10 @@ public class AgentPromptStore {
     public static final String QUALITY_KEY = "qualite";
     /** Agent ANALYSTE FEEDBACK CONSEILLER (pertinence du travail du Coach vue par les conseillers). */
     public static final String ADVISOR_FEEDBACK_KEY = "feedback_conseiller";
+    /** Agent CONTRÔLEUR QUALITÉ de l'ATELIER d'optimisation des prompts (« Agent B »). */
+    public static final String PROMPT_CONTROLLER_KEY = "prompt_controller";
+    /** Agent ÉDITEUR DE PROMPTS de l'ATELIER d'optimisation des prompts (« Agent A »). */
+    public static final String PROMPT_EDITOR_KEY = "prompt_editor";
     private static final String GENERIC_THEME = "generic";
 
     /**
@@ -63,6 +68,10 @@ public class AgentPromptStore {
         result.add(entry(QUALITY_KEY, "Agent analyste qualité & satisfaction", AgentFiles.QUALITY_PROMPT_FILE));
         result.add(entry(ADVISOR_FEEDBACK_KEY, "Analyste Feedback Conseiller",
                 AgentFiles.ADVISOR_FEEDBACK_PROMPT_FILE));
+        result.add(entry(PROMPT_CONTROLLER_KEY, "Atelier prompts — agent contrôleur (Agent B)",
+                AgentFiles.PROMPT_CONTROLLER_PROMPT_FILE));
+        result.add(entry(PROMPT_EDITOR_KEY, "Atelier prompts — agent éditeur (Agent A)",
+                AgentFiles.PROMPT_EDITOR_PROMPT_FILE));
         for (AgentDefinition agent : agents) {
             if (GENERIC_THEME.equalsIgnoreCase(agent.getTheme())) {
                 continue;
@@ -114,7 +123,11 @@ public class AgentPromptStore {
         }
     }
 
-    /** Écrit le prompt d'un agent (fichiersystem + copie classpath quand la source est accessible). */
+    /**
+     * Écrit le prompt d'un agent dans {@code ./agent/<file>} — SOURCE DE VÉRITÉ unique (recommandé à chaque
+     * appel IA, donc prise en compte immédiate). Les prompts ne sont plus dupliqués dans
+     * {@code src/main/resources/agent} : deux copies finissaient par diverger.
+     */
     public void write(String key, String content) {
         String file = fileNameOf(key);
         if (file == null) {
@@ -127,14 +140,6 @@ public class AgentPromptStore {
             Files.writeString(dir.resolve(file), text, StandardCharsets.UTF_8);
         } catch (IOException e) {
             throw new IllegalStateException("Impossible d'écrire agent/" + file, e);
-        }
-        try {
-            Path resourceDir = Path.of("src", "main", "resources", "agent");
-            if (Files.isDirectory(resourceDir)) {
-                Files.writeString(resourceDir.resolve(file), text, StandardCharsets.UTF_8);
-            }
-        } catch (IOException ignored) {
-            // Hors source (ex. jar packagé) : la copie classpath ne peut pas être mise à jour.
         }
     }
 }

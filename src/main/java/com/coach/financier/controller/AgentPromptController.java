@@ -1,6 +1,7 @@
 package com.coach.financier.controller;
 
 import com.coach.financier.service.AgentPromptStore;
+import com.coach.financier.service.PromptZoneService;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,9 +23,11 @@ import java.util.Map;
 @RequestMapping("/api/agents")
 public class AgentPromptController {
     private final AgentPromptStore store;
+    private final PromptZoneService zoneService;
 
-    public AgentPromptController(AgentPromptStore store) {
+    public AgentPromptController(AgentPromptStore store, PromptZoneService zoneService) {
         this.store = store;
+        this.zoneService = zoneService;
     }
 
     /** Liste déroulante : [{key, libelle, file}, ...]. */
@@ -43,10 +46,20 @@ public class AgentPromptController {
         return Map.of("key", key, "content", content);
     }
 
-    /** Sauvegarde le prompt d'un agent : {key, content}. */
+    /**
+     * Sauvegarde le prompt d'un agent : {key, content}.
+     * <p>
+     * Refus 400 si les délimiteurs de zone sont incohérents : un prompt à demi marqué (un seul
+     * {@code [[[} ou {@code ]]]}) rendrait l'agent inutilisable et n'est jamais intentionnel.
+     */
     @PutMapping("/{key}/prompt")
     public Map<String, Object> save(@PathVariable String key, @RequestBody Map<String, String> body) {
-        store.write(key, body.getOrDefault("content", ""));
+        String content = body.getOrDefault("content", "");
+        String markerError = zoneService.validateMarkerPair(content);
+        if (markerError != null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, markerError);
+        }
+        store.write(key, content);
         return Map.of("key", key, "content", store.read(key));
     }
 }

@@ -821,3 +821,77 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .prompt-save:hover:not(:disabled) { background: #3b5bdd; }
 .prompt-save:disabled { opacity: .6; cursor: default; }
 
+/* --- Atelier d'amélioration des prompts (#/prompt-lab) --- */
+.plab-page { max-width: 1180px; margin: 0 auto; padding: 24px 20px 60px; display: flex; flex-direction: column; gap: 18px; }
+.plab-page h2 { display: flex; align-items: center; gap: 8px; font-size: 16px; margin: 0 0 12px; }
+.plab-page h3 { font-size: 13px; margin: 14px 0 6px; color: #444; }
+.plab-notice { background: #eef4ff; border: 1px solid #c7d8ff; color: #1f3a8a; border-radius: 8px; padding: 10px 14px; font-size: 13px; }
+.plab-config { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 12px; }
+.plab-field { display: flex; flex-direction: column; gap: 5px; font-size: 13px; margin-bottom: 10px; }
+.plab-field > span { font-weight: 600; color: #444; }
+.plab-field small { color: #777; font-size: 12px; }
+.plab-field select, .plab-field input, .plab-field textarea {
+  font: inherit; font-size: 13px; padding: 8px 10px; border: 1px solid #d5d5d5; border-radius: 6px; background: #fff; color: #222;
+}
+.plab-field textarea { resize: vertical; }
+.plab-hint { color: #666; font-size: 12.5px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
+.plab-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.plab-actions button { display: inline-flex; align-items: center; gap: 6px; background: #f1f1f1; color: #222; border-radius: 6px; padding: 8px 12px; font-size: 13px; cursor: pointer; }
+.plab-actions button:hover:not(:disabled) { background: #e6e6e6; }
+.plab-actions button:disabled { opacity: .55; cursor: default; }
+.plab-actions button.plab-primary { background: #4a6cf7; color: #fff; font-weight: 600; }
+.plab-actions button.plab-primary:hover:not(:disabled) { background: #3b5bdd; }
+.plab-actions button.plab-danger { background: #fdecec; color: #b91c1c; }
+.plab-inline { font-size: 13px; display: inline-flex; align-items: center; gap: 4px; }
+.plab-inline input { width: 62px; font: inherit; padding: 6px 8px; border: 1px solid #d5d5d5; border-radius: 6px; }
+.plab-campaigns { font-size: 13px; }
+.plab-campaigns summary { cursor: pointer; color: #1f3a8a; }
+.plab-campaigns ul { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.plab-campaigns li button { background: transparent; color: #222; font-size: 13px; text-align: left; cursor: pointer; padding: 4px 0; }
+.plab-campaigns li button:hover { text-decoration: underline; }
+.plab-help { font-size: 13px; background: #fafafa; border: 1px solid #e7e7e7; border-radius: 8px; padding: 10px 12px; }
+.plab-help summary { cursor: pointer; color: #1f3a8a; font-weight: 600; }
+.plab-help p { margin: 8px 0; }
+.plab-locks { list-style: none; margin: 0; padding: 0; font-size: 13px; display: flex; flex-direction: column; gap: 4px; }
+.plab-two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.plab-box { background: #fafafa; border: 1px solid #e7e7e7; border-radius: 8px; padding: 12px; font-size: 13px; }
+.plab-box strong { font-size: 11.5px; letter-spacing: .04em; color: #555; }
+.plab-box p { margin: 6px 0; }
+.plab-ok { color: #15803d; }
+.plab-mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; color: #555; }
+.plab-progress { height: 8px; background: #ececec; border-radius: 999px; overflow: hidden; margin: 8px 0; }
+.plab-progress-bar { height: 100%; background: #4a6cf7; transition: width .3s ease; }
+.plab-error { color: #b91c1c; font-size: 12.5px; margin: 8px 0 0; }
+.plab-feedback { border-left: 3px solid #4a6cf7; background: #f7f9ff; padding: 10px 12px; border-radius: 0 8px 8px 0; margin-top: 12px; }
+.plab-snippet { color: #666; font-size: 12px; max-width: 320px; }
+.plab-tag { display: inline-block; background: #ececec; color: #444; border-radius: 4px; padding: 2px 7px; font-size: 11.5px; margin-right: 5px; }
+.plab-tag.ok { background: #e6f6ec; color: #15803d; }
+.plab-tag.ko { background: #fdecec; color: #b91c1c; }
+.plab-panel { margin-top: 12px; border-top: 1px solid #eee; padding-top: 8px; }
+.plab-pre {
+  background: #fbfbfb; border: 1px solid #e7e7e7; border-radius: 8px; padding: 12px;
+  font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.5;
+  white-space: pre-wrap; word-break: break-word; max-height: 420px; overflow: auto; margin: 0 0 8px;
+}
+.plab-pre.response { max-height: 280px; background: #fff; }
+.plab-zone { background: #fff6d9; border-radius: 3px; padding: 1px 2px; }
+.plab-diff { max-height: 420px; overflow: auto; border: 1px solid #e7e7e7; border-radius: 8px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; }
+.plab-diff-line { display: flex; gap: 8px; padding: 1px 10px; white-space: pre-wrap; word-break: break-word; }
+.plab-diff-line.same { color: #8a8a8a; }
+.plab-diff-line.add { background: #e9f7ee; color: #12603a; }
+.plab-diff-line.remove { background: #fdecec; color: #8f1d1d; }
+.plab-diff-sign { width: 8px; flex: none; opacity: .7; }
+.plab-confirm { border-left: 4px solid #4a6cf7; }
+.plab-iteration { border: 1px solid #ececec; border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; background: #fff; }
+.plab-iteration header { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; font-size: 12.5px; color: #555; }
+.plab-iteration h3 { margin: 10px 0 6px; }
+.plab-feedbacks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+.plab-feedbacks li { background: #fafafa; border: 1px solid #e7e7e7; border-left: 3px solid #4a6cf7; border-radius: 0 8px 8px 0; padding: 10px 12px; }
+.plab-feedbacks li.pending { border-left-color: #b45309; }
+.plab-feedbacks li div { margin-top: 4px; }
+
+@media (max-width: 860px) {
+  .plab-two { grid-template-columns: 1fr; }
+}
+
+

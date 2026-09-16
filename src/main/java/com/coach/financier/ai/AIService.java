@@ -6,6 +6,7 @@ import com.coach.financier.model.ConversationModels;
 import com.coach.financier.model.FinancialSummary;
 import com.coach.financier.model.IntentClassification;
 import com.coach.financier.model.MarketingModels;
+import com.coach.financier.model.PromptOptimizationModels;
 import com.coach.financier.model.QualityModels;
 import com.coach.financier.model.SuiviModels;
 
@@ -30,6 +31,24 @@ public interface AIService {
                              Map<String, Object> additionalData,
                              List<ConversationModels.Message> history,
                              AIModels.AIProvider provider);
+
+    /**
+     * Variante de {@link #answer} avec un prompt système EXPLICITE : utilisée par l'ATELIER
+     * d'optimisation des prompts pour REJOUER une version FIGÉE du prompt (reproductibilité d'une
+     * campagne : seule la zone éditable varie).
+     * <p>
+     * {@code systemPrompt} {@code null} ou vide = comportement normal : prompt de l'agent actif, relu
+     * depuis {@code ./agent} à chaque appel.
+     */
+    AIModels.AIAnswer answerWithSystemPrompt(String systemPrompt,
+                                            String customerMessage,
+                                            AIModels.Classification classification,
+                                            FinancialSummary financialSummary,
+                                            Object bankingData,
+                                            AIModels.BankingContextMode contextMode,
+                                            Map<String, Object> additionalData,
+                                            List<ConversationModels.Message> history,
+                                            AIModels.AIProvider provider);
 
     /**
      * Appel IA de FIN DE CONVERSATION : l'agent de synthèse analyse l'historique complet et
@@ -63,4 +82,23 @@ public interface AIService {
      */
     AdvisorFeedbackModels.AdvisorFeedbackReport analyzeAdvisorFeedback(
             AdvisorFeedbackModels.AdvisorFeedbackAggregates aggregates, AIModels.AIProvider provider);
+
+    /**
+     * Appel IA du CONTRÔLEUR QUALITÉ de l'atelier d'optimisation des prompts (« Agent B »,
+     * {@code agent/prompt_controller.txt}) : il DIAGNOSTIQUE la réponse produite par le Coach pour une
+     * question de test dans un contexte FIGÉ. Il ne modifie jamais un prompt et ne répond jamais au
+     * client. Le contexte (question, réponse, prompt, zone éditable, données) est construit par
+     * l'appelant : cette couche ne fait que l'envoyer et parser un diagnostic structuré.
+     */
+    PromptOptimizationModels.ControllerFeedback reviewCoachAnswer(Map<String, Object> context,
+                                                                AIModels.AIProvider provider);
+
+    /**
+     * Appel IA de l'ÉDITEUR DE PROMPTS de l'atelier (« Agent A », {@code agent/prompt_editor.txt}) :
+     * il propose une NOUVELLE zone éditable à partir du diagnostic du contrôleur et, s'il existe, du
+     * feedback humain (prioritaire). Il ne renvoie jamais le prompt complet : le backend reconstruit et
+     * valide la version candidate (parties protégées garanties techniquement).
+     */
+    PromptOptimizationModels.EditorResult editPromptSection(Map<String, Object> context,
+                                                           AIModels.AIProvider provider);
 }

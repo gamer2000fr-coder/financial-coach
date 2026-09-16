@@ -47,18 +47,20 @@ Empêcher structurellement l'IA de recommander ou de mentionner un produit banca
 | F18 | Pop-in de satisfaction | À la fin d'une conversation : note 1 à 5, motifs si note ≤ 3, commentaire facultatif, bouton **Passer** — avis toujours facultatif |
 | F19 | Qualité & Satisfaction du Coach | Indicateurs de satisfaction client **et** contrôles de conformité du Coach, croisement des deux, rapport IA quotidien |
 | F20 | Feedback Conseiller | Le conseiller évalue en quelques secondes la pertinence du travail du Coach (résumé, besoin, produits, intérêts, suivi, email) ; KPI, pertinence produit, qualité des emails, analyse IA |
+| F21 | Atelier d'optimisation des prompts | Boucle contrôlée **Agent A (éditeur) / Agent B (contrôleur)** qui améliore **une seule zone** du prompt d'un agent métier, sur une question **figée** : snapshot de référence, avis humain prioritaire, STOP/reprise, historique complet et **promotion en production par un humain uniquement** |
 
 ### 2.1 Pages / écrans (frontend React, routage par hash, pas de react-router)
 
 | Route | Page | Contenu |
 |---|---|---|
-| `#/` | **Chat coach** | Conversation + panneau « Vue d'ensemble » (solde, revenus, dépenses, crédits, taux). Interrupteur « Avancé » : fournisseur IA (GPT/DeepSeek/Mock), Audio, garde-fou hors-sujet, case **« Suivi conseiller »**, accès Logs / Agents / Marketing (nouveaux onglets). Bouton d'en-tête : « Terminer la conversation » (suivi activé) ou « Nouvelle conversation » (suivi désactivé) |
+| `#/` | **Chat coach** | Conversation + panneau « Vue d'ensemble » (solde, revenus, dépenses, crédits, taux). Interrupteur « Avancé » : fournisseur IA (GPT/DeepSeek/Mock), Audio, garde-fou hors-sujet, case **« Suivi conseiller »** (**cochée par défaut**, un décochage volontaire est mémorisé), accès Logs / Agents / Marketing (nouveaux onglets). Bouton d'en-tête : « Terminer la conversation » (suivi activé) ou « Nouvelle conversation » (suivi désactivé) |
 | `#/logs` | **Logs des appels IA** | Traces : statut, session, agent utilisé, message client, caractères, données envoyées/demandées, boutons « Voir le prompt », « Voir le filtrage », « Voir la réponse », « Historique » |
 | `#/agents` | **Agents IA** | Édition des prompts par agent : générique (défaut), agent principal, agent de suivi, agent analyste marketing, 6 agents spécialisés. Injecté à chaque appel |
 | `#/marketing` | **Marketing Intelligence** | KPI, top produits, projets, « recommandé vs intérêt », refus, cross-sell, besoins non couverts, infos manquantes, rapport IA du jour, export CSV |
 | `#/quality` | **Qualité & Satisfaction** | Note moyenne, taux de participation, avis positifs/négatifs, distribution des notes, motifs d'insatisfaction, contrôles du Coach, croisement satisfaction × conformité, analyse IA, export CSV |
 | `#/advisor-feedback` | **Feedback Conseillers** | Saisie rapide d'un avis conseiller par dossier, KPI de pertinence, zones corrigées, pertinence produit, corrections d'intérêt, qualité des emails préparés, analyse IA, export CSV |
 | `#/advisor-feedback/session/<sessionId>` | **Évaluation d'un dossier** | Vue ciblée ouverte par le **lien du mail conseiller** : projet, synthèse du Coach, produits et niveaux d'intérêt, suivi conseillé, email préparé, puis formulaire d'évaluation |
+| `#/prompt-lab` | **Atelier d'optimisation des prompts** | Choix de l'agent (et de sa zone optimisée), question de test, nombre d'itérations, fournisseur IA, puis : progression, arrêt/reprise, avis humain, comparaison des versions, diff de la zone, versions retenues, promotion explicite en production |
 
 ---
 
@@ -273,6 +275,52 @@ flowchart TD
   - le **backend** vérifie l'existence du dossier (§46) : session inconnue → « Ce dossier n'est plus disponible. » (sans erreur technique) ;
   - un dossier déjà évalué affiche le feedback existant et permet sa **révision** (nouvelle version).
 
+### 3.10 Atelier d'amélioration itérative des prompts (`#/prompt-lab`)
+
+Améliorer un prompt « à la main » ne prouve rien : on ne sait pas **ce qui** a été amélioré, ni si le gain vient du prompt ou d'une autre conversation. L'atelier transforme cette intuition en **expérience reproductible** : _une question figée, un contexte figé, une seule zone de prompt modifiable, et deux agents IA qui débattent_.
+
+| Rôle | Qui | Ce qu'il fait |
+|---|---|---|
+| **Agent A — éditeur** | `agent/prompt_editor.txt` | Réécrit **uniquement** la zone éditable, en tenant compte de l'avis humain, du diagnostic de l'Agent B et des parties protégées |
+| **Agent B — contrôleur** | `agent/prompt_controller.txt` | Analyse la réponse du Coach **sans rien réécrire** : points satisfaisants, points à améliorer (type, sévérité, **origine** : prompt / données / règle backend / variabilité du modèle), comportements à préserver, recommandation |
+| **Humain** | IHM | Décide : avis prioritaire, arrêt, reprise, version **retenue** et surtout **promue** en production |
+
+Si le Coach réclame des données (`NEED_DATA` — ce n'est **pas** une réponse client), l'atelier fait **comme en production** : les fichiers autorisés du catalogue lui sont fournis, le **contexte de référence est enrichi** (et tracé sur l'itération), puis le Coach produit la réponse destinée au client — **c'est seulement à ce moment qu'Agent B intervient**.
+
+```mermaid
+flowchart TD
+    Q[Question de test figée] --> SNAP[Snapshot de référence<br/>données + classification + prompt hors zone : FIGÉS]
+    SNAP --> COACH[Le Coach répond avec la version courante du prompt]
+    COACH --> B[Agent B : diagnostic de la réponse<br/>aucune réécriture]
+    B --> A[Agent A : nouvelle zone éditable<br/>+ avis humain prioritaire si présent]
+    A --> VAL{Validation BACKEND<br/>marqueurs, longueur, non vide}
+    VAL -- refusée --> KEEP[La version est CONSERVÉE<br/>l'échec est enregistré et expliqué]
+    VAL -- acceptée --> NEW[Version Vn+1 : prompt recomposé<br/>parties protégées IDENTIQUES]
+    NEW -->|itérations restantes| COACH
+    NEW --> CMP[Comparer · retenir · refuser]
+    CMP -->|décision humaine explicite| PROD[PROMOTION<br/>le prompt actuel est sauvegardé]
+    HUMAN[Avis humain] -.prioritaire.-> A
+```
+
+Ce que l'humain voit dans la page :
+
+- **Configuration** : agent à optimiser (l'agent **Générique** n'est pas proposé : il n'a pas de zone propre, seule la zone transverse « agent principal » le concerne), **zone optimisée** (prompt de l'agent spécialisé, ou agent principal **transverse**), question de test, nombre d'itérations, **trois fournisseurs IA indépendants** — IA coach (celui qui répond au client), Agent B (celui qui contrôle), Agent A (celui qui réécrit la zone) ;
+- **Snapshot de référence** : la liste de ce qui est **figé** (question, données financières, classification d'intention, projet, prompt hors zone) — c'est ce qui rend la comparaison honnête ;
+- **Production vs candidat** : le prompt **actuellement en production** reste distingué de toutes les versions de la campagne ; aucune version candidate n'est utilisée par les conversations tant qu'un humain ne l'a pas promue ;
+- **Progression** : état, itération _n / N_, réalisées / restantes, appels IA, caractères envoyés, durée ;
+- **Par itération** : la réponse du Coach, l'analyse de l'Agent B (points à améliorer, sévérité, origine), les changements demandés à l'Agent A, le prompt de la version, et un **diff de la seule zone éditable** ;
+- **Actions** : `GO`, `STOP` (arrêt gracieux), `REPRENDRE`, « Ajouter mon avis », « Ajouter mon avis et continuer », `COMPARER`, « **★ Retenir** cette version », « Promouvoir » (avec confirmation explicite), « Refuser la campagne » ;
+- **Avis humains** : visuellement distincts du diagnostic automatique, avec leur statut (appliqué / en attente).
+
+Règles fonctionnelles fortes :
+
+1. **Une seule zone est optimisable** par campagne ; tout ce qui est hors zone est **recomposé par le backend** — jamais par l'IA ;
+2. L'Agent A **ne peut pas** sortir de la zone et ne peut pas modifier les parties protégées : le backend rejette et **conserve** la version précédente ;
+3. Un agent **sans zone** (prompt non marqué) n'est **pas** optimisable : l'atelier ne devine jamais la zone ;
+4. `STOP` n'interrompt **jamais** brutalement un appel IA : la réponse en cours est enregistrée, puis la campagne passe en pause ;
+5. **Aucune promotion automatique** : le passage en production est une action humaine, confirmée, et le prompt précédent est sauvegardé (retour arrière possible) ;
+6. Aucun code ni règle métier n'est modifié par l'atelier : il ne change **qu'un texte de prompt**.
+
 ---
 
 ## 4. Règles de filtrage métier (règles produit)
@@ -394,6 +442,23 @@ Toutes les données sont **fictives** et servent uniquement la démonstration.
 41. Le nom du conseiller n'est jamais stocké (identifiant technique uniquement) ;
 42. Aucun feedback ne modifie automatiquement le Coach : le rapport IA ne produit que des recommandations.
 
+### 7.5 Atelier d'optimisation des prompts
+
+43. Le prompt de production reste **strictement identique** à ce qu'il était avant l'introduction des marqueurs de zone (les lignes `[[[` / `]]]` ne sont **jamais** envoyées au LLM) ;
+44. Une campagne optimise **une seule** zone : les parties hors zone sont recomposées par le backend et sont identiques dans toutes les versions ;
+45. Un prompt **sans** zone éditable est refusé avec un message explicite (aucune zone devinée) ;
+46. Toutes les itérations d'une campagne utilisent la **même** question, les **mêmes** données, la **même** classification d'intention et le **même** projet ;
+47. Une proposition d'Agent A qui sort de la zone, contient un marqueur, est vide ou dépasse la taille maximale est **rejetée** : la version précédente est conservée et l'échec est lisible ;
+48. L'avis humain est **prioritaire** : il est appliqué par l'Agent A avant le prochain appel au Coach et son application est tracée ;
+49. `STOP` n'interrompt pas un appel IA en cours : la réponse est enregistrée puis la campagne passe en pause ; la reprise continue la campagne sans repartir de zéro ;
+50. Rien n'est supprimé : itérations, versions, diagnostics, avis et décisions restent consultables après la fin de la campagne ;
+51. La **promotion** est une action humaine confirmée ; le prompt précédent est **sauvegardé** dans un historique et un retour arrière explicite est possible ;
+52. Aucune version n'est promue automatiquement, même lorsque l'Agent B est satisfait ;
+53. L'atelier nécessite un fournisseur IA **réel** : en mode MOCK il refuse de démarrer (message explicite nommant l'étape) ;
+54. Aucun code, seuil, règle métier ou catalogue n'est modifié par l'atelier : seul un fichier de **prompt** peut changer, et uniquement après promotion ;
+55. Le **routage des modèles** (coach / Agent B / Agent A) est figé avec la campagne et visible dans l'IHM : une reprise rejoue les mêmes modèles ;
+56. Une erreur d'un fournisseur est affichée **avec l'étape concernée** et laisse la campagne reprenable — elle n'est jamais masquée.
+
 ---
 
 ## 8. Limites connues (POC)
@@ -410,3 +475,8 @@ Toutes les données sont **fictives** et servent uniquement la démonstration.
 - Feedback Conseiller : la génération de l'analyse IA est **manuelle** dans le POC (bouton) ; un batch quotidien est disponible via l'API (`POST /api/advisor-feedback/batch`) mais n'est pas planifié ;
 - Feedback Conseiller : la comparaison automatique « version IA / version conseiller » de l'email (P2) n'est pas implémentée — seul le niveau déclaré par le conseiller est enregistré ;
 - Feedback Conseiller : la vue 360° (client + Quality + conseiller) n'est pas encore agrégée — les structures partagent le `sessionId` pour la préparer.
+- Atelier d'optimisation : il n'attribue **pas** de note automatique de qualité ; il compare des réponses et fournit un diagnostic, la décision finale reste humaine ;
+- Atelier d'optimisation : la boucle est pilotée par l'IHM (une requête HTTP = une itération) — il n'y a ni file de tâches ni exécution en arrière-plan : l'onglet doit rester ouvert pendant la campagne ;
+- Atelier d'optimisation : les missions commencent avec GPT/DeepSeek réellement configurés ; en mode MOCK l'atelier refuse de démarrer (les autres modules continuent de fonctionner en mode démo) ;
+- Atelier d'optimisation : l'IHM **ne permet pas de reprendre une campagne passée** (pas d'historique à l'écran) : démarrer une nouvelle campagne clôt automatiquement la précédente (statut *Annulée*), ses fichiers restant sur disque ;
+- Atelier d'optimisation : le contexte est figé, donc la boucle `NEED_DATA` (demande de fichier complémentaire) est **désactivée** pendant une campagne.

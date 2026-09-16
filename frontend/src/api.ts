@@ -29,6 +29,16 @@ import type {
   AdvisorReport,
   AdvisorStatus,
 } from './types.advisor'
+import type {
+  HumanFeedbackView,
+  PromptCampaign,
+  PromptCampaignDetail,
+  PromptComparison,
+  PromptIteration,
+  PromptOptimizationAgents,
+  PromotionResult,
+  StartCampaignInput,
+} from './types.promptopt'
 
 function resolveApiBaseUrl(): string {
   if (typeof window === 'undefined') return 'http://localhost:9797/api'
@@ -503,4 +513,92 @@ export async function generateAdvisorDemoData(
 /** URL d'export CSV des statistiques agrégées. */
 export function advisorSummaryCsvUrl(period: AdvisorPeriod, from?: string, to?: string): string {
   return `${API_BASE_URL}/advisor-feedback/export/summary.csv?${advisorQuery(period, from, to)}`
+}
+
+// --- Atelier d'amélioration itérative des prompts (#/prompt-lab) --------------------------------
+
+/** Agents et zones optimisables + plafond d'itérations (sélecteur de l'IHM). */
+export async function fetchPromptOptimizationAgents(): Promise<PromptOptimizationAgents> {
+  return apiFetch('/prompt-optimization/agents')
+}
+
+/** Campagnes connues (la plus récemment modifiée d'abord). */
+export async function fetchPromptCampaigns(): Promise<PromptCampaign[]> {
+  return apiFetch('/prompt-optimization/campaigns')
+}
+
+/** Démarre une campagne : validation, snapshot de référence figé, statut RUNNING. */
+export async function startPromptCampaign(input: StartCampaignInput): Promise<PromptCampaign> {
+  return apiFetch('/prompt-optimization/campaigns', { method: 'POST', body: JSON.stringify(input) })
+}
+
+/** Vue complète d'une campagne : état, snapshot, itérations, versions et avis. */
+export async function fetchPromptCampaign(campaignId: string): Promise<PromptCampaignDetail> {
+  return apiFetch(`/prompt-optimization/campaigns/${encodeURIComponent(campaignId)}`)
+}
+
+/** Exécute UNE itération complète (Coach → contrôleur → éditeur). */
+export async function iteratePromptCampaign(campaignId: string): Promise<PromptIteration> {
+  return apiFetch(`/prompt-optimization/campaigns/${encodeURIComponent(campaignId)}/iterate`, { method: 'POST' })
+}
+
+/** Arrêt gracieux : l'appel en cours se termine, puis la campagne passe en pause. */
+export async function stopPromptCampaign(campaignId: string): Promise<PromptCampaign> {
+  return apiFetch(`/prompt-optimization/campaigns/${encodeURIComponent(campaignId)}/stop`, { method: 'POST' })
+}
+
+/** Reprise : prolonge éventuellement le cycle et applique l'avis humain en attente. */
+export async function resumePromptCampaign(
+  campaignId: string,
+  additionalIterations: number,
+): Promise<PromptCampaign> {
+  return apiFetch(`/prompt-optimization/campaigns/${encodeURIComponent(campaignId)}/resume`, {
+    method: 'POST',
+    body: JSON.stringify({ additionalIterations }),
+  })
+}
+
+/** Avis humain : prioritaire sur le contrôleur automatique. */
+export async function sendPromptHumanFeedback(
+  campaignId: string,
+  content: string,
+): Promise<HumanFeedbackView> {
+  return apiFetch(`/prompt-optimization/campaigns/${encodeURIComponent(campaignId)}/feedback`, {
+    method: 'POST',
+    body: JSON.stringify({ content }),
+  })
+}
+
+/** Retient une version sans la promouvoir. */
+export async function retainPromptVersion(campaignId: string, version: string): Promise<PromptCampaign> {
+  return apiFetch(`/prompt-optimization/campaigns/${encodeURIComponent(campaignId)}/retain`, {
+    method: 'POST',
+    body: JSON.stringify({ version }),
+  })
+}
+
+/** Retire une version de la sélection (le repère « retenue » est purement indicatif et réversible). */
+export async function unretainPromptVersion(campaignId: string, version: string): Promise<PromptCampaign> {
+  return apiFetch(`/prompt-optimization/campaigns/${encodeURIComponent(campaignId)}/unretain`, {
+    method: 'POST',
+    body: JSON.stringify({ version }),
+  })
+}
+
+/** ProMEUT une version en production (action humaine explicite, prompt précédent sauvegardé). */
+export async function promotePromptVersion(campaignId: string, version: string): Promise<PromotionResult> {
+  return apiFetch(`/prompt-optimization/campaigns/${encodeURIComponent(campaignId)}/promote`, {
+    method: 'POST',
+    body: JSON.stringify({ version }),
+  })
+}
+
+/** Refuse la campagne : aucune version promue, rien n'est supprimé. */
+export async function rejectPromptCampaign(campaignId: string): Promise<PromptCampaign> {
+  return apiFetch(`/prompt-optimization/campaigns/${encodeURIComponent(campaignId)}/reject`, { method: 'POST' })
+}
+
+/** Comparaison version initiale / version courante. */
+export async function fetchPromptComparison(campaignId: string): Promise<PromptComparison> {
+  return apiFetch(`/prompt-optimization/campaigns/${encodeURIComponent(campaignId)}/compare`)
 }

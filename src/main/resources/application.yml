@@ -117,6 +117,20 @@ app:
     # Exemple : http://localhost:9898 -> <base>/#/advisor-feedback/session/<sessionId>.
     # Vide = lien relatif (utilisable depuis le navigateur du conseiller sur le même hôte).
     frontend-url: ${ADVISOR_FEEDBACK_FRONTEND_URL:http://localhost:9898}
+  # --- Atelier d'amélioration itérative des prompts (POC, AUCUNE base de données) ---
+  # Deux agents internes : « Agent B » contrôle la réponse du Coach, « Agent A » améliore la ZONE
+  # ÉDITABLE du prompt (délimitée par [[[ … ]]] dans agent/*.txt). Aucune version candidate ne
+  # modifie la production : la promotion reste une ACTION HUMAINE explicite. Une campagne exige un
+  # fournisseur IA RÉEL (le mode démo ne dépend pas du prompt).
+  prompt-optimization:
+    enabled: ${PROMPT_OPT_ENABLED:true}
+    demo-mode: ${PROMPT_OPT_DEMO_MODE:false}
+    dir: ${PROMPT_OPT_DIR:./data/prompt-optimization}
+    # Plafond ABSOLU et CUMULÉ d'itérations par campagne (recommandation §33 ; jamais au-delà de 50).
+    max-iterations: ${PROMPT_OPT_MAX_ITERATIONS:10}
+    # Longueur maximale d'une zone éditable proposée par l'Agent A (garde-fou anti-dérive).
+    max-editable-section-length: ${PROMPT_OPT_MAX_SECTION_LENGTH:200000}
+    hash-salt: ${PROMPT_OPT_HASH_SALT:coach-financier-poc}
   mail:
     # Active/désactive l'envoi de mails (permet de démarrer sans configuration mail).
     enabled: ${MAIL_ENABLED:true}

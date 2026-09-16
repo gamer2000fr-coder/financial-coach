@@ -5,16 +5,25 @@ import com.coach.financier.model.ConversationModels;
 import com.coach.financier.model.FinancialSummary;
 import com.coach.financier.model.IntentClassification;
 import com.coach.financier.model.MarketingModels;
+import com.coach.financier.model.PromptOptimizationModels;
 import com.coach.financier.model.SuiviModels;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
+import java.net.http.HttpClient;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
 public abstract class RemoteAIService implements AIService {
+    /** Délai de CONNEXION vers le fournisseur IA (ms). */
+    private static final int CONNECT_TIMEOUT_MS = 15_000;
+    /** Délai de LECTURE d'une réponse (ms) : le Coach peut être long, mais jamais indéfini. */
+    private static final int READ_TIMEOUT_MS = 300_000;
+
     protected final ObjectMapper objectMapper;
     private final RestClient client;
     private final String apiKey;
@@ -26,7 +35,14 @@ public abstract class RemoteAIService implements AIService {
         this.apiKey = apiKey;
         this.model = model;
         this.providerName = providerName;
-        this.client = RestClient.builder().baseUrl(baseUrl).build();
+        // Timeouts EXPLICITES : sans eux, une campagne d'optimisation (jusqu'à 3 appels IA par
+        // itération, 50 itérations) peut rester bloquée indéfiniment sur un provider muet.
+        HttpClient httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofMillis(CONNECT_TIMEOUT_MS))
+                .build();
+        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
+        requestFactory.setReadTimeout(Duration.ofMillis(READ_TIMEOUT_MS));
+        this.client = RestClient.builder().baseUrl(baseUrl).requestFactory(requestFactory).build();
     }
 
     @Override
@@ -67,16 +83,23 @@ public abstract class RemoteAIService implements AIService {
                                     AIModels.BankingContextMode contextMode,
                                     Map<String, Object> additionalData,
                                     List<ConversationModels.Message> history, AIModels.AIProvider provider) {
-        if (apiKey == null || apiKey.isBlank()) {
-            throw new IllegalStateException("Clé API absente pour le fournisseur " + providerName);
-        }
-        // Prompt système de l'AGENT ACTIF (générique par défaut), relu depuis ./agent à chaque appel.
-        // Le thème est choisi par ChatController et transmis via additionalData."agent".
-        String theme = null;
-        if (additionalData != null && additionalData.get("agent") instanceof String t) {
-            theme = t;
-        }
-        String system = AgentFiles.systemPromptFor(theme);
+        return answerWithSystemPrompt(null, customerMessage, classification, financialSummary, bankingData,
+                contextMode, additionalData, history, provider);
+    }
+
+    @Override
+    public AIModels.AIAnswer answerWithSystemPrompt(String systemPrompt, String customerMessage,
+                                                    AIModels.Classification classification,
+                                                    FinancialSummary financialSummary, Object bankingData,
+                                                    AIModels.BankingContextMode contextMode,
+                                                    Map<String, Object> additionalData,
+                                                    List<ConversationModels.Message> history,
+                                                    AIModels.AIProvider provider) {
+        requireApiKey();
+        // Prompt système : version FIGÉE fournie par l'atelier d'optimisation (rejeu d'une campagne),
+        // sinon l'AGENT ACTIF (générique par défaut) relu depuis ./agent à chaque appel. Le thème est
+        // choisi par ChatController et transmis via additionalData."agent".
+        String system = resolveSystemPrompt(systemPrompt, additionalData);
 
         Map<String, Object> payload = new java.util.LinkedHashMap<>();
         payload.put("customerMessage", customerMessage);
@@ -92,6 +115,31 @@ public abstract class RemoteAIService implements AIService {
             return parseAnswer(content);
         } catch (Exception e) {
             throw new IllegalStateException("Réponse IA invalide: " + contentOrUnknown(e), e);
+        }
+    }
+
+    /**
+     * Prompt système EFFECTIF d'un appel Coach : la version FIGÉE fournie par l'atelier d'optimisation
+     * des prompts lorsqu'elle existe (rejeu d'une campagne), sinon le prompt de l'agent actif relu
+     * depuis {@code ./agent}.
+     * <p>
+     * Exposé en {@code protected} : c'est le point de REPRODUCTIBILITÉ que les tests verrouillent — une
+     * campagne doit rejouer EXACTEMENT le prompt figé, jamais le prompt courant du disque.
+     */
+    protected static String resolveSystemPrompt(String systemPromptOverride, Map<String, Object> additionalData) {
+        return systemPromptOverride == null || systemPromptOverride.isBlank()
+                ? AgentFiles.systemPromptFor(themeOf(additionalData)) : systemPromptOverride;
+    }
+
+    /** Thème de l'agent actif transmis par l'appelant via {@code additionalData."agent"}. */
+    private static String themeOf(Map<String, Object> additionalData) {
+        return additionalData != null && additionalData.get("agent") instanceof String theme ? theme : null;
+    }
+
+    /** Vérifie la présence d'une clé API : message explicite, exploitable par l'IHM. */
+    protected void requireApiKey() {
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new IllegalStateException("Clé API absente pour le fournisseur " + providerName);
         }
     }
 
@@ -416,9 +464,78 @@ public abstract class RemoteAIService implements AIService {
         }
         try {
             JsonNode response = objectMapper.readTree(rawResponse);
-            return response.path("choices").path(0).path("message").path("content").asText();
+            String content = response.path("choices").path(0).path("message").path("content").asText();
+            // Certains modèles encadrent leur JSON par un bloc Markdown : on retire l'encadrement pour que
+            // TOUS les points de parsing (coach, suivi, contrôleur, éditeur, rapports) en bénéficient.
+            return stripCodeFence(content);
         } catch (Exception e) {
             throw new RuntimeException("Erreur lors de la lecture de la réponse JSON de l'IA", e);
+        }
+    }
+
+    /**
+     * Retire un éventuel encadrement Markdown d'une réponse JSON de modèle
+     * ({@code ```json … ```}) : le contenu est valide mais n'est pas parsable tel quel.
+     */
+    static String stripCodeFence(String content) {
+        if (content == null) {
+            return "";
+        }
+        String text = content.strip();
+        if (text.startsWith("```")) {
+            int firstBreak = text.indexOf('\n');
+            if (firstBreak > 0) {
+                text = text.substring(firstBreak + 1);
+            }
+            if (text.endsWith("```")) {
+                text = text.substring(0, text.length() - 3);
+            }
+        }
+        return text.strip();
+    }
+
+    @Override
+    public PromptOptimizationModels.ControllerFeedback reviewCoachAnswer(Map<String, Object> context,
+                                                                       AIModels.AIProvider provider) {
+        requireApiKey();
+        String content = call(AgentFiles.promptControllerSystemPrompt(),
+                serialize(context, "Contexte de contrôle non sérialisable"));
+        PromptOptimizationModels.ControllerFeedback feedback;
+        try {
+            feedback = objectMapper.readValue(content, PromptOptimizationModels.ControllerFeedback.class);
+        } catch (Exception e) {
+            throw new IllegalStateException("Diagnostic du contrôleur invalide: " + content, e);
+        }
+        if (feedback == null) {
+            throw new IllegalStateException("Diagnostic du contrôleur vide");
+        }
+        return feedback;
+    }
+
+    @Override
+    public PromptOptimizationModels.EditorResult editPromptSection(Map<String, Object> context,
+                                                                  AIModels.AIProvider provider) {
+        requireApiKey();
+        String content = call(AgentFiles.promptEditorSystemPrompt(),
+                serialize(context, "Contexte d'édition non sérialisable"));
+        PromptOptimizationModels.EditorResult result;
+        try {
+            result = objectMapper.readValue(content, PromptOptimizationModels.EditorResult.class);
+        } catch (Exception e) {
+            throw new IllegalStateException("Proposition d'édition invalide: " + content, e);
+        }
+        if (result == null) {
+            throw new IllegalStateException("Proposition d'édition vide");
+        }
+        return result;
+    }
+
+    /** Sérialise le contexte transmis à un agent interne de l'atelier d'optimisation des prompts. */
+    private String serialize(Map<String, Object> context, String errorMessage) {
+        try {
+            return objectMapper.writeValueAsString(context == null ? Map.of() : context);
+        } catch (Exception e) {
+            throw new IllegalStateException(errorMessage, e);
         }
     }
 

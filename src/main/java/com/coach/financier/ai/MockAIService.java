@@ -169,6 +169,44 @@ public class MockAIService implements AIService {
     }
 
     /**
+     * Mode démo : le prompt système n'a AUCUN effet (la réponse est construite à partir de la synthèse
+     * calculée par le backend). La zone éditable d'une campagne n'est donc pas rejouable en mode démo,
+     * d'où {@link #NO_REAL_PROVIDER_MESSAGE} pour les agents de l'atelier.
+     */
+    @Override
+    public AIModels.AIAnswer answerWithSystemPrompt(String systemPrompt, String customerMessage,
+                                                    AIModels.Classification classification,
+                                                    FinancialSummary financialSummary, Object bankingData,
+                                                    AIModels.BankingContextMode contextMode,
+                                                    Map<String, Object> additionalData,
+                                                    List<ConversationModels.Message> history,
+                                                    AIModels.AIProvider provider) {
+        return answer(customerMessage, classification, financialSummary, bankingData, contextMode, additionalData,
+                history, provider);
+    }
+
+    /** Message unique expliquant pourquoi l'atelier exige un fournisseur IA réel. */
+    public static final String NO_REAL_PROVIDER_MESSAGE =
+            "L'atelier d'optimisation des prompts nécessite un fournisseur IA réel (GPT ou DEEPSEEK) : "
+            + "le mode démo ne produit pas de réponse dépendant du prompt.";
+
+    /**
+     * L'atelier compare les RÉPONSES RÉELLES du Coach à une question figée : cela n'a de sens qu'avec un
+     * modèle réel, seul capable d'exploiter la zone éditable du prompt.
+     */
+    @Override
+    public com.coach.financier.model.PromptOptimizationModels.ControllerFeedback reviewCoachAnswer(
+            Map<String, Object> context, AIModels.AIProvider provider) {
+        throw new IllegalStateException(NO_REAL_PROVIDER_MESSAGE);
+    }
+
+    @Override
+    public com.coach.financier.model.PromptOptimizationModels.EditorResult editPromptSection(
+            Map<String, Object> context, AIModels.AIProvider provider) {
+        throw new IllegalStateException(NO_REAL_PROVIDER_MESSAGE);
+    }
+
+    /**
      * Mode démo (aucun appel LLM) : synthèse DÉTERMINISTE construite uniquement à partir du
      * contexte fourni. Elle respecte les mêmes règles que l'agent réel : pas d'invention,
      * produits refusés exclus, brouillon client jamais présenté comme déjà envoyé.

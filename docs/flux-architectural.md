@@ -271,3 +271,44 @@ Règles structurantes :
 - **Confidentialité** : conseiller identifié par un hash uniquement ; commentaires nettoyés et traités comme données **non fiables** (jamais exécutés comme instructions).
 - **Aucune modification automatique** : le module produit des **recommandations** ; l'humain décide (pas d'auto-apprentissage, pas de changement de seuil).
 - **Indépendance** : Qualité (client + règles) et Feedback Conseiller (pertinence métier) restent deux familles séparées, reliées par le seul `sessionId`.
+
+---
+
+## 8. Atelier d'amélioration itérative des prompts (Agent A / Agent B)
+
+### 8.1 Principe : rendre l'amélioration d'un prompt **prouvable**
+
+Un prompt s'améliore d'habitude « au feeling » : on ne sait pas **quoi** a changé, ni si le gain vient du prompt ou d'une autre conversation.
+L'atelier impose trois contraintes qui rendent l'expérience reproductible : **un contexte figé**, **une seule zone modifiable**, **une promotion humaine**.
+
+```mermaid
+flowchart TD
+    Q["Question de test + agent + N itérations"] --> SNAP["Snapshot de référence<br/>question · données financières · classification · projet · prompt hors zone : FIGÉS"]
+    SNAP --> LOOP{{"Boucle n = 1..N"}}
+    LOOP --> COACH["Le Coach répond avec la version Vn<br/>(même question, mêmes données)"]
+    COACH --> B["Agent B — contrôleur<br/>diagnostic de la RÉPONSE<br/>type · sévérité · ORIGINE · à préserver"]
+    B --> A["Agent A — éditeur<br/>nouvelle ZONE éditable uniquement<br/>avis humain prioritaire"]
+    A --> VAL{"Validation BACKEND<br/>délimiteurs · vide · longueur"}
+    VAL -- refusée --> KEEP["Version CONSERVÉE<br/>échec enregistré et expliqué"]
+    VAL -- acceptée --> VN["Version Vn+1<br/>parties protégées identiques"]
+    VN --> LOOP
+    LOOP --> DEC["Décision HUMAINE<br/>comparer · retenir · refuser"]
+    DEC --> PROMO["Promotion explicite<br/>sauvegarde du prompt actuel puis écriture de la zone"]
+    HUMAN["Avis humain<br/>(prioritaire)"] -.-> A
+```
+
+### 8.2 Qui décide quoi
+
+| Acteur | Fait | Ne fait pas |
+|---|---|---|
+| **Backend Java** | Fige le contexte, compose le prompt (`préfixe + zone + suffixe`), valide chaque proposition, persiste tout, applique la promotion | N'invente aucune amélioration |
+| **Agent B** (contrôleur) | Diagnostique la réponse du Coach : points à améliorer, sévérité, **origine** (prompt / données / règle backend / variabilité du modèle), comportements à préserver | Ne réécrit rien, ne juge pas le métier |
+| **Agent A** (éditeur) | Réécrit **la seule zone éditable** en suivant un ordre d'autorité (règles → parties protégées → décision humaine → avis humain → Agent B → lui-même) | Ne touche ni au reste du prompt, ni aux règles, ni au code |
+| **Humain** | Donne un avis prioritaire, arrête/reprend, retient une version et **promouvoit** | — |
+
+### 8.3 Les trois garanties
+
+1. **Reproductibilité** : toutes les itérations utilisent la même question, les mêmes données, la même classification d'intention et le même projet ; seule la zone éditable change. `STOP` n'interrompt jamais un appel en cours : la réponse est enregistrée puis la campagne passe en pause, et une reprise continue le cycle.
+2. **Sécurité du prompt** : la zone est délimitée (`[[[` … `]]]`) et **jamais** envoyée telle quelle au LLM ; toute proposition qui sort de la zone, contient un délimiteur, est vide ou trop longue est **rejetée** et la version précédente est conservée. Les deux agents de l'atelier eux-mêmes **ne sont pas** optimisables.
+3. **Souveraineté humaine** : aucune promotion automatique, même quand l'Agent B est satisfait. Le passage en production est confirmé dans l'IHM et le prompt précédent est **sauvegardé** (retour arrière). L'atelier ne modifie **qu'un texte de prompt** — ni règle métier, ni seuil, ni catalogue, ni code.
+

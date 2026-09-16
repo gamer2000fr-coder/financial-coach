@@ -92,4 +92,51 @@ class AgentPromptStoreTest {
                         .noneMatch(agent -> AgentPromptStore.QUALITY_KEY.equalsIgnoreCase(agent.getTheme())),
                 "qualite ne doit pas être un thème d'agent de coach (agents.json)");
     }
+
+    @Test
+    void listsThePromptControllerAgentAndItsPromptIsEditable() {
+        Map<String, String> controller = store.entries().stream()
+                .filter(entry -> AgentPromptStore.PROMPT_CONTROLLER_KEY.equals(entry.get("key")))
+                .findFirst()
+                .orElse(null);
+
+        assertNotNull(controller, "L'agent contrôleur de l'atelier doit apparaître dans la liste déroulante");
+        assertEquals("Atelier prompts — agent contrôleur (Agent B)", controller.get("libelle"));
+        assertEquals("prompt_controller.txt", controller.get("file"));
+        assertEquals("prompt_controller.txt", store.fileNameOf(AgentPromptStore.PROMPT_CONTROLLER_KEY));
+
+        String content = store.read(AgentPromptStore.PROMPT_CONTROLLER_KEY);
+        assertNotNull(content);
+        assertTrue(content.length() > 500, "Le prompt contrôleur doit être un vrai prompt (pas le repli)");
+        assertTrue(content.contains("UNIQUEMENT"), "La sortie JSON stricte doit être imposée");
+        assertTrue(content.contains("requiresHumanOrBusinessReview"), "Le contrat JSON doit être explicite");
+        assertTrue(content.contains("source"), "Le diagnostic doit distinguer PROMPT / DATA / BACKEND_RULE");
+
+        assertTrue(com.coach.financier.ai.AgentFiles.agents().stream()
+                        .noneMatch(agent -> AgentPromptStore.PROMPT_CONTROLLER_KEY.equalsIgnoreCase(agent.getTheme())),
+                "L'agent contrôleur n'est jamais un agent de coach (agents.json)");
+    }
+
+    @Test
+    void listsThePromptEditorAgentAndItsPromptIsEditable() {
+        Map<String, String> editor = store.entries().stream()
+                .filter(entry -> AgentPromptStore.PROMPT_EDITOR_KEY.equals(entry.get("key")))
+                .findFirst()
+                .orElse(null);
+
+        assertNotNull(editor, "L'agent éditeur de l'atelier doit apparaître dans la liste déroulante");
+        assertEquals("Atelier prompts — agent éditeur (Agent A)", editor.get("libelle"));
+        assertEquals("prompt_editor.txt", editor.get("file"));
+        assertEquals("prompt_editor.txt", store.fileNameOf(AgentPromptStore.PROMPT_EDITOR_KEY));
+
+        String content = store.read(AgentPromptStore.PROMPT_EDITOR_KEY);
+        assertNotNull(content);
+        assertTrue(content.length() > 500, "Le prompt éditeur doit être un vrai prompt (pas le repli)");
+        assertTrue(content.contains("editableSection"), "Le contrat JSON doit exposer editableSection");
+        assertTrue(content.contains("HUMAN_OR_BUSINESS_REVIEW_REQUIRED"), "Le statut de revue humaine doit exister");
+
+        assertTrue(com.coach.financier.ai.AgentFiles.agents().stream()
+                        .noneMatch(agent -> AgentPromptStore.PROMPT_EDITOR_KEY.equalsIgnoreCase(agent.getTheme())),
+                "L'agent éditeur n'est jamais un agent de coach (agents.json)");
+    }
 }

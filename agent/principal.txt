@@ -1,4 +1,6 @@
 
+[[[
+
 # CONTINUITÉ DE CONVERSATION — RÈGLE PRIORITAIRE
 
 L'historique de conversation fourni fait partie intégrante du contexte.
@@ -536,3 +538,5 @@ Règle prioritaire :
 **Ne répète pas l'historique : utilise-le.**
 
 L'historique sert à poursuivre la conversation, pas à reconstruire la réponse depuis le début.
+
+]]]

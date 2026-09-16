@@ -31,8 +31,15 @@ const SESSION_STORAGE_KEY = 'financial-coach-session-id'
 const HISTORY_STORAGE_KEY = 'financial-coach-chat-history'
 const PROVIDER_STORAGE_KEY = 'financial-coach-provider'
 const GUARD_STORAGE_KEY = 'financial-coach-guard'
-/** Suivi de fin de conversation (dossier conseiller) : DÉSACTIVÉ par défaut. */
-const SUIVI_STORAGE_KEY = 'financial-coach-suivi'
+/**
+ * Suivi de fin de conversation (dossier conseiller) : **ACTIVÉ par défaut**.
+ * <p>
+ * La clé a changé de nom (`…-v2`) volontairement : l'ancienne clé était écrite automatiquement avec le
+ * défaut précédent (`'false'`), ce qui aurait maintenu la case décochée malgré le nouveau défaut.
+ */
+const SUIVI_STORAGE_KEY = 'financial-coach-suivi-v2'
+/** Clé historique (défaut « décoché ») : sa valeur ne doit plus influencer le comportement. */
+const LEGACY_SUIVI_STORAGE_KEY = 'financial-coach-suivi'
 const ADVANCED_STORAGE_KEY = 'financial-coach-advanced'
 const VOICE_STORAGE_KEY = 'financial-coach-voice'
 const VOICE_RATE_STORAGE_KEY = 'financial-coach-voice-rate'
@@ -231,8 +238,11 @@ function App() {
   const closedSessionRef = useRef<string | null>(null)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [guardEnabled, setGuardEnabled] = useState(() => localStorage.getItem(GUARD_STORAGE_KEY) !== 'false')
-  // Suivi (dossier de suivi conseiller à la clôture) : activé uniquement si explicitement mis à 'true'.
-  const [suiviEnabled, setSuiviEnabled] = useState(() => localStorage.getItem(SUIVI_STORAGE_KEY) === 'true')
+  /**
+   * Suivi conseiller (dossier de suivi + email au conseiller à la clôture) : **coché par défaut**.
+   * Un décochage volontaire est mémorisé (`'false'`) et respecté aux chargements suivants.
+   */
+  const [suiviEnabled, setSuiviEnabled] = useState(() => localStorage.getItem(SUIVI_STORAGE_KEY) !== 'false')
   // Pop-in de satisfaction (module Qualité) : ouverte AVANT la clôture, avis facultatif.
   const [feedbackOpen, setFeedbackOpen] = useState(false)
   const [advanced, setAdvanced] = useState(() => localStorage.getItem(ADVANCED_STORAGE_KEY) === 'true')
@@ -293,6 +303,11 @@ function App() {
   useEffect(() => {
     localStorage.setItem(SUIVI_STORAGE_KEY, String(suiviEnabled))
   }, [suiviEnabled])
+
+  // Nettoyage de la clé historique (ancien défaut « décoché »), une seule fois au chargement.
+  useEffect(() => {
+    localStorage.removeItem(LEGACY_SUIVI_STORAGE_KEY)
+  }, [])
 
   useEffect(() => {
     localStorage.setItem(ADVANCED_STORAGE_KEY, advanced ? 'true' : 'false')
@@ -845,7 +860,7 @@ function App() {
               </label>
               <label
                 className="guard-toggle"
-                title="À la fin d'une conversation, préparer le dossier de suivi et l'envoyer au conseiller (le brouillon d'email client est joint, jamais envoyé au client)"
+                title="À la fin d'une conversation, préparer le dossier de suivi et l'envoyer au conseiller (le brouillon d'email client est joint, jamais envoyé au client) — coché par défaut"
               >
                 <input
                   type="checkbox"
@@ -919,6 +934,9 @@ function App() {
               <a className="icon-button logs-link" href="#/advisor-feedback" target="_blank" rel="noopener noreferrer" title="Feedback Conseillers">
                 <UserCheck size={20} />
               </a>
+              <a className="icon-button logs-link" href="#/prompt-lab" target="_blank" rel="noopener noreferrer" title="Atelier d'optimisation des prompts">
+                <Sparkles size={20} />
+              </a>
               <a className="icon-button logs-link" href="#/logs" target="_blank" rel="noopener noreferrer" title="Logs des appels IA">
                 <Settings size={20} />
               </a>
@@ -944,7 +962,7 @@ function App() {
           </label>
           <label
             className="guard-toggle"
-            title="Préparer et envoyer le dossier de suivi au conseiller à la clôture"
+            title="Préparer et envoyer le dossier de suivi au conseiller à la clôture — coché par défaut"
           >
             <input
               type="checkbox"

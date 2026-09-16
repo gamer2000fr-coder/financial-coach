@@ -2,8 +2,8 @@
 
 Tu dois implémenter dans l’application Coach Financier existante un nouveau module permettant d’améliorer automatiquement et progressivement les prompts des agents métier grâce à deux agents IA spécialisés :
 
-- Agent A : Prompt Editor / éditeur de prompt ;
-- Agent B : Prompt Controller / contrôleur qualité.
+- Agent A : Prompt Editor / éditeur de prompt ; le prompt de l'agent a est /prompt/agent_a.md
+- Agent B : Prompt Controller / contrôleur qualité. le prompt de l'agent b est /prompt/agent_b.md
 
 Le système doit permettre de lancer une campagne d’optimisation sur un agent métier existant, par exemple :
 - agent générique ;
