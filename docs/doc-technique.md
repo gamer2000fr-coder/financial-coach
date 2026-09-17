@@ -155,7 +155,7 @@ model/
 | `AgentFiles` | Lecture de `agents.json` et du prompt système de l'agent actif |
 | `CoachContextBuilder` | Construit le contexte complet d'un message (synthèse, projet, crédits, catalogue filtré, restriction, `providedData`, debug) — **extrait de `ChatController`** pour être réutilisable et testable, et pour que l'atelier puisse construire **exactement** le même contexte |
 | `PromptZoneService` | Zone éditable `[[[ … ]]]` : détection, validation (zone unique, non vide, délimiteurs interdits dans la zone), recomposition `prefix + zone + suffix`, empreinte SHA-256 |
-| `PromptOptimizationService` | **Atelier** : démarre une campagne (snapshot figé), exécute une itération (Coach → Agent B → Agent A → validation backend), gère STOP/reprise/avis humain/versions retenues, et **promotion** en production |
+| `PromptOptimizationService` | **Atelier** : démarre une campagne (snapshot figé), exécute une itération (Coach → Agent B → Agent A → validation backend), gère STOP/reprise/avis humain, et **promotion** en production |
 | `PromptOptimizationStore` | Persistance de l'atelier (JSON/JSONL, écriture atomique, verrou par campagne, redémarrage sans perte) |
 | `AgentPromptHistoryStore` | Sauvegarde du prompt **avant** promotion + index chronologique (rollback) |
 | `ConversationClosureService` | **Fin de conversation** : construit le dossier de suivi (agent `suivi.txt`), valide les produits/URLs, envoie **un seul** email au conseiller avec le brouillon client en pièce jointe, journalise la tentative, puis persiste les événements marketing |
@@ -217,9 +217,11 @@ server.port: ${SERVER_PORT:9797}
 app.data.dir: ${DATA_DIR:./data}
 app.data.banking-file: ${BANKING_FILE:./data/banking_demo_normalized.json}
 app.ai.openai.model: ${OPENAI_MODEL:gpt-4o-mini}
+app.ai.openai.max-tokens: ${OPENAI_MAX_TOKENS:16384}   # plafond de sortie (maximum du modèle)
 app.ai.deepseek.base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
 app.ai.deepseek.api-key: ${DEEPSEEK_API_KEY:}
 app.ai.deepseek.model: ${DEEPSEEK_MODEL:deepseek-chat}
+app.ai.deepseek.max-tokens: ${DEEPSEEK_MAX_TOKENS:8192}  # maximum de deepseek-chat (défaut fournisseur : 4096)
 app.ai.synthesis-file: ${SYNTHESIS_FILE:./data/synthese_financier.json}
 cascade: true          # activation de la jointure des fichiers cascade
 # --- Fin de conversation (dossier de suivi) ---
@@ -304,11 +306,11 @@ app.prompt-optimization.hash-salt: ${PROMPT_OPT_HASH_SALT:…}
 | GET | `/api/advisor-feedback/status`, `/candidates`, `/sessions/{id}`, `/overview`, `/issues`, `/products`, `/email-quality`, `/trends`, `/report`, `/export/summary.csv` | **Module Feedback Conseiller** (paramètres `period`, `from`, `to`, `assessment`, `area`, `productId`, `emailAssessment`) |
 | POST | `/api/advisor-feedback/report/generate`, `/batch`, `/demo-data` | Bouton « Générer l'analyse IA », batch quotidien, jeu de démonstration |
 | GET | `/api/prompt-optimization/agents` | **Atelier** : agents + zones optimisables, `enabled`, `demoMode`, `maxIterations` |
-| GET | `/api/prompt-optimization/campaigns` | Liste des campagnes (état, compteurs, versions retenues) — **non utilisée par l'IHM** |
+| GET | `/api/prompt-optimization/campaigns` | Liste des campagnes (état, compteurs) — **non utilisée par l'IHM** |
 | POST | `/api/prompt-optimization/campaigns` | Démarre une campagne `{agentId, question, iterations, zoneKey, provider, controllerProvider, editorProvider}` → snapshot figé + `RUNNING` |
 | GET | `/api/prompt-optimization/campaigns/{id}` | Vue complète : campagne + snapshot + itérations + versions + avis |
 | POST | `/api/prompt-optimization/campaigns/{id}/iterate` | Exécute **une** itération (Coach → Agent B → Agent A → validation) |
-| POST | `/api/prompt-optimization/campaigns/{id}/stop` \| `/resume` \| `/retain` \| `/promote` \| `/reject` \| `/feedback` | Ajustements et décisions humaines (arrêt gracieux, reprise avec `additionalIterations`, version retenue, **promotion**, refus, avis) |
+| POST | `/api/prompt-optimization/campaigns/{id}/stop` \| `/resume` \| `/promote` \| `/reject` \| `/feedback` | Ajustements et décisions humaines (arrêt gracieux, reprise avec `additionalIterations`, **promotion**, refus, avis) |
 | GET | `/api/prompt-optimization/campaigns/{id}/versions` \| `/compare` \| `/usage` | Versions, comparaison initiale ↔ courante, compteurs (itérations, appels IA, caractères, durée) | 
 | GET | `/api/health` | Healthcheck (expose le fournisseur par défaut) |
 
@@ -586,21 +588,32 @@ flowchart LR
 ### 12.1 Robustesse du parsing des réponses de modèle
 
 Les modèles produisent régulièrement du JSON **imparfait** : retours à la ligne BRUTS dans une chaîne (un texte de
-plusieurs paragraphes suffit), tabulations, virgule finale, ou encadrement Markdown ```` ```json ````. Sans tolérance,
-tout l'appel échoue — c'était le défaut observé sur l'étape COACH d'une campagne :
-`Réponse IA invalide: Illegal unquoted character ((CTRL-CHAR, code 10)): has to be escaped using backslash`.
+plusieurs paragraphes suffit), tabulations, virgule finale, encadrement Markdown ```` ```json ````, ou réponse
+**tronquée** (le modèle s'arrête en plein milieu). Sans tolérance, tout l'appel échoue — deux défauts observés sur
+l'étape COACH d'une campagne :
 
-Deux protections, appliquées à **tous** les points de parsing (chat, suivi, marketing, qualité, feedback conseiller,
+- `Réponse IA invalide: Illegal unquoted character ((CTRL-CHAR, code 10)): has to be escaped using backslash` ;
+- `Réponse IA invalide: Unexpected end-of-input: expected close marker for Object (… line: 1, column: 2321)`.
+
+Quatre protections, appliquées à **tous** les points de parsing (chat, suivi, marketing, qualité, feedback conseiller,
 contrôleur, éditeur) :
 
 - `JacksonConfig` construit son `ObjectMapper` sur une `JsonFactory` tolérante :
   `ALLOW_UNESCAPED_CONTROL_CHARS` (retours à la ligne / tabulations bruts) et `ALLOW_TRAILING_COMMA` ;
   `FAIL_ON_UNKNOWN_PROPERTIES=false` reste appliqué (catalogues et rapports évolutifs) ;
-- `RemoteAIService.stripCodeFence(...)` retire un éventuel encadrement Markdown avant le parsing (appliqué
-dans `call(...)`, donc en un seul point pour les 8 points de parsing).
+- `RemoteAIService.stripCodeFence(...)` retire un éventuel encadrement Markdown avant le parsing ;
+- `ai/JsonRepair.repair(...)` répare une réponse TRONQUÉE : referme la chaîne en cours et les structures
+  ouvertes, et à défaut **abandonne le dernier membre incomplet** (le texte d'origine est renvoyé si rien n'est
+  réparable, donc aucune erreur n'est masquée) — le type de sortie attendu reste alors inchangé ;
+- un plafond de sortie explicite par fournisseur (`app.ai.*.max-tokens`) : le laisser implicite faisait tomber
+  DeepSeek sur son défaut de 4096.
+
+La troncature reste **TRACÉE** : `finish_reason` et la longueur reçue sont journalisés (`[IA] … réponse JSON
+incomplète RÉPARÉE …`), et le message d'erreur du Coach cite désormais la **fin de la réponse reçue**.
 
 Tests : `JacksonConfigTest` (4 : retour à la ligne brut, tabulation + CR, virgule finale, champ inconnu) et
-`RemoteAIServiceJsonTest` (2 : encadrement retiré, JSON simple inchangé).
+`RemoteAIServiceJsonTest` (7 : encadrement retiré, JSON simple inchangé, chaîne coupée refermée, structures
+ouvertes refermées, dernier membre incomplet abandonné, jamais de réparation inventive, guillemet échappé).
 
 ---
 
@@ -1014,7 +1027,7 @@ sequenceDiagram
         S->>S: VALIDATION backend (délimiteurs, longueur, non vide)
         S->>S: itération enregistrée (JSONL) + version Vn+1
     end
-    H->>S: COMPARER / RETENIR / PROMOUVOIR (confirmé) / REFUSER
+    H->>S: COMPARER / PROMOUVOIR (confirmé) / REFUSER
     S->>S: backup du prompt actuel puis écriture de la zone promue
 ```
 
@@ -1036,6 +1049,15 @@ sequenceDiagram
 Ordre d'autorité donné à l'Agent A : **1)** règles backend → **2)** parties protégées → **3)** décision humaine → **4)** avis humain → **5)** Agent B → **6)** ses propres choix.
 Les analyses peuvent être `null` : un diagnostic peut être abandonné en cours d'itération, et l'atelier **rejoue** alors la zone précédente (conservatrice).
 
+**Ce que reçoivent les DEUX agents** : le **contenu des fichiers réellement fournis au Coach** (`providedData` :
+fiches + URL officielles + arbres de décision + synthèse) et la liste de leurs descriptions, en plus de leurs
+entrées propres. `controllerContext` ajoute question, réponse du Coach, prompt système utilisé, zone éditable,
+synthèse financière et `additionalData` (projet, produits compatibles, engagements) ; `editorContext` ajoute la zone
+courante, le diagnostic du contrôleur, l'avis humain, `mustPreserve`, `previousChanges` et `snapshotContext`.
+Ce contenu est **indispensable** : sans lui, les agents ne peuvent que supposer et signalent comme « inventée » une
+URL officielle qui figurait dans les données (faux positif `INVENTED_URL` constaté ; même règle pour une règle
+rédigée par l'éditeur sur un produit ou une URL absents des données).
+
 ### 20.4 Contexte du Coach extrait (`CoachContextBuilder`)
 
 Le contexte du Coach vit désormais dans `CoachContextBuilder` / `CoachContext` (le `ChatController` ne fait plus que l'orchestration :
@@ -1045,7 +1067,7 @@ la campagne compare donc des prompts sur un contexte identique à celui de la co
 ### 20.5 Modèles (`PromptOptimizationModels`)
 
 - Diagnostics tolérants : statuts, sévérités, **origines** (`PROMPT`, `DATA`, `BACKEND_RULE`, `MODEL_VARIABILITY`, `UNKNOWN`) et 19 types d'anomalies normalisés avec repli prudent (jamais d'exception sur une réponse IA imparfaite).
-- `PromptVersion(version, editableSection, promptHash, iterationNumber)`, `Iteration` (réponse, diagnostic, édition, résultat, statut, erreur, durée), `HumanFeedback`, `Snapshot` (tout ce qui est figé + hashes), `Campaign` (état, compteurs, versions retenues, promotion).
+- `PromptVersion(version, editableSection, promptHash, iterationNumber)`, `Iteration` (réponse, diagnostic, édition, résultat, statut, erreur, durée), `HumanFeedback`, `Snapshot` (tout ce qui est figé + hashes), `Campaign` (état, compteurs, promotion).
 - `MAX_ITERATIONS = 50` (plafond dur) ; le nombre demandé est **cumulatif** (une reprise l'augmente, elle ne le remplace pas).
 
 ### 20.6 Persistance (`PromptOptimizationStore`) et historique
@@ -1087,13 +1109,11 @@ Un `STOP` arrivé **pendant** les appels IA n'est jamais perdu : l'itération en
 
 - Un **avis humain** est prioritaire : il est appliqué par l'Agent A (`editions.jsonl`) avant le prochain appel au Coach, et son application est tracée (`humanFeedbackApplied`).
 - **STOP** = arrêt **gracieux** (aucune coupure d'appel) ; la campagne devient `PAUSED`.
-- **REPRENDRE** accepte `PAUSED`, `STOP_REQUESTED` et **`COMPLETED`** et peut **prolonger** le cycle (`additionalIterations`, **borné au reste disponible** : `maxIterations − requestedIterations`) : les itérations réalisées sont conservées. L'IHM propose un champ *Itérations supplémentaires* (défaut 3) dont la valeur est reportée sur le libellé des boutons et affichée avec le plafond cumulé (`déjà demandées : X, encore possible : Y`).
+- **REPRENDRE** accepte `PAUSED`, `STOP_REQUESTED` et **`COMPLETED`** et peut **prolonger** le cycle (`additionalIterations`, **borné au reste disponible** : `maxIterations − requestedIterations`) : les itérations réalisées sont conservées. Le champ *Itérations supplémentaires à ajouter au cycle* (défaut 3) est visible **dès que la campagne ne tourne plus** (PAUSED / COMPLETED / ERROR), avec le plafond cumulé affiché (`déjà demandées : X, encore possible : Y`) ; il alimente les deux boutons de reprise (`Ajouter mon avis et continuer (+n)` et **`CONTINUER SANS AVIS (+n)`**).
+- Prolonger un cycle **déjà terminé** ne demande donc PAS d'avis : `CONTINUER SANS AVIS (+n)` appelle directement `resume(additionalIterations)` ; `AJOUTER MON AVIS ET CONTINUER` ouvre le formulaire pour donner un avis en plus.
+- Le bouton de reprise transmet un avis **déjà saisi mais non enregistré** (`POST /feedback`) avant de reprendre : le texte de l'utilisateur n'est jamais perdu.
 - Le bouton **« Enregistrer et reprendre (+n) »** ENREGISTRE d'abord l'avis (`POST /feedback`) **puis** reprend : l'ordre est essentiel, sinon le texte saisi serait perdu.
-- Plusieurs versions peuvent être **retenues** (★) sans être promues ; les versions restent consultables avec leur prompt complet.
-  « Retenir » est un repère **purement indicatif et réversible** (`unretain`) : il ne bloque JAMAIS la promotion —
-  les deux actions sont indépendantes et proposées côte à côte (tableau des versions ET bloc d'itération).
-  « Retenir » est un repère **purement indicatif et réversible** (`unretain`) : il ne bloque JAMAIS la promotion
-  (les deux actions sont indépendantes et proposées côte à côte).
+- Toutes les versions restent **consultables** avec leur prompt complet ; la seule décision sur une version est la **promotion** (les repères intermédiaires ont été retirés : rien ne doit suggérer un effet sur la production).
 
 ### 20.10 Promotion (§17) et retour arrière
 
@@ -1122,11 +1142,10 @@ sans ces champs retombe sur le fournisseur du coach (constructeurs compacts de `
 - Distinction permanente **production** (fichier + version de base) vs **candidat de campagne**.
 - Progression (état, _n / N_, réalisées/restantes, appels IA, caractères, durée) et barre de progression.
 - Actions selon l'état : STOP, « Ajouter mon avis », REPRENDRE, « Ajouter mon avis et continuer », COMPARER, REFUSER.
-- Versions : « Voir le prompt » (la **zone modifiable** est affichée directement ; le **prompt complet** — parties protégées + zone surlignée — est **replié par défaut** derrière un bouton *Afficher / Masquer le prompt complet*), « Changements » (**diff LCS maison**, seules les lignes modifiées et 2 lignes de contexte), « Retenir », « Promouvoir » (confirmation explicite).
-- Les boutons suivent l'**état réel** : la version de production n'est ni « retenable » ni « promouvable » (sans effet) ;
+- Versions : « Voir le prompt » (la **zone modifiable** est affichée directement ; le **prompt complet** — parties protégées + zone surlignée — est **replié par défaut** derrière un bouton *Afficher / Masquer le prompt complet*), « Changements » (**diff LCS maison**, seules les lignes modifiées et 2 lignes de contexte), « Promouvoir » (confirmation explicite).
+- Les boutons suivent l'**état réel** : la version de production n'est ni modifiable ni promouvable (sans effet) ;
   « Changements Vn → Vn+1 » (et « Voir le prompt produit ») n'apparaît que si l'Agent A a réellement produit une
-  nouvelle version — une itération « sans modification » ne propose donc jamais un diff `Vn → Vn` ; une version
-  déjà retenue est signalée par `★ Vn retenue` au lieu d'un bouton inutile.
+  nouvelle version — une itération « sans modification » ne propose donc jamais un diff `Vn → Vn`.
 - Itérations (plus récentes d'abord) : réponse du Coach, résumé Agent B, analyse complète dépliable (points à améliorer avec sévérité et **origine**, à préserver, recommandation, points non résolus), avis humains distincts.
 - Les panneaux de détail (prompt d'une version, changements, confirmation de promotion) s'affichent **là où ils ont
   été demandés** : sous le bloc d'itération concerné, ou sous le tableau des versions si l'action vient du tableau
@@ -1141,7 +1160,7 @@ sans ces champs retombe sur le fournisseur du coach (constructeurs compacts de `
 | `AgentFilesPromptTest` (8) | Composition pure du prompt système, `[agent_principal]` / `[agent]`, retrait des marqueurs, repli sans fichier |
 | `PromptOptimizationModelsTest` (8) | Normalisation tolérante des diagnostics et des statuts |
 | `PromptOptimizationStoreTest` (14) | Écriture atomique, append-only, ids invalides refusés, redémarrage, verrou concurrent, `promotion` refusée si état illisible |
-| `PromptOptimizationServiceTest` (22) | Snapshot figé, déroulé d'une itération, **repli quand un diagnostic est manquant**, proposition hors zone rejetée (version conservée), STOP pendant l'appel + reprise, avis humain appliqué, versions retenues, refus de promotion, fins de ligne préservées, `zones()` |
+| `PromptOptimizationServiceTest` (34) | Snapshot figé, déroulé d'une itération, **repli quand un diagnostic est manquant**, proposition hors zone rejetée (version conservée), STOP pendant l'appel + reprise, avis humain appliqué, refus de promotion, fins de ligne préservées, `zones()`, **un fournisseur par étape** |
 | `AgentPromptHistoryStoreTest` (5) | Sauvegarde + relecture, index chronologique, `latestFor` non périmé |
 | `RemoteAIServicePromptResolutionTest` (4) | Le prompt **figé** gagne sur le disque ; repli sur le prompt d'agent sinon |
 | `MockAIServiceAtelierTest` (2) | Refus explicite de l'atelier en mode MOCK |

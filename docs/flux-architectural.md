@@ -292,7 +292,7 @@ flowchart TD
     VAL -- refusée --> KEEP["Version CONSERVÉE<br/>échec enregistré et expliqué"]
     VAL -- acceptée --> VN["Version Vn+1<br/>parties protégées identiques"]
     VN --> LOOP
-    LOOP --> DEC["Décision HUMAINE<br/>comparer · retenir · refuser"]
+    LOOP --> DEC["Décision HUMAINE<br/>comparer · promouvoir · refuser"]
     DEC --> PROMO["Promotion explicite<br/>sauvegarde du prompt actuel puis écriture de la zone"]
     HUMAN["Avis humain<br/>(prioritaire)"] -.-> A
 ```

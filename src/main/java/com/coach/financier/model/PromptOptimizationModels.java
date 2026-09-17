@@ -562,12 +562,12 @@ public final class PromptOptimizationModels {
         }
     }
 
-    /** CAMPAGNE d'optimisation (§38) : machine d'état, compteurs et versions retenues. */
+    /** CAMPAGNE d'optimisation (§38) : machine d'état, compteurs et fournisseurs par étape. */
     public record Campaign(String campaignId, String agentId, String agentLibelle,
                            String zoneKey, String zoneFile, String status, String question,
                            int requestedIterations, int completedIterations, int maxIterations,
                            String snapshotId, String basePromptVersion, String currentCandidateVersion,
-                           List<String> retainedVersions, String promotedVersion,
+                           String promotedVersion,
                            String provider, String controllerProvider, String editorProvider, String model,
                            int aiCalls, long totalPromptChars, long totalDurationMs,
                            String stopRequestedAt, String pausedAt,
@@ -585,7 +585,6 @@ public final class PromptOptimizationModels {
             maxIterations = maxIterations <= 0 ? MAX_ITERATIONS : Math.min(maxIterations, MAX_ITERATIONS);
             basePromptVersion = basePromptVersion == null ? "V0" : basePromptVersion;
             currentCandidateVersion = currentCandidateVersion == null ? basePromptVersion : currentCandidateVersion;
-            retainedVersions = cleanList(retainedVersions);
             promotedVersion = promotedVersion == null ? "" : promotedVersion;
             provider = provider == null ? "" : provider;
             // Campagne antérieure au routage des fournisseurs : repli sur le fournisseur du Coach.
@@ -622,13 +621,13 @@ public final class PromptOptimizationModels {
                         String zoneKey, String zoneFile, String status, String question,
                         int requestedIterations, int completedIterations, int maxIterations,
                         String snapshotId, String basePromptVersion, String currentCandidateVersion,
-                        List<String> retainedVersions, String promotedVersion,
+                        String promotedVersion,
                         String provider, String model, int aiCalls, long totalPromptChars, long totalDurationMs,
                         String stopRequestedAt, String pausedAt,
                         String error, String errorStep, String createdAt, String updatedAt) {
             this(campaignId, agentId, agentLibelle, zoneKey, zoneFile, status, question, requestedIterations,
                     completedIterations, maxIterations, snapshotId, basePromptVersion, currentCandidateVersion,
-                    retainedVersions, promotedVersion, provider, provider, provider, model, aiCalls,
+                    promotedVersion, provider, provider, provider, model, aiCalls,
                     totalPromptChars, totalDurationMs, stopRequestedAt, pausedAt, error, errorStep, createdAt, updatedAt);
         }
 
@@ -645,7 +644,7 @@ public final class PromptOptimizationModels {
         public Campaign withRequestedIterations(int total) {
             return new Campaign(campaignId, agentId, agentLibelle, zoneKey, zoneFile, status, question,
                     Math.min(total, maxIterations), completedIterations, maxIterations, snapshotId,
-                    basePromptVersion, currentCandidateVersion, retainedVersions, promotedVersion,
+                    basePromptVersion, currentCandidateVersion, promotedVersion,
                     provider, controllerProvider, editorProvider, model,
                     aiCalls, totalPromptChars, totalDurationMs, stopRequestedAt, pausedAt, error, errorStep,
                     createdAt, java.time.Instant.now().toString());

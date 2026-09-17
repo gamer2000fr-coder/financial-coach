@@ -66,7 +66,7 @@ class PromptOptimizationStoreTest {
         return new PromptOptimizationModels.Campaign(id, "credit_conso", "Crédit à la consommation",
                 PromptOptimizationModels.ZONE_AGENT, "credit-conso.txt",
                 PromptOptimizationModels.CAMPAIGN_RUNNING, "Je veux financer une voiture à 15000 euros",
-                5, 0, 50, "snap-1", "V0", "V0", List.of(), "",
+                5, 0, 50, "snap-1", "V0", "V0", "",
                 "DEEPSEEK", "deepseek-chat", 0, 0L, 0L, "", "", "", "",
                 "2026-09-16T10:00:00Z", "2026-09-16T10:00:00Z");
     }
@@ -297,7 +297,7 @@ class PromptOptimizationStoreTest {
         var done = new PromptOptimizationModels.Campaign("camp-1", "credit_conso", "Crédit à la consommation",
                 PromptOptimizationModels.ZONE_AGENT, "credit-conso.txt",
                 PromptOptimizationModels.CAMPAIGN_COMPLETED, "question", 10, 10, 50, "snap-1", "V0", "V10",
-                List.of("V3"), "", "DEEPSEEK", "deepseek-chat", 30, 100L, 200L, "", "", "", "",
+                "", "DEEPSEEK", "deepseek-chat", 30, 100L, 200L, "", "", "", "",
                 "2026-09-16T10:00:00Z", "2026-09-16T10:30:00Z");
         assertEquals(0, done.remainingIterations());
         assertTrue(done.requestedIterationsDone());
@@ -306,14 +306,13 @@ class PromptOptimizationStoreTest {
                 "« continuer » ajoute un cycle au compteur CUMULÉ");
         assertEquals(50, done.withRequestedIterations(999).requestedIterations(),
                 "le plafond cumulé de 50 itérations est infranchissable");
-        assertEquals(List.of("V3"), done.retainedVersions());
     }
 
     @Test
     void unreadableCampaignStatusIsNeverRunning() {
         var campaign = new PromptOptimizationModels.Campaign("camp-1", "credit_conso", "libelle",
                 PromptOptimizationModels.ZONE_AGENT, "credit-conso.txt", "n'importe quoi", "question",
-                5, 0, 50, "snap-1", "V0", "V0", List.of(), "", "DEEPSEEK", "modele", 0, 0L, 0L,
+                5, 0, 50, "snap-1", "V0", "V0", "", "DEEPSEEK", "modele", 0, 0L, 0L,
                 "", "", "", "", "2026-09-16T10:00:00Z", "2026-09-16T10:00:00Z");
 
         assertEquals(PromptOptimizationModels.CAMPAIGN_ERROR, campaign.status());
@@ -331,7 +330,7 @@ class PromptOptimizationStoreTest {
         store.saveCampaign(new PromptOptimizationModels.Campaign("camp-1", "credit_conso",
                 "Crédit à la consommation", PromptOptimizationModels.ZONE_AGENT, "credit-conso.txt",
                 PromptOptimizationModels.CAMPAIGN_PAUSED, "Je veux financer une voiture à 15000 euros",
-                10, 1, 50, "snap-1", "V0", "V1", List.of("V0"), "", "DEEPSEEK", "deepseek-chat",
+                10, 1, 50, "snap-1", "V0", "V1", "", "DEEPSEEK", "deepseek-chat",
                 3, 12345L, 4200L, "2026-09-16T10:02:00Z", "2026-09-16T10:02:05Z", "", "",
                 "2026-09-16T10:00:00Z", "2026-09-16T10:02:05Z"));
 
@@ -348,7 +347,6 @@ class PromptOptimizationStoreTest {
         assertEquals(9, campaign.remainingIterations());
         assertEquals(PromptOptimizationModels.CAMPAIGN_PAUSED, campaign.status(), "reprise depuis PAUSED");
         assertEquals("V1", campaign.currentCandidateVersion());
-        assertEquals(List.of("V0"), campaign.retainedVersions());
         assertEquals(1, reopened.iterations("camp-1").values().size());
         assertEquals(2, reopened.versions("camp-1").size(), "V0 (snapshot) + V1 (itération 1)");
         assertEquals(AIModels.AIProvider.DEEPSEEK, AIModels.AIProvider.valueOf(campaign.provider()));

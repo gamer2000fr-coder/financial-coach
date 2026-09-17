@@ -19,7 +19,8 @@ class RemoteAIServicePromptResolutionTest {
     /** Sous-classe minimale : le constructeur construit le client HTTP avec ses timeouts. */
     private static final class Probe extends RemoteAIService {
         Probe() {
-            super(new ObjectMapper(), "http://localhost:1", "cle-de-test", "modele-de-test", "Test");
+            super(new ObjectMapper(), "http://localhost:1", "cle-de-test", "modele-de-test", "Test",
+                    RemoteAIService.DEFAULT_MAX_OUTPUT_TOKENS);
         }
     }
 

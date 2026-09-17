@@ -373,6 +373,34 @@ class PromptOptimizationServiceTest {
     }
 
     @Test
+    void agentBReceivesTheContentOfTheDataProvidedToTheCoach() throws Exception {
+        ai.needsDataPaths = List.of("/data/catalogue/credit_conso.json");
+        var campaign = service.start(new StartRequest("credit_conso", QUESTION, 1, null, AIModels.AIProvider.DEEPSEEK));
+
+        service.iterate(campaign.campaignId());
+
+        Map<String, Object> context = ai.lastControllerContext;
+        assertNotNull(context, "Agent B a bien été appelé");
+        List<?> provided = (List<?>) context.get("providedData");
+        assertNotNull(provided, "le contenu des données fournies est transmis au contrôleur");
+        assertFalse(provided.isEmpty(), "au moins la fiche de l'agent est fournie");
+        String flattened = new ObjectMapper().writeValueAsString(provided);
+        assertTrue(flattened.contains("particuliers.sg.fr"),
+                "Agent B peut vérifier les URL officielles avant de crier à l'invention (faux positif signalé)");
+        assertEquals(provided.size(), ((List<?>) context.get("providedDataDescriptions")).size(),
+                "les descriptions restent disponibles pour nommer les fichiers fournis");
+
+        // MÊME PARITÉ pour l'ÉDITEUR : il écrit des règles applicables aux données réelles.
+        Map<String, Object> editorContext = ai.lastEditorContext;
+        assertNotNull(editorContext, "Agent A a bien été appelé");
+        List<?> editorProvided = (List<?>) editorContext.get("providedData");
+        assertNotNull(editorProvided, "le contenu des données fournies est aussi transmis à l'éditeur");
+        assertEquals(provided.size(), editorProvided.size(), "mêmes données que le contrôleur");
+        assertTrue(new ObjectMapper().writeValueAsString(editorProvided).contains("particuliers.sg.fr"),
+                "l'éditeur peut vérifier l'existence des produits et URL officielles");
+    }
+
+    @Test
     void theContextIsCompletedWhenTheCoachAsksForAllowedDataThenAgentBJudgesTheClientAnswer() {
         ai.needsDataPaths = List.of("/data/catalogue/credit_conso.json");
         var campaign = service.start(new StartRequest("credit_conso", QUESTION, 1, null, AIModels.AIProvider.DEEPSEEK));
@@ -417,27 +445,6 @@ class PromptOptimizationServiceTest {
     }
 
     // --- Décisions humaines -------------------------------------------------------------------------
-
-    @Test
-    void retainIsIdempotentAndSortedByVersion() {
-        var campaign = service.start(new StartRequest("credit_conso", QUESTION, 2, null, AIModels.AIProvider.DEEPSEEK));
-        String campaignId = campaign.campaignId();
-        service.iterate(campaignId);
-        service.iterate(campaignId);
-
-        service.retain(campaignId, "V2");
-        service.retain(campaignId, "V1");
-        var retained = service.retain(campaignId, "V2").retainedVersions();
-
-        assertEquals(List.of("V1", "V2"), retained, "plusieurs versions peuvent être retenues et l'ordre est stable");
-        assertThrows(IllegalArgumentException.class, () -> service.retain(campaignId, "V9"));
-
-        // « Retenir » est un simple repère : il doit pouvoir être défait sans rien perdre.
-        assertTrue(service.unretain(campaignId, "V1").retainedVersions().equals(List.of("V2")));
-        assertTrue(service.unretain(campaignId, "V1").retainedVersions().equals(List.of("V2")),
-                "retirer deux fois n'a pas d'effet supplémentaire");
-        assertEquals(3, service.versions(campaignId).size(), "aucune version n'est perdue");
-    }
 
     @Test
     void promotionRefusesAnUnknownVersionAndAnActiveCampaign() {
@@ -772,6 +779,10 @@ class PromptOptimizationServiceTest {
         Runnable duringCoachCall;
         /** Fichiers que le Coach demande au PREMIER appel (vide = réponse directe). */
         List<String> needsDataPaths = List.of();
+        /** Contexte exact transmis à Agent B (contrôleur) au dernier appel. */
+        Map<String, Object> lastControllerContext;
+        /** Contexte exact transmis à Agent A (éditeur) au dernier appel. */
+        Map<String, Object> lastEditorContext;
         int coachCalls;
         int controllerCalls;
         int editorCalls;
@@ -831,6 +842,7 @@ class PromptOptimizationServiceTest {
         public PromptOptimizationModels.ControllerFeedback reviewCoachAnswer(Map<String, Object> context,
                                                                             AIModels.AIProvider provider) {
             controllerCalls++;
+            lastControllerContext = context;
             if (controllerFailure != null) {
                 throw controllerFailure;
             }
@@ -841,6 +853,7 @@ class PromptOptimizationServiceTest {
         public PromptOptimizationModels.EditorResult editPromptSection(Map<String, Object> context,
                                                                       AIModels.AIProvider provider) {
             editorCalls++;
+            lastEditorContext = context;
             if (editorFailure != null) {
                 throw editorFailure;
             }

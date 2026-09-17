@@ -17,7 +17,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -208,13 +207,13 @@ public class PromptOptimizationService {
                 agent.getTheme(), AgentFiles.libelleFor(agent.getTheme()), zoneInfo.zoneKey(), zoneInfo.zoneFile(),
                 PromptOptimizationModels.CAMPAIGN_CREATED, question, request.iterations(), 0, properties.maxIterations(),
                 snapshotId, PromptOptimizationModels.versionName(0), PromptOptimizationModels.versionName(0),
-                List.of(), "", providerName, controllerProvider.name(), editorProvider.name(), "", 1, 0L, 0L,
+                "", providerName, controllerProvider.name(), editorProvider.name(), "", 1, 0L, 0L,
                 "", "", "", "",
                 Instant.now().toString(), Instant.now().toString());
         store.create(campaign, snapshot);
         PromptOptimizationModels.Campaign running = store.saveCampaignAndReturn(update(campaign,
                 PromptOptimizationModels.CAMPAIGN_RUNNING, campaign.completedIterations(),
-                campaign.currentCandidateVersion(), campaign.retainedVersions(), campaign.aiCalls(), 0L, 0L,
+                campaign.currentCandidateVersion(), campaign.aiCalls(), 0L, 0L,
                 "", "", "", "", null));
         log.info("Campagne {} démarrée : agent={}, zone={}, itérations demandées={}, fournisseurs={} (coach) / {} (Agent B) / {} (Agent A)",
                 campaignId, agent.getTheme(), zoneInfo.zoneFile(), request.iterations(), provider,
@@ -368,7 +367,7 @@ public class PromptOptimizationService {
         boolean paused = PromptOptimizationModels.CAMPAIGN_PAUSED.equals(campaignStatus);
         boolean failed = PromptOptimizationModels.CAMPAIGN_ERROR.equals(campaignStatus);
         store.saveCampaignAndReturn(update(latest, campaignStatus, number, resultingVersion,
-                latest.retainedVersions(), latest.aiCalls() + aiCalls, promptChars, duration,
+                latest.aiCalls() + aiCalls, promptChars, duration,
                 failed ? error : "", failed ? step : "",
                 PromptOptimizationModels.CAMPAIGN_STOP_REQUESTED.equals(campaignStatus) ? Instant.now().toString()
                         : latest.stopRequestedAt(),
@@ -411,7 +410,7 @@ public class PromptOptimizationService {
         String status = inFlight ? PromptOptimizationModels.CAMPAIGN_STOP_REQUESTED
                 : PromptOptimizationModels.CAMPAIGN_PAUSED;
         return store.saveCampaignAndReturn(update(campaign, status, campaign.completedIterations(),
-                campaign.currentCandidateVersion(), campaign.retainedVersions(), campaign.aiCalls(), 0L, 0L,
+                campaign.currentCandidateVersion(), campaign.aiCalls(), 0L, 0L,
                 "", "",
                 inFlight ? Instant.now().toString() : campaign.stopRequestedAt(),
                 inFlight ? campaign.pausedAt() : Instant.now().toString(), null));
@@ -452,7 +451,7 @@ public class PromptOptimizationService {
             PromptOptimizationModels.Campaign base = additional > 0
                     ? campaign.withRequestedIterations(total) : campaign;
             return store.saveCampaignAndReturn(update(base, PromptOptimizationModels.CAMPAIGN_RUNNING,
-                    base.completedIterations(), version, base.retainedVersions(),
+                    base.completedIterations(), version,
                     base.aiCalls() + (pending.isPresent() ? 1 : 0), 0L, 0L, "", "",
                     base.stopRequestedAt(), "", null));
         });
@@ -515,40 +514,6 @@ public class PromptOptimizationService {
         return feedback;
     }
 
-    /** Marque une version comme RETENUE (§16) : plusieurs versions peuvent l'être, la dernière n'est pas la meilleure. */
-    public PromptOptimizationModels.Campaign retain(String campaignId, String version) {
-        PromptOptimizationModels.Campaign campaign = store.require(campaignId);
-        if (store.editableSectionOf(campaignId, version).isEmpty()) {
-            throw new IllegalArgumentException("Version inconnue : " + version);
-        }
-        if (campaign.retainedVersions().contains(version)) {
-            return campaign;
-        }
-        List<String> retained = new ArrayList<>(campaign.retainedVersions());
-        retained.add(version);
-        retained.sort(Comparator.comparingInt(PromptOptimizationModels::versionNumber));
-        return store.saveCampaignAndReturn(update(campaign, campaign.status(), campaign.completedIterations(),
-                campaign.currentCandidateVersion(), retained, campaign.aiCalls(), 0L, 0L, "", "",
-                campaign.stopRequestedAt(), campaign.pausedAt(), null));
-    }
-
-    /**
-     * Retire une version de la SÉLECTION (§16). « Retenir » est un simple repère de comparaison : il ne
-     * touche JAMAIS la production et n'enlève donc rien — un repère doit pouvoir être défait. La version
-     * reste évidemment consultable (aucune donnée n'est supprimée). Idempotent.
-     */
-    public PromptOptimizationModels.Campaign unretain(String campaignId, String version) {
-        PromptOptimizationModels.Campaign campaign = store.require(campaignId);
-        if (!campaign.retainedVersions().contains(version)) {
-            return campaign;
-        }
-        List<String> retained = new ArrayList<>(campaign.retainedVersions());
-        retained.remove(version);
-        return store.saveCampaignAndReturn(update(campaign, campaign.status(), campaign.completedIterations(),
-                campaign.currentCandidateVersion(), retained, campaign.aiCalls(), 0L, 0L, "", "",
-                campaign.stopRequestedAt(), campaign.pausedAt(), null));
-    }
-
     /**
      * PROMOTION (§17) : action HUMAINE explicite. Le prompt ACTUEL est sauvegardé avant remplacement
      * (retour arrière possible), puis le fichier de la zone est réécrit en ne changeant QUE la zone.
@@ -597,7 +562,7 @@ public class PromptOptimizationService {
             log.info("Version {} promue pour l'agent {} (campagne {})", version, key, campaignId);
             PromptOptimizationModels.Campaign promoted = store.saveCampaignAndReturn(
                     update(campaign, PromptOptimizationModels.CAMPAIGN_ACCEPTED, campaign.completedIterations(),
-                            campaign.currentCandidateVersion(), campaign.retainedVersions(), campaign.aiCalls(),
+                            campaign.currentCandidateVersion(), campaign.aiCalls(),
                             0L, 0L, "", "", campaign.stopRequestedAt(), campaign.pausedAt(), version));
             return new PromotionResult(promoted, backup.backupId(), backup.backupFile(),
                     "La version " + version + " remplace la zone du prompt de « " + key
@@ -612,7 +577,7 @@ public class PromptOptimizationService {
             throw new IllegalStateException("Arrêtez la campagne avant de la refuser.");
         }
         return store.saveCampaignAndReturn(update(campaign, PromptOptimizationModels.CAMPAIGN_REJECTED,
-                campaign.completedIterations(), campaign.currentCandidateVersion(), campaign.retainedVersions(),
+                campaign.completedIterations(), campaign.currentCandidateVersion(),
                 campaign.aiCalls(), 0L, 0L, "", "", campaign.stopRequestedAt(), campaign.pausedAt(), null));
     }
 
@@ -735,7 +700,7 @@ public class PromptOptimizationService {
                 continue;
             }
             store.saveCampaignAndReturn(update(other, PromptOptimizationModels.CAMPAIGN_CANCELLED,
-                    other.completedIterations(), other.currentCandidateVersion(), other.retainedVersions(),
+                    other.completedIterations(), other.currentCandidateVersion(),
                     other.aiCalls(), 0L, 0L, "", "", other.stopRequestedAt(), other.pausedAt(), null));
             log.info("Campagne précédente {} clôturée (CANCELLED) : la nouvelle campagne {} la remplace",
                     other.campaignId(), campaignId);
@@ -809,6 +774,9 @@ public class PromptOptimizationService {
         context.put("financialSummary", snapshot.financialSummary());
         context.put("additionalData", reducedAdditionalData(snapshot));
         context.put("providedDataDescriptions", descriptions(snapshot));
+        // Le CONTENU des données jointes est transmis au contrôleur : sans lui, il ne peut que SUPPOSER et
+        // signale comme « inventé » ce qui figurait dans les données (ex. URL officielle d'une fiche fournie).
+        context.put("providedData", snapshot.providedData());
         if (previous != null) {
             context.put("previousResponse", previous.coachResponse());
             context.put("previousControllerFeedback", previous.controllerFeedback());
@@ -833,6 +801,10 @@ public class PromptOptimizationService {
         context.put("mustPreserve", feedback == null ? List.of() : feedback.mustPreserve());
         context.put("previousChanges", previousChanges);
         context.put("snapshotContext", reducedAdditionalData(snapshot));
+        // MÊME PARITÉ QUE LE CONTRÔLEUR : l'éditeur voit le CONTENU des données fournies au Coach, donc il
+        // n'écrit pas de règle sur un produit, un taux ou une URL qui n'existerait pas réellement.
+        context.put("providedData", snapshot.providedData());
+        context.put("providedDataDescriptions", descriptions(snapshot));
         return context;
     }
 
@@ -1008,7 +980,7 @@ public class PromptOptimizationService {
      */
     private static PromptOptimizationModels.Campaign update(PromptOptimizationModels.Campaign campaign,
                                                             String status, int completedIterations,
-                                                            String currentVersion, List<String> retained,
+                                                            String currentVersion,
                                                             int aiCalls, long addedChars, long addedDuration,
                                                             String error, String errorStep,
                                                             String stopRequestedAt, String pausedAt,
@@ -1020,7 +992,6 @@ public class PromptOptimizationService {
                 Math.max(0, completedIterations), campaign.maxIterations(), campaign.snapshotId(),
                 campaign.basePromptVersion(),
                 currentVersion == null ? campaign.currentCandidateVersion() : currentVersion,
-                retained == null ? campaign.retainedVersions() : retained,
                 promotedVersion == null ? campaign.promotedVersion() : promotedVersion,
                 campaign.provider(), campaign.controllerProvider(), campaign.editorProvider(), campaign.model(),
                 Math.max(0, aiCalls),

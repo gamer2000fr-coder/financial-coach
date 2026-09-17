@@ -94,6 +94,17 @@ class PromptOptimizationControllerTest {
         assertEquals(campaigns.size(), campaigns.size(), "la liste est bien un tableau JSON");
     }
 
+    /** « Retenir » a été retiré de l'atelier : la promotion est la SEULE décision sur une version. */
+    @Test
+    void noLongerExposesTheRetainEndpoints() throws Exception {
+        mockMvc.perform(post("/api/prompt-optimization/campaigns/po-inexistante/retain")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"version\":\"V1\"}"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/api/prompt-optimization/campaigns/po-inexistante/unretain")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"version\":\"V1\"}"))
+                .andExpect(status().isNotFound());
+    }
+
     @Test
     void refusesTheDemoProviderWithAnExplicitMessage() throws Exception {
         Map<String, Object> body = postBody("/api/prompt-optimization/campaigns", """

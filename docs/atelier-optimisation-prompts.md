@@ -134,11 +134,9 @@ Choix structurants :
 | POST | `/api/prompt-optimization/campaigns/{id}/stop` | Arrêt gracieux |
 | POST | `/api/prompt-optimization/campaigns/{id}/resume` | Reprise `{additionalIterations}` |
 | POST | `/api/prompt-optimization/campaigns/{id}/feedback` | Avis humain `{content}` |
-| POST | `/api/prompt-optimization/campaigns/{id}/retain` | Retient une version `{version}` (repère de comparaison, réversible) |
-| POST | `/api/prompt-optimization/campaigns/{id}/unretain` | Retire une version de la sélection `{version}` |
 | POST | `/api/prompt-optimization/campaigns/{id}/promote` | **Promotion** `{version}` → `PromotionResult` |
 | POST | `/api/prompt-optimization/campaigns/{id}/reject` | Refus de la campagne |
-| GET | `/api/prompt-optimization/campaigns/{id}/versions` | Versions (retenues, promues, production) |
+| GET | `/api/prompt-optimization/campaigns/{id}/versions` | Versions (promues, production) |
 | GET | `/api/prompt-optimization/campaigns/{id}/compare` | Comparaison initiale ↔ courante (prompts + réponses) |
 | GET | `/api/prompt-optimization/campaigns/{id}/usage` | Itérations, appels IA, caractères, durée |
 
@@ -195,7 +193,7 @@ campagne est **relu** avant écriture du statut final.
 ```
 data/prompt-optimization/
   campaigns/<campaignId>/                 # campaignId = po-AAAAMMJJ-HHMMSS-XXXX
-    campaign.json                         # état, compteurs, versions retenues, promotion
+    campaign.json                         # état, compteurs, promotion
     snapshot.json                         # tout ce qui est FIGÉ (+ hashes)
     iterations.jsonl                      # 1 ligne = 1 itération (append-only, dédoublonné)
     editions.jsonl                        # zones produites par un avis humain (hors itération)
@@ -272,8 +270,16 @@ humaine. Le refus (`REJECTED`) ne supprime rien.
 
 ### Agent B — `agent/prompt_controller.txt`
 
-Sections : CONTEXTE · CE QUE TU RECOIS · CONTRÔLES À MENER (10) · À PRÉSERVER · NE PAS INVENTER DE DÉFAUT ·
-STABILITÉ · SÉVÉRITÉ · TYPES D'ANOMALIE · **ORIGINE DU PROBLÈME** · INTERDICTIONS · SORTIE.
+Sections : CONTEXTE · **VÉRIFIER AVANT DE SIGNALER UNE INVENTION** · CE QUE TU RECOIS · CONTRÔLES À MENER (10) ·
+À PRÉSERVER · NE PAS INVENTER DE DÉFAUT · STABILITÉ · SÉVÉRITÉ · TYPES D'ANOMALIE · **ORIGINE DU PROBLÈME** ·
+INTERDICTIONS · SORTIE.
+
+Ce qu'il reçoit : question figée, réponse du Coach, prompt système utilisé, zone éditable, synthèse financière,
+`additionalData` (projet, produits compatibles, engagements) et **`providedData` = le CONTENU des fichiers fournis
+au Coach** (fiches produits avec leurs URL officielles, arbres de décision, synthèse) + la liste de leurs
+descriptions. Ce contenu est **indispensable** : sans lui, Agent B ne peut pas vérifier une URL ou un produit et
+signale comme « inventé » ce qui figurait dans les données (faux positif constaté : `INVENTED_URL` sur une URL
+officielle de fiche fournie).
 
 Sortie JSON : `status` (`GOOD` / `NEEDS_IMPROVEMENT` / `BAD`), `summary`, `positivePoints[]`,
 `issues[]{type, severity, source, observation, expectedBehavior}`,
@@ -283,9 +289,15 @@ d'« améliorer » un prompt quand le problème vient des données ou d'une règ
 
 ### Agent A — `agent/prompt_editor.txt`
 
-Sections : ZONE ÉDITABLE · CE QUE TU RECOIS · **ORDRE D'AUTORITÉ** (1 règles backend → 2 parties protégées →
-3 décision humaine → 4 avis humain → 5 Agent B → 6 ses propres choix) · MÉTHODE · NE PAS MODIFIER POUR
-MODIFIER · ANTI-SURAPPRENTISSAGE · SÉPARATION DES RESPONSABILITÉS · INTERDICTIONS · FEEDBACK INJUSTIFIÉ.
+Sections : ZONE ÉDITABLE · CE QUE TU RECOIS · **DONNÉES RÉELLES AVANT D'ÉCRIRE UNE RÈGLE** ·
+**ORDRE D'AUTORITÉ** (1 règles backend → 2 parties protégées → 3 décision humaine → 4 avis humain → 5 Agent B →
+6 ses propres choix) · MÉTHODE · NE PAS MODIFIER POUR MODIFIER · ANTI-SURAPPRENTISSAGE · SÉPARATION DES
+RESPONSABILITÉS · INTERDICTIONS · FEEDBACK INJUSTIFIÉ.
+
+Ce qu'il reçoit : zone courante, diagnostic d'Agent B, avis humain, comportements à préserver, modifications
+précédentes, `snapshotContext` (contexte figé) **et `providedData` = le contenu des fichiers fournis au Coach**
+(même parité que l'Agent B) : il n'écrit donc pas de règle portant sur un produit, un taux ou une URL qui n'existe
+pas réellement.
 
 Sortie JSON : `status` (`UPDATED` / `NO_CHANGE_REQUIRED` / `HUMAN_OR_BUSINESS_REVIEW_REQUIRED`),
 `editableSection`, `changeSummary[]`, `feedbackAddressed[]`, `preservedBehaviors[]`, `unresolvedPoints[]`,
@@ -298,14 +310,14 @@ Les deux prompts **ne nomment jamais les marqueurs** `[[[` / `]]]` (évite toute
 
 ## 13. Tests
 
-**195 tests, 0 échec** (24 classes ; commande : `mvnw.cmd test`).
+**203 tests, 0 échec** (26 classes ; commande : `mvnw.cmd test`).
 
 | Suite | Points verrouillés (extraits de la liste §46) |
 |---|---|
-| `PromptOptimizationServiceTest` (34) | 1 itération / 50 acceptées, 51 et 0 refusées, question vide, prompt sans zone, compteur restant exact, fin de campagne, conservation de **toutes** les versions, parties protégées identiques de V0 à VN, snapshot jamais réécrit, aucun fichier de production touché par les itérations, zone hors-zone rejetée, STOP pendant l'appel, `STOP_REQUESTED → PAUSED`, reprise depuis `PAUSED` / `ERROR` / `COMPLETED`, avis humain transmis à l'Agent A, double REPRENDRE refusé, erreurs Coach / Agent B / Agent A avec étape tracée, maintien des versions retenues, refus de promotion, **un fournisseur par étape** (indépendance, raccourci historique, MOCK refusé pour chacune des 3 étapes, campagne héritée sans routage) |
+| `PromptOptimizationServiceTest` (34) | 1 itération / 50 acceptées, 51 et 0 refusées, question vide, prompt sans zone, compteur restant exact, fin de campagne, conservation de **toutes** les versions, parties protégées identiques de V0 à VN, snapshot jamais réécrit, aucun fichier de production touché par les itérations, zone hors-zone rejetée, STOP pendant l'appel, `STOP_REQUESTED → PAUSED`, reprise depuis `PAUSED` / `ERROR` / `COMPLETED`, avis humain transmis à l'Agent A, double REPRENDRE refusé, erreurs Coach / Agent B / Agent A avec étape tracée, refus de promotion, **un fournisseur par étape** (indépendance, raccourci historique, MOCK refusé pour chacune des 3 étapes, campagne héritée sans routage) |
 | `PromptOptimizationStoreTest` (14) | Écriture atomique, append-only, dédoublonnage, identifiants invalides, redémarrage, verrou concurrent |
-| `PromptZoneServiceTest` (15) | Zone unique / non vide / marqueurs inversés, sortie de zone refusée, recomposition idempotente, **tous** les prompts métier marqués, `generic.txt` non optimisable |
-| `PromptOptimizationControllerTest` (6) | Contrat HTTP : zones exposées, refus MOCK / question vide / itérations hors bornes, campagne inconnue, identifiant invalide, codes 400 et messages lisibles |
+| `PromptZoneServiceTest` (16) | Zone unique / non vide / marqueurs inversés, sortie de zone refusée, recomposition idempotente, marqueurs à demi effacés refusés à la sauvegarde, **tous** les prompts métier marqués, `generic.txt` non optimisable |
+| `PromptOptimizationControllerTest` (7) | Contrat HTTP : zones exposées, refus MOCK / question vide / itérations hors bornes, campagne inconnue, identifiant invalide, codes 400 et messages lisibles, endpoints de « Retenir » absents |
 | `AgentFilesPromptTest` (8) · `PromptOptimizationModelsTest` (8) · `AgentPromptHistoryStoreTest` (5) · `RemoteAIServicePromptResolutionTest` (4) · `MockAIServiceAtelierTest` (2) · `CoachContextBuilderTest` (5) · `ChatControllerTest` (5) | Composition du prompt, normalisations tolérantes, sauvegardes, prompt figé prioritaire, refus en mode démo, non-régression du chat |
 
 **Vérification IHM** (page réelle, backend + frontend lancés, campagnes réellement exécutées avec DeepSeek) :
@@ -319,8 +331,8 @@ Les deux prompts **ne nomment jamais les marqueurs** `[[[` / `]]]` (évite toute
 - itérations listées (plus récentes d'abord) avec la réponse du Coach, le résumé Agent B, l'analyse complète
   dépliable, le **diff** de la zone et les boutons de version ;
 - `COMPARER` : version initiale ↔ version courante (prompt **et** réponse) ;
-- `★ Retenir`, puis `Promouvoir` avec **confirmation explicite** (« le prompt actuel sera conservé dans
-  l'historique ») — le bloc a été affiché puis **annulé** pour ne pas réécrire un prompt métier réel.
+- `Promouvoir` avec **confirmation explicite** (« le prompt actuel sera conservé dans l'historique ») —
+  le bloc a été affiché puis **annulé** pour ne pas réécrire un prompt métier réel.
 
 ---
 
@@ -391,9 +403,8 @@ $env:Path = "$env:JAVA_HOME\bin;$env:Path"
    données financières, classification, projet, prompt hors zone).
 6. La campagne déroule ses itérations ; pour chacune : réponse du Coach, résumé Agent B, `Voir l'analyse
    Agent B`, `Voir le prompt utilisé (Vn)`, et — **uniquement si l'Agent A a produit une nouvelle version** —
-   `Voir le prompt produit (Vn+1)` et `Changements Vn → Vn+1` (diff de la seule zone), `★ Retenir Vn+1`.
-   Les actions suivent l'état réel : un diff `Vn → Vn` n'est jamais proposé (itération « sans modification »),
-   et une version déjà retenue est signalée par un repère `★ Vn retenue` au lieu d'un bouton sans effet.
+   `Voir le prompt produit (Vn+1)` et `Changements Vn → Vn+1` (diff de la seule zone), et `Promouvoir Vn+1`.
+   Les actions suivent l'état réel : un diff `Vn → Vn` n'est jamais proposé (itération « sans modification »).
    > `Voir le prompt` affiche d'abord la **zone modifiable** (la seule partie que l'Agent A peut réécrire) ;
    > le **prompt complet** (parties protégées + zone surlignée) reste **replié par défaut** et s'ouvre avec
    > un bouton *Afficher / Masquer le prompt complet*.
@@ -417,10 +428,9 @@ $env:Path = "$env:JAVA_HOME\bin;$env:Path"
 ### 15.4 Comparaison, décision, promotion
 
 10. À la fin du cycle (`Terminée`), cliquer `COMPARER` : version initiale vs version courante (prompt **et**
-    réponse côte à côte), versions retenues listées.
-11. `★ Retenir` la ou les versions intéressantes (repère de comparaison, **sans effet sur la production** et
-    réversible via « Retirer de la sélection ») ; `Promouvoir` est une action **séparée**, disponible sur la
-    même version, depuis le tableau des versions comme depuis le bloc d'itération.
+    réponse côte à côte).
+11. `Promouvoir` la version choisie (action **séparée** de la comparaison) : elle est disponible sur la
+    ligne de la version comme dans le bloc de l'itération qui l'a produite.
 12. `Promouvoir` sur la version choisie → bloc **Confirmer la promotion** (le prompt actuel sera conservé dans
     l'historique) → `CONFIRMER`.
 13. Vérifier le résultat :

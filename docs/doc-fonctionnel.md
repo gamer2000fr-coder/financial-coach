@@ -60,7 +60,7 @@ Empêcher structurellement l'IA de recommander ou de mentionner un produit banca
 | `#/quality` | **Qualité & Satisfaction** | Note moyenne, taux de participation, avis positifs/négatifs, distribution des notes, motifs d'insatisfaction, contrôles du Coach, croisement satisfaction × conformité, analyse IA, export CSV |
 | `#/advisor-feedback` | **Feedback Conseillers** | Saisie rapide d'un avis conseiller par dossier, KPI de pertinence, zones corrigées, pertinence produit, corrections d'intérêt, qualité des emails préparés, analyse IA, export CSV |
 | `#/advisor-feedback/session/<sessionId>` | **Évaluation d'un dossier** | Vue ciblée ouverte par le **lien du mail conseiller** : projet, synthèse du Coach, produits et niveaux d'intérêt, suivi conseillé, email préparé, puis formulaire d'évaluation |
-| `#/prompt-lab` | **Atelier d'optimisation des prompts** | Choix de l'agent (et de sa zone optimisée), question de test, nombre d'itérations, fournisseur IA, puis : progression, arrêt/reprise, avis humain, comparaison des versions, diff de la zone, versions retenues, promotion explicite en production |
+| `#/prompt-lab` | **Atelier d'optimisation des prompts** | Choix de l'agent (et de sa zone optimisée), question de test, nombre d'itérations, fournisseur IA, puis : progression, arrêt/reprise, avis humain, comparaison des versions, diff de la zone, promotion explicite en production |
 
 ---
 
@@ -283,7 +283,7 @@ Améliorer un prompt « à la main » ne prouve rien : on ne sait pas **ce qui**
 |---|---|---|
 | **Agent A — éditeur** | `agent/prompt_editor.txt` | Réécrit **uniquement** la zone éditable, en tenant compte de l'avis humain, du diagnostic de l'Agent B et des parties protégées |
 | **Agent B — contrôleur** | `agent/prompt_controller.txt` | Analyse la réponse du Coach **sans rien réécrire** : points satisfaisants, points à améliorer (type, sévérité, **origine** : prompt / données / règle backend / variabilité du modèle), comportements à préserver, recommandation |
-| **Humain** | IHM | Décide : avis prioritaire, arrêt, reprise, version **retenue** et surtout **promue** en production |
+| **Humain** | IHM | Décide : avis prioritaire, arrêt, reprise, et surtout **promotion** d'une version en production |
 
 Si le Coach réclame des données (`NEED_DATA` — ce n'est **pas** une réponse client), l'atelier fait **comme en production** : les fichiers autorisés du catalogue lui sont fournis, le **contexte de référence est enrichi** (et tracé sur l'itération), puis le Coach produit la réponse destinée au client — **c'est seulement à ce moment qu'Agent B intervient**.
 
@@ -297,7 +297,7 @@ flowchart TD
     VAL -- refusée --> KEEP[La version est CONSERVÉE<br/>l'échec est enregistré et expliqué]
     VAL -- acceptée --> NEW[Version Vn+1 : prompt recomposé<br/>parties protégées IDENTIQUES]
     NEW -->|itérations restantes| COACH
-    NEW --> CMP[Comparer · retenir · refuser]
+    NEW --> CMP[Comparer · refuser]
     CMP -->|décision humaine explicite| PROD[PROMOTION<br/>le prompt actuel est sauvegardé]
     HUMAN[Avis humain] -.prioritaire.-> A
 ```
@@ -309,7 +309,7 @@ Ce que l'humain voit dans la page :
 - **Production vs candidat** : le prompt **actuellement en production** reste distingué de toutes les versions de la campagne ; aucune version candidate n'est utilisée par les conversations tant qu'un humain ne l'a pas promue ;
 - **Progression** : état, itération _n / N_, réalisées / restantes, appels IA, caractères envoyés, durée ;
 - **Par itération** : la réponse du Coach, l'analyse de l'Agent B (points à améliorer, sévérité, origine), les changements demandés à l'Agent A, le prompt de la version, et un **diff de la seule zone éditable** ;
-- **Actions** : `GO`, `STOP` (arrêt gracieux), `REPRENDRE`, « Ajouter mon avis », « Ajouter mon avis et continuer », `COMPARER`, « **★ Retenir** cette version », « Promouvoir » (avec confirmation explicite), « Refuser la campagne » ;
+- **Actions** : `GO`, `STOP` (arrêt gracieux), `REPRENDRE`, « Ajouter mon avis », « Ajouter mon avis et continuer (+n) », **« Continuer sans avis (+n) »** (prolonger un cycle terminé sans écrire d'avis), `COMPARER`, « Promouvoir » (avec confirmation explicite), « Refuser la campagne » ;
 - **Avis humains** : visuellement distincts du diagnostic automatique, avec leur statut (appliqué / en attente).
 
 Règles fonctionnelles fortes :

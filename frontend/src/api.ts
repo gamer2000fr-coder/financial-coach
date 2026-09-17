@@ -569,22 +569,6 @@ export async function sendPromptHumanFeedback(
   })
 }
 
-/** Retient une version sans la promouvoir. */
-export async function retainPromptVersion(campaignId: string, version: string): Promise<PromptCampaign> {
-  return apiFetch(`/prompt-optimization/campaigns/${encodeURIComponent(campaignId)}/retain`, {
-    method: 'POST',
-    body: JSON.stringify({ version }),
-  })
-}
-
-/** Retire une version de la sélection (le repère « retenue » est purement indicatif et réversible). */
-export async function unretainPromptVersion(campaignId: string, version: string): Promise<PromptCampaign> {
-  return apiFetch(`/prompt-optimization/campaigns/${encodeURIComponent(campaignId)}/unretain`, {
-    method: 'POST',
-    body: JSON.stringify({ version }),
-  })
-}
-
 /** ProMEUT une version en production (action humaine explicite, prompt précédent sauvegardé). */
 export async function promotePromptVersion(campaignId: string, version: string): Promise<PromotionResult> {
   return apiFetch(`/prompt-optimization/campaigns/${encodeURIComponent(campaignId)}/promote`, {

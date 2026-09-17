@@ -115,7 +115,7 @@ export interface PromptIteration {
   completedAt: string
 }
 
-/** Campagne d'optimisation : état, compteurs et versions retenues. */
+/** Campagne d'optimisation : état, compteurs et fournisseurs par étape. */
 export interface PromptCampaign {
   campaignId: string
   agentId: string
@@ -128,7 +128,6 @@ export interface PromptCampaign {
   basePromptVersion: string
   currentCandidateVersion: string
   promotedVersion: string
-  retainedVersions: string[]
   provider: string
   /** Fournisseur de l'Agent B (contrôleur). */
   controllerProvider: string
@@ -154,7 +153,6 @@ export interface PromptVersionView {
   editableSection: string
   promptHash: string
   iterationNumber: number
-  retained: boolean
   promoted: boolean
   production: boolean
   prompt: string
@@ -209,7 +207,6 @@ export interface PromptComparison {
   currentPrompt: string
   baseResponse: string
   currentResponse: string
-  retainedVersions: string[]
   iterationCount: number
 }
 

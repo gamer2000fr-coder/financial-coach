@@ -9,7 +9,6 @@ import {
   MessageSquare,
   Plus,
   RefreshCw,
-  Star,
   ThumbsDown,
   ThumbsUp,
   Type,
@@ -24,11 +23,9 @@ import {
   promotePromptVersion,
   rejectPromptCampaign,
   resumePromptCampaign,
-  retainPromptVersion,
   sendPromptHumanFeedback,
   startPromptCampaign,
   stopPromptCampaign,
-  unretainPromptVersion,
 } from './api'
 import type { AIProvider } from './types'
 import type {
@@ -307,13 +304,10 @@ export default function PromptLab() {
   const selectedZone = selectableZones(agents).find((zone) => zone.agentId === agentId) ?? null
   const canStart = Boolean(agents?.enabled && selectedZone?.optimizable && question.trim() && iterations >= 1)
   const zonesShown = selectableZones(agents)
-  const retainedVersions = campaign?.retainedVersions ?? []
-  const isRetained = (version: string) => retainedVersions.includes(version)
 
   /**
    * Décisions humaines : possibles dès que la campagne ne tourne pas (une promotion refuse d'écraser un
-   * traitement en cours). « Retenir » et « Promouvoir » sont deux actions INDÉPENDANTES : retenir ne
-   * bloque jamais la promotion.
+   * traitement en cours).
    */
   const canDecide = Boolean(campaign && campaign.status !== 'RUNNING' && campaign.status !== 'STOP_REQUESTED')
   /**
@@ -325,7 +319,7 @@ export default function PromptLab() {
 
   /**
    * Une itération ne produit une NOUVELLE version que si l'Agent A a réellement modifié la zone.
-   * Sans nouvelle version : pas de diff (Vn → Vn n'aurait aucun sens) et rien de nouveau à retenir.
+   * Sans nouvelle version : pas de diff (Vn → Vn n'aurait aucun sens).
    */
   const producedNewVersion = (iteration: PromptIteration) =>
     iteration.resultingVersion !== iteration.promptVersion
@@ -364,12 +358,25 @@ export default function PromptLab() {
       })
   }
 
+  /**
+   * Reprise (PAUSED / COMPLETED) : le nombre d'itérations ajoutées est RÉGLABLE. Un avis saisi mais non
+   * enregistré est transmis AVANT la reprise — sinon le texte serait perdu (l'avis est prioritaire).
+   */
   async function handleResume(withExtra: boolean) {
     if (!campaign) return
     const extra = withExtra ? extraToAdd : 0
+    const feedback = feedbackText.trim()
     await guard(async () => {
+      if (feedback) {
+        await sendPromptHumanFeedback(campaign.campaignId, feedback)
+        setFeedbackText('')
+        setShowFeedback(false)
+      }
       await resumePromptCampaign(campaign.campaignId, extra)
-      if (extra > 0) setNotice(`${extra} itération(s) ajoutée(s) au cycle cumulé.`)
+      setNotice([
+        feedback ? "Avis enregistré et appliqué par l'éditeur" : '',
+        extra > 0 ? `${extra} itération(s) ajoutée(s) au cycle cumulé.` : '',
+      ].filter(Boolean).join(' · ') || 'Campagne reprise.')
       await refresh(campaign.campaignId)
       await drive(campaign.campaignId)
     })
@@ -403,22 +410,6 @@ export default function PromptLab() {
         : "Avis enregistré et appliqué par l'éditeur.")
       await refresh(campaign.campaignId)
       await drive(campaign.campaignId)
-    })
-  }
-
-  async function handleRetain(version: string) {
-    if (!campaign) return
-    await guard(async () => {
-      await retainPromptVersion(campaign.campaignId, version)
-      await refresh(campaign.campaignId)
-    })
-  }
-
-  async function handleUnretain(version: string) {
-    if (!campaign) return
-    await guard(async () => {
-      await unretainPromptVersion(campaign.campaignId, version)
-      await refresh(campaign.campaignId)
     })
   }
 
@@ -723,7 +714,6 @@ export default function PromptLab() {
               <div className="plab-box">
                 <strong>CAMPAGNE {campaign.campaignId}</strong>
                 <p>Base : <b>{campaign.basePromptVersion}</b> · Candidat courant : <b>{campaign.currentCandidateVersion}</b></p>
-                <p>Versions retenues : {campaign.retainedVersions.length > 0 ? campaign.retainedVersions.join(', ') : '—'}</p>
                 <p className="plab-hint">
                   Fournisseurs : IA coach <b>{providerLabel(campaign.provider)}</b> · Agent B <b>{providerLabel(campaign.controllerProvider)}</b>
                   {' '}· Agent A <b>{providerLabel(campaign.editorProvider)}</b>
@@ -751,6 +741,28 @@ export default function PromptLab() {
             </p>
             {campaign.error && <p className="plab-error">Étape {campaign.errorStep || '—'} : {campaign.error}</p>}
 
+            {/* Nombre d'itérations ajoutées à la reprise : visible DÈS que la campagne ne tourne plus
+                (une seule occurrence à l'écran, utilisée par « Ajouter mon avis et continuer » ET
+                « Continuer sans avis »). */}
+            {(campaign.status === 'PAUSED' || campaign.status === 'COMPLETED' || campaign.status === 'ERROR')
+              && maxExtraIterations > 0 && (
+              <label className="plab-field">
+                <span>Itérations supplémentaires à ajouter au cycle</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={maxExtraIterations}
+                  value={extraToAdd}
+                  disabled={busy}
+                  onChange={(event) => setExtraIterations(Math.max(0,
+                    Math.min(maxExtraIterations, Number(event.target.value) || 0)))}
+                />
+                <small>
+                  {`Plafond cumulé : ${campaign.maxIterations} itérations (déjà demandées : ${campaign.requestedIterations}, encore possible : ${maxExtraIterations}).`}
+                </small>
+              </label>
+            )}
+
             <div className="plab-actions">
               {campaign.status === 'RUNNING' && (
                 <button type="button" className={stopping ? 'plab-danger' : undefined} onClick={handleStop} disabled={stopping}>
@@ -774,6 +786,10 @@ export default function PromptLab() {
               {campaign.status === 'COMPLETED' && (
                 <>
                   <button type="button" onClick={handleCompare} disabled={busy}><Braces size={15} /> COMPARER</button>
+                  <button type="button" className="plab-primary" onClick={() => handleResume(true)}
+                          disabled={busy || maxExtraIterations === 0 || extraToAdd === 0}>
+                    <RefreshCw size={15} /> CONTINUER SANS AVIS (+{extraToAdd})
+                  </button>
                   <button type="button" onClick={() => setShowFeedback((open) => !open)} disabled={busy}>
                     <MessageSquare size={15} /> AJOUTER MON AVIS ET CONTINUER
                   </button>
@@ -795,23 +811,6 @@ export default function PromptLab() {
                     placeholder="Le résultat est meilleur mais le Coach insiste trop sur les risques. Je souhaite conserver l'avertissement mais en une seule phrase."
                   />
                 </label>
-                <label className="plab-field">
-                  <span>Itérations supplémentaires à ajouter au cycle</span>
-                  <input
-                    type="number"
-                    min={0}
-                    max={maxExtraIterations}
-                    value={extraToAdd}
-                    disabled={busy || maxExtraIterations === 0}
-                    onChange={(event) => setExtraIterations(Math.max(0,
-                      Math.min(maxExtraIterations, Number(event.target.value) || 0)))}
-                  />
-                  <small>
-                    {maxExtraIterations === 0
-                      ? `Plafond cumulé de ${campaign.maxIterations} itérations atteint : créez une nouvelle campagne pour continuer.`
-                      : `Plafond cumulé : ${campaign.maxIterations} itérations (déjà demandées : ${campaign.requestedIterations}, encore possible : ${maxExtraIterations}).`}
-                  </small>
-                </label>
                 <div className="plab-actions">
                   <button type="button" className="plab-primary" onClick={handleFeedback} disabled={busy || !feedbackText.trim()}>
                     <Check size={15} /> Enregistrer mon avis
@@ -829,8 +828,8 @@ export default function PromptLab() {
           {/* 5) Versions */}
           <section className="mkt-card">
             <h2><Braces size={16} /> Versions du prompt ({detail.versions.length})</h2>            <p className="plab-hint">
-              <b>★ Retenir</b> met une version de côté pour comparer (indicatif, sans effet sur le coach, réversible){' · '}
-              <b>Promouvoir</b> l'installe en production — action distincte, confirmée, avec sauvegarde du prompt actuel.
+              <b>Promouvoir</b> installe une version en production — action depuis la ligne de la version
+              (ou depuis l'itération qui l'a produite), confirmée, avec sauvegarde du prompt actuel.
             </p>            <div className="mkt-table-scroll">
               <table className="mkt-table">
                 <thead>
@@ -847,7 +846,6 @@ export default function PromptLab() {
                       <td>
                         {version.production && <span className="plab-tag">production</span>}
                         {version.promoted && <span className="plab-tag ok">★ promue</span>}
-                        {version.retained && <span className="plab-tag">★ retenue</span>}
                       </td>
                       <td>
                         <button type="button" onClick={() => togglePanel(openPrompt, setOpenPrompt, version.version, null)}>
@@ -856,16 +854,6 @@ export default function PromptLab() {
                         {version.version !== campaign.basePromptVersion && (
                           <button type="button" onClick={() => togglePanel(openDiff, setOpenDiff, version.version, null)}>
                             <Braces size={14} /> Changements
-                          </button>
-                        )}
-                        {!version.production && !version.retained && (
-                          <button type="button" onClick={() => handleRetain(version.version)} disabled={busy}>
-                            <Star size={14} /> Retenir
-                          </button>
-                        )}
-                        {!version.production && version.retained && (
-                          <button type="button" onClick={() => handleUnretain(version.version)} disabled={busy}>
-                            <X size={14} /> Retirer de la sélection
                           </button>
                         )}
                         {!version.production && !version.promoted && canDecide && (
@@ -903,7 +891,7 @@ export default function PromptLab() {
                 </div>
               </div>
               <p className="plab-hint">
-                {comparison.iterationCount} itération(s) · versions retenues : {comparison.retainedVersions.join(', ') || '—'}
+                {comparison.iterationCount} itération(s) menée(s) sur cette campagne.
               </p>
             </section>
           )}
@@ -963,18 +951,6 @@ export default function PromptLab() {
                         <Braces size={14} /> Changements {iteration.promptVersion} → {iteration.resultingVersion}
                       </button>
                     </>
-                  )}
-                  {isRetained(iteration.resultingVersion) ? (
-                    <>
-                      <span className="plab-tag ok">★ {iteration.resultingVersion} retenue</span>
-                      <button type="button" onClick={() => handleUnretain(iteration.resultingVersion)} disabled={busy}>
-                        <X size={14} /> Retirer de la sélection
-                      </button>
-                    </>
-                  ) : (
-                    <button type="button" onClick={() => handleRetain(iteration.resultingVersion)} disabled={busy}>
-                      <Star size={14} /> Retenir {iteration.resultingVersion}
-                    </button>
                   )}
                   {producedNewVersion(iteration) && canDecide && (
                     <button type="button" onClick={() => setPromotionVersion({ version: iteration.resultingVersion, iteration: iteration.iterationNumber })} disabled={busy}>

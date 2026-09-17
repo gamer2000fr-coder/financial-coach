@@ -9,6 +9,8 @@ import com.coach.financier.model.PromptOptimizationModels;
 import com.coach.financier.model.SuiviModels;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
@@ -19,22 +21,39 @@ import java.util.List;
 import java.util.Map;
 
 public abstract class RemoteAIService implements AIService {
+    private static final Logger log = LoggerFactory.getLogger(RemoteAIService.class);
     /** Délai de CONNEXION vers le fournisseur IA (ms). */
     private static final int CONNECT_TIMEOUT_MS = 15_000;
     /** Délai de LECTURE d'une réponse (ms) : le Coach peut être long, mais jamais indéfini. */
     private static final int READ_TIMEOUT_MS = 300_000;
+    /**
+     * Plafond de sortie par DÉFAUT, utilisé si la configuration est absente : il correspond au maximum
+     * DOCUMENTÉ de {@code deepseek-chat} (défaut du fournisseur : 4096, qui coupait les réponses longues).
+     * <p>
+     * Le plafond effectif reste celui du MODÈLE : mesuré chez DeepSeek, une valeur supérieure est acceptée
+     * puis plafonnée par le fournisseur ; chez OpenAI, dépasser le maximum du modèle fait échouer l'appel.
+     * D'où un réglage PAR FOURNISSEUR ({@code app.ai.deepseek.max-tokens} / {@code app.ai.openai.max-tokens}),
+     * jamais deviné par le code.
+     */
+    static final int DEFAULT_MAX_OUTPUT_TOKENS = 8192;
+    /** Longueur de la fin de réponse citée dans les messages d'erreur (diagnostic IHM). */
+    private static final int ERROR_TAIL_LENGTH = 200;
 
     protected final ObjectMapper objectMapper;
     private final RestClient client;
     private final String apiKey;
     private final String model;
     private final String providerName;
+    /** Plafond de sortie envoyé au modèle (voir {@link #DEFAULT_MAX_OUTPUT_TOKENS}). */
+    private final int maxOutputTokens;
 
-    protected RemoteAIService(ObjectMapper objectMapper, String baseUrl, String apiKey, String model, String providerName) {
+    protected RemoteAIService(ObjectMapper objectMapper, String baseUrl, String apiKey, String model,
+                              String providerName, int maxOutputTokens) {
         this.objectMapper = objectMapper;
         this.apiKey = apiKey;
         this.model = model;
         this.providerName = providerName;
+        this.maxOutputTokens = maxOutputTokens > 0 ? maxOutputTokens : DEFAULT_MAX_OUTPUT_TOKENS;
         // Timeouts EXPLICITES : sans eux, une campagne d'optimisation (jusqu'à 3 appels IA par
         // itération, 50 itérations) peut rester bloquée indéfiniment sur un provider muet.
         HttpClient httpClient = HttpClient.newBuilder()
@@ -109,12 +128,15 @@ public abstract class RemoteAIService implements AIService {
         payload.put("additionalData", additionalData == null ? Map.of() : additionalData);
         payload.put("conversationHistory", history == null ? List.of() : history);
 
-        String content;
+        String content = null;
         try {
             content = call(system, objectMapper.writeValueAsString(payload));
             return parseAnswer(content);
         } catch (Exception e) {
-            throw new IllegalStateException("Réponse IA invalide: " + contentOrUnknown(e), e);
+            // La FIN de la réponse est citée : sans elle, « Unexpected end-of-input » ne dit pas si la réponse
+            // est vide, coupée en plein texte ou seulement mal formée.
+            throw new IllegalStateException("Réponse IA invalide: " + contentOrUnknown(e)
+                    + (content == null ? "" : " (fin de la réponse reçue : …" + tailOf(content) + ")"), e);
         }
     }
 
@@ -446,6 +468,7 @@ public abstract class RemoteAIService implements AIService {
         Map<String, Object> request = Map.of(
                 "model", model,
                 "temperature", 0.2,
+                "max_tokens", maxOutputTokens,
                 "response_format", Map.of("type", "json_object"),
                 "messages", List.of(
                         Map.of("role", "system", "content", system),
@@ -465,12 +488,42 @@ public abstract class RemoteAIService implements AIService {
         try {
             JsonNode response = objectMapper.readTree(rawResponse);
             String content = response.path("choices").path(0).path("message").path("content").asText();
+            String finishReason = response.path("choices").path(0).path("finish_reason").asText("");
             // Certains modèles encadrent leur JSON par un bloc Markdown : on retire l'encadrement pour que
             // TOUS les points de parsing (coach, suivi, contrôleur, éditeur, rapports) en bénéficient.
-            return stripCodeFence(content);
+            return repairTruncated(stripCodeFence(content), finishReason);
         } catch (Exception e) {
             throw new RuntimeException("Erreur lors de la lecture de la réponse JSON de l'IA", e);
         }
+    }
+
+    /**
+     * Une réponse JSON **tronquée** (le modèle s'est arrêté en plein milieu) est réparée plutôt que rejetée :
+     * l'itération aboutit avec ce que le modèle a réellement produit, et la troncature reste TRACÉE dans la
+     * sortie serveur (aucune réparation silencieuse).
+     */
+    private String repairTruncated(String content, String finishReason) {
+        String repaired = JsonRepair.repair(content, objectMapper);
+        if (!repaired.equals(content)) {
+            log.warn("[IA] {} : réponse JSON incomplète RÉPARÉE ({} caractères reçus, finish_reason={}) — fin reçue : …{}",
+                    providerName, content.length(), finishReason.isEmpty() ? "non fourni" : finishReason,
+                    tailOf(content));
+            return repaired;
+        }
+        if ("length".equals(finishReason)) {
+            log.warn("[IA] {} : réponse coupée par la limite de sortie du modèle (max_tokens={}, {} caractères)",
+                    providerName, maxOutputTokens, content.length());
+        }
+        return content;
+    }
+
+    /** Fin d'un texte, pour un message de diagnostic (jamais plus de {@link #ERROR_TAIL_LENGTH} caractères). */
+    private static String tailOf(String content) {
+        if (content == null) {
+            return "(vide)";
+        }
+        return content.length() <= ERROR_TAIL_LENGTH
+                ? content : content.substring(content.length() - ERROR_TAIL_LENGTH);
     }
 
     /**

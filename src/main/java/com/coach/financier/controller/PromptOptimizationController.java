@@ -141,23 +141,6 @@ public class PromptOptimizationController {
         return service.addHumanFeedback(campaignId, request == null ? null : request.content());
     }
 
-    /** Retient une version (sans la promouvoir) : plusieurs versions peuvent être retenues. */
-    @PostMapping("/campaigns/{campaignId}/retain")
-    public PromptOptimizationModels.Campaign retain(@PathVariable String campaignId,
-                                                    @RequestBody VersionRequest request) {
-        return service.retain(campaignId, request == null ? null : request.version());
-    }
-
-    /**
-     * Retire une version de la sélection (§16) : « retenir » n'affecte JAMAIS la production et reste
-     * réversible (la version demeure consultable).
-     */
-    @PostMapping("/campaigns/{campaignId}/unretain")
-    public PromptOptimizationModels.Campaign unretain(@PathVariable String campaignId,
-                                                      @RequestBody VersionRequest request) {
-        return service.unretain(campaignId, request == null ? null : request.version());
-    }
-
     /**
      * PROMEUT une version en production (§17) : action humaine explicite. Le prompt actuel est sauvegardé
      * avant remplacement (retour arrière possible) et seule la zone éditable est réécrite.
@@ -182,7 +165,7 @@ public class PromptOptimizationController {
         return versionViewsInternal(campaignId);
     }
 
-    /** Comparaison version INITIALE / version FINALE + versions retenues (§18). */
+    /** Comparaison version INITIALE / version FINALE (§18). */
     @GetMapping("/campaigns/{campaignId}/compare")
     public Map<String, Object> compare(@PathVariable String campaignId) {
         PromptOptimizationModels.Campaign campaign = service.campaign(campaignId);
@@ -192,7 +175,6 @@ public class PromptOptimizationController {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("baseVersion", base);
         body.put("currentVersion", current);
-        body.put("retainedVersions", campaign.retainedVersions());
         body.put("baseEditableSection", sectionOf(campaignId, base));
         body.put("currentEditableSection", sectionOf(campaignId, current));
         body.put("basePrompt", service.promptFor(campaignId, base));
@@ -219,7 +201,6 @@ public class PromptOptimizationController {
 
     private List<Map<String, Object>> versionViewsInternal(String campaignId) {
         PromptOptimizationModels.Campaign campaign = service.campaign(campaignId);
-        List<String> retained = campaign.retainedVersions();
         List<Map<String, Object>> views = new ArrayList<>();
         for (PromptOptimizationModels.PromptVersion version : service.versions(campaignId)) {
             Map<String, Object> view = new LinkedHashMap<>();
@@ -227,7 +208,6 @@ public class PromptOptimizationController {
             view.put("editableSection", version.editableSection());
             view.put("promptHash", version.promptHash());
             view.put("iterationNumber", version.iterationNumber());
-            view.put("retained", retained.contains(version.version()));
             view.put("promoted", version.version().equals(campaign.promotedVersion()));
             view.put("production", version.version().equals(campaign.basePromptVersion())
                     && campaign.promotedVersion().isEmpty());

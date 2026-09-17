@@ -9,7 +9,8 @@ public class DeepSeekService extends RemoteAIService {
     public DeepSeekService(ObjectMapper objectMapper,
                            @Value("${app.ai.deepseek.base-url}") String baseUrl,
                            @Value("${app.ai.deepseek.api-key}") String apiKey,
-                           @Value("${app.ai.deepseek.model}") String model) {
-        super(objectMapper, baseUrl, apiKey, model, "DeepSeek");
+                           @Value("${app.ai.deepseek.model}") String model,
+                           @Value("${app.ai.deepseek.max-tokens:8192}") int maxTokens) {
+        super(objectMapper, baseUrl, apiKey, model, "DeepSeek", maxTokens);
     }
 }
