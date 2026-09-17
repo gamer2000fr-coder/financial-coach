@@ -33,6 +33,8 @@ import type {
   HumanFeedbackView,
   PromptCampaign,
   PromptCampaignDetail,
+  PromptCampaignStart,
+  PromptThread,
   PromptComparison,
   PromptIteration,
   PromptOptimizationAgents,
@@ -527,9 +529,36 @@ export async function fetchPromptCampaigns(): Promise<PromptCampaign[]> {
   return apiFetch('/prompt-optimization/campaigns')
 }
 
-/** Démarre une campagne : validation, snapshot de référence figé, statut RUNNING. */
-export async function startPromptCampaign(input: StartCampaignInput): Promise<PromptCampaign> {
+/**
+ * Démarre une campagne : validation, snapshot de référence figé, statut RUNNING.
+ * <p>
+ * La réponse porte aussi le FIL DE CONVERSATION (créé ou repris) : c'est lui qui porte la mémoire rejouée au
+ * cycle suivant (`threadId` transmis au démarrage).
+ */
+export async function startPromptCampaign(input: StartCampaignInput): Promise<PromptCampaignStart> {
   return apiFetch('/prompt-optimization/campaigns', { method: 'POST', body: JSON.stringify(input) })
+}
+
+/** Fils de conversation connus, du plus récemment modifié au plus ancien. */
+export async function fetchPromptThreads(): Promise<PromptThread[]> {
+  return apiFetch('/prompt-optimization/threads')
+}
+
+/** Conversation complète d'un fil (tours validés par promotion, dans l'ordre chronologique). */
+export async function fetchPromptThread(threadId: string): Promise<PromptThread> {
+  return apiFetch(`/prompt-optimization/threads/${encodeURIComponent(threadId)}`)
+}
+
+/** Corrige le contenu d'un tour : l'humain garde la main sur la réponse rejouée au cycle suivant. */
+export async function updatePromptTurn(
+  threadId: string,
+  turnIndex: number,
+  content: string,
+): Promise<PromptThread> {
+  return apiFetch(`/prompt-optimization/threads/${encodeURIComponent(threadId)}/turns/${turnIndex}`, {
+    method: 'PUT',
+    body: JSON.stringify({ content }),
+  })
 }
 
 /** Vue complète d'une campagne : état, snapshot, itérations, versions et avis. */

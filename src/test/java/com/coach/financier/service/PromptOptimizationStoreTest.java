@@ -351,4 +351,48 @@ class PromptOptimizationStoreTest {
         assertEquals(2, reopened.versions("camp-1").size(), "V0 (snapshot) + V1 (itération 1)");
         assertEquals(AIModels.AIProvider.DEEPSEEK, AIModels.AIProvider.valueOf(campaign.provider()));
     }
+
+    // --- Fils de conversation (mémoire de l'atelier) ----------------------------------------------
+
+    private static PromptOptimizationModels.ConversationThread thread(String id, String campaignId, String updatedAt) {
+        return new PromptOptimizationModels.ConversationThread(id, "credit_conso", "Crédit à la consommation",
+                PromptOptimizationModels.ZONE_AGENT,
+                List.of(new PromptOptimizationModels.Turn("user", "Question du client",
+                                campaignId, "", "2026-09-16T10:00:00Z"),
+                        new PromptOptimizationModels.Turn("assistant", "Réponse de la version promue",
+                                campaignId, "V1", "2026-09-16T10:05:00Z")),
+                List.of(campaignId), "2026-09-16T10:00:00Z", updatedAt);
+    }
+
+    @Test
+    void savesReadsAndListsConversationThreads() {
+        store.saveThread(thread("th-1", "po-1", "2026-09-16T10:05:00Z"));
+        store.saveThread(thread("th-2", "po-2", "2026-09-16T11:05:00Z"));
+
+        var read = store.thread("th-1").orElseThrow();
+        assertEquals("credit_conso", read.agentId());
+        assertEquals(2, read.turns().size());
+        assertEquals(1, read.exchanges());
+        assertEquals(2, read.history().size(), "l'historique rejoué porte la question ET la réponse");
+        assertEquals("user", read.history().get(0).role());
+        assertEquals("assistant", read.history().get(1).role());
+
+        var threads = store.threads();
+        assertEquals(2, threads.size());
+        assertEquals("th-2", threads.get(0).threadId(), "le fil le plus récemment modifié est proposé en premier");
+        assertEquals("th-1", store.threadOf("po-1").orElseThrow().threadId());
+        assertTrue(store.threadOf("po-inexistante").isEmpty());
+        assertTrue(store.thread("th-inexistant").isEmpty(), "un identifiant valide inconnu n'est pas une erreur");
+        assertTrue(Files.isRegularFile(tempDir.resolve("threads").resolve("th-1.json")));
+    }
+
+    @Test
+    void refusesAnInvalidThreadIdentifierOrAnEmptyThread() {
+        // L'identifiant est validé (anti-traversée de chemin) AVANT toute lecture de fichier.
+        assertThrows(IllegalArgumentException.class, () -> store.thread("../evasion"));
+        assertThrows(IllegalArgumentException.class, () -> store.saveThread(
+                new PromptOptimizationModels.ConversationThread("", "credit_conso", "libelle",
+                        PromptOptimizationModels.ZONE_AGENT, List.of(), List.of(),
+                        "2026-09-16T10:00:00Z", "2026-09-16T10:00:00Z")));
+    }
 }

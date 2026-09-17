@@ -24,7 +24,10 @@ import java.util.Set;
  *   gelée (rejouée telle quelle, jamais recalculée) ;</li>
  *   <li>{@code providedData} reste une liste MUTABLE alimentée par la boucle {@code NEED_DATA} du chat :
  *   {@code additionalData.providedData} référence la MÊME instance (comportement du chat inchangé) ;</li>
- *   <li>{@code allowedCatalogPaths} vaut {@code null} quand le catalogue n'est pas restreint ;</li>
+ *   <li>{@code allowedCatalogPaths} = FICHIERS FOURNISSABLES : tous les chemins déclarés par le catalogue.
+ *   « S'il le demande, on l'autorise » : aucune demande légitime n'est refusée, la whitelist du catalogue
+ *   restant la seule barrière (aucun fichier hors catalogue, aucun fichier inventé). La restriction de
+ *   périmètre ne limite plus que ce qui est MONTRÉ spontanément à l'IA ({@code catalog} / {@code restrictedCatalog}).</li>
  *   <li>{@code clarificationRequired} signifie que le chat répond une question de clarification SANS
  *   appeler le Coach (le contexte n'est alors pas destiné à un appel LLM).</li>
  * </ul>

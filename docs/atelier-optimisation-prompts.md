@@ -128,8 +128,8 @@ Choix structurants :
 |---|---|---|
 | GET | `/api/prompt-optimization/agents` | Agents + zones optimisables, `maxIterations`, **`hardMaxIterations`** (50), `enabled`, `demoMode`, tables de libellés |
 | GET | `/api/prompt-optimization/campaigns` | Campagnes connues (**non utilisée par l'IHM**, qui ne propose pas de reprendre une campagne passée) |
-| POST | `/api/prompt-optimization/campaigns` | Démarre une campagne `{agentId, question, iterations, zoneKey, provider, controllerProvider, editorProvider}` (les deux derniers sont facultatifs et retombent sur `provider`) |
-| GET | `/api/prompt-optimization/campaigns/{id}` | Vue complète en **un** appel : campagne + snapshot + itérations + versions + avis |
+| POST | `/api/prompt-optimization/campaigns` | Démarre une campagne `{agentId, question, iterations, zoneKey, provider, controllerProvider, editorProvider, threadId}` (les fournisseurs B/A sont facultatifs et retombent sur `provider` ; `threadId` poursuit une conversation) → `{campaign, thread}` |
+| GET | `/api/prompt-optimization/campaigns/{id}` | Vue complète en **un** appel : campagne + snapshot + itérations + versions + avis + **fil de conversation** |
 | POST | `/api/prompt-optimization/campaigns/{id}/iterate` | **Une** itération (Coach → Agent B → Agent A → validation → persistance) |
 | POST | `/api/prompt-optimization/campaigns/{id}/stop` | Arrêt gracieux |
 | POST | `/api/prompt-optimization/campaigns/{id}/resume` | Reprise `{additionalIterations}` |
@@ -139,9 +139,40 @@ Choix structurants :
 | GET | `/api/prompt-optimization/campaigns/{id}/versions` | Versions (promues, production) |
 | GET | `/api/prompt-optimization/campaigns/{id}/compare` | Comparaison initiale ↔ courante (prompts + réponses) |
 | GET | `/api/prompt-optimization/campaigns/{id}/usage` | Itérations, appels IA, caractères, durée |
+| GET | `/api/prompt-optimization/threads` | **Fils de conversation** connus, du plus récemment modifié au plus ancien |
+| GET | `/api/prompt-optimization/threads/{threadId}` | Conversation complète d'un fil (tours validés, dans l'ordre) |
+| PUT | `/api/prompt-optimization/threads/{threadId}/turns/{index}` | Corrige le contenu d'un tour `{content}` (l'humain garde la main sur ce qui sera rejoué) |
 
 Erreurs : `400 BAD_REQUEST` (`IllegalArgumentException`) et `409 CONFLICT` (`IllegalStateException`), corps
 `{"error": "...", "message": "..."}` — c'est exactement ce que lit `apiFetch` côté IHM.
+
+### 5.1 Fil de conversation — la mémoire de l'atelier
+
+Une campagne reste **une seule question**, mais les campagnes s'enchaînent dans un **fil de conversation** :
+c'est ce qui permet de tester un prompt sur une **vraie conversation** (question 1 → itérations → promotion →
+question 2 → itérations → …) au lieu d'une question isolée.
+
+- **Un tour « assistant » n'entre dans la mémoire QUE par une promotion, et il porte la RÉPONSE DE LA VERSION
+  ACCEPTÉE** : celle que le client recevrait avec le prompt désormais en production. Elle est **réutilisée** si une
+  itération a déjà répondu avec cette version (aucun appel IA), sinon elle est **générée** par un rejeu du Coach
+  avec cette version (+1 appel IA) — jamais la réponse qui a « motivé » le changement (générée avec la version
+  précédente), sinon l'historique rejoué décrirait un prompt qui n'est plus en production. Une question dont
+  aucune version n'a été acceptée n'entre jamais dans l'historique (pas de question sans réponse).
+- Le fil est **associé à la campagne dès son démarrage** (`campaignIds`), et **la promotion y écrit l'échange**
+  complet (question + réponse). Une **nouvelle promotion de la même campagne remplace son échange, à sa place**
+  : aucun doublon, ordre chronologique conservé.
+- Le cycle suivant reçoit l'**historique complet** (`conversationHistory`, même contrat que le chat) : il est
+  **gelé dans le snapshot** (reproductibilité) et transmis au Coach, à l'Agent B et à l'Agent A.
+- Le **projet courant** de l'échange précédent est transmis au classifieur puis conservé si la nouvelle question
+  ne porte pas de projet propre (« et si j'allongeais la durée à 60 mois ? ») — même logique que le chat.
+- Le fil appartient à **un agent** (`agentId`, `zoneKey`) : reprendre la conversation d'un autre agent est refusé
+  avec un message explicite.
+- IHM : bloc **« Conversation de l'atelier »** (mêmes bulles que la page coach) avec la question en attente
+  (avant promotion), la réponse de l'IA par version promue (corrigeable), un champ « question suivante » et
+  « Nouvelle conversation ». Le fil le plus récent de l'agent sélectionné est **rechargé à l'ouverture de la page**.
+- **Agent B** : « TOUT LIRE, MAIS JUGER LE DERNIER ÉCHANGE UNIQUEMENT » — il lit l'historique pour comprendre le
+  contexte, mais seuls la question courante et la réponse courante sont jugées (les réponses déjà validées ne
+  sont jamais réévaluées).
 
 ---
 
@@ -154,6 +185,10 @@ Erreurs : `400 BAD_REQUEST` (`IllegalArgumentException`) et `409 CONFLICT` (`Ill
 - **Persistés** : `PromptVersion`, `Iteration` (réponse du Coach, diagnostic, édition, versions utilisée et
   résultante, indicateurs `noChange` / `humanFeedbackApplied`, statut, erreur, durée), `HumanFeedback`,
   `Snapshot`, `Campaign`.
+- **Mémoire de l'atelier** : `Turn` (rôle `user` / `assistant`, contenu, campagne, **version promue**, date) et
+  `ConversationThread` (identifiant, agent, zone, tours, campagnes associées) avec `withCampaign`,
+  `withExchange` (remplacement en place, jamais de doublon), `withTurnContent`, `history()` (format du chat),
+  `exchanges()`. Un rôle illisible devient un tour **`user`** : jamais une réponse IA inventée.
 - **Normalisations tolérantes** : un statut illisible retombe sur `NEEDS_IMPROVEMENT` (Agent B) ou
   `HUMAN_OR_BUSINESS_REVIEW_REQUIRED` (Agent A) — jamais sur « tout va bien ».
 - **Libellés** : `labels()` expose à l'IHM les tables françaises (statuts de campagne, d'itération, de
@@ -209,6 +244,7 @@ data/prompt-optimization/
   history/
     promotions.jsonl                      # index chronologique des sauvegardes
     <backupId>-<fichier>.txt              # prompt AVANT promotion (rollback)
+  threads/<threadId>.json                 # FIL DE CONVERSATION : tours + campagnes associées
 ```
 
 - Écritures **atomiques** (fichier temporaire + `ATOMIC_MOVE`) ; JSONL **append-only** ; lignes illisibles
@@ -225,7 +261,8 @@ data/prompt-optimization/
    (vérifié par test : le fichier `snapshot.json` est comparé avant/après itérations).
 2. Il gèle : la **question**, la **classification d'intention** (calculée une seule fois et comptée comme un
    appel IA), le **projet courant**, la synthèse financière, le **catalogue** et les **chemins autorisés**, les
-   **données jointes** réellement envoyées, l'historique, le **debug**, les **hashes** (prompt et snapshot),
+   **données jointes** réellement envoyées, l'historique (**les échanges déjà validés du fil de conversation**),
+   le **debug**, les **hashes** (prompt et snapshot),
    ainsi que le **gabarit**, l'**agent principal** et les parties **préfixe / zone / suffixe** du prompt.
 3. Conséquence : `NEED_DATA` n'est **pas** une réponse destinée au client → l'atelier se comporte **comme en
    production** : les fichiers demandés (autorisés par le catalogue) sont ajoutés au contexte de référence,
@@ -233,6 +270,12 @@ data/prompt-optimization/
    complément est **persisté dans le snapshot** et **tracé** sur l'itération (`contexte complété (+n)`) : les
    versions suivantes travaillent sur le même contexte enrichi. **Agent B ne juge que la réponse finale**
    destinée au client — jamais une demande de données.
+   Si la demande **ne peut pas être satisfaite** (fichier hors catalogue autorisé, déjà épuisé ou chemins
+   vides), l'itération **n'échoue pas** : elle est **dégradée comme en production**, avec la réponse de repli
+   (`Je n'ai pas pu finaliser l'analyse demandée à partir des données disponibles.`) et le motif tracé dans
+   `error` (+ repère « données indisponibles → réponse dégradée » dans l'IHM). La campagne et la conversation
+   continuent : l'information « le prompt réclame des données que le contexte ne contient pas » est utile à
+   l'optimisation, mais elle ne doit jamais bloquer la boucle.
 4. Une reprise ne recrée **pas** le snapshot et ne recharge rien.
 5. Architecture prête pour le multi-scénarios (§45) : chaque question a « son » snapshot ; ajouter des
    scénarios consiste à créer plusieurs campagnes sur la même question de référence sans changer le modèle.
@@ -267,7 +310,31 @@ Ordre des contrôles (tous côté backend) :
 
 Ensuite seulement : **sauvegarde** du prompt actuel (`history/<backupId>-<fichier>` + `promotions.jsonl`,
 avec empreinte du contenu) → **écriture de la zone** (les fins de ligne d'origine sont préservées : seul le
-contenu de la zone change) → campagne `ACCEPTED` avec `promotedVersion`.
+contenu de la zone change) → campagne `ACCEPTED` avec `promotedVersion` → **écriture de l'échange dans le fil
+de conversation** (question + **réponse produite par la version acceptée**), qui devient la mémoire du cycle suivant.
+
+La réponse enregistrée est celle de la version acceptée : **réutilisée** si une itération a réellement répondu
+avec elle, sinon **régénérée** par un rejeu du Coach avec cette version (même question, mêmes données, même
+historique que l'itération, mais sans Agent B ni Agent A ; la boucle `NEED_DATA` reste bornée à 3). L'appel
+supplémentaire est **compté** dans `aiCalls` de la campagne. Si ce rejeu échoue, la promotion n'est **pas**
+remise en cause : on retombe sur la dernière réponse connue (journalisé) — jamais de tour vide dans l'historique.
+
+### 11.1 Acceptation SANS CHANGEMENT (aucune version produite)
+
+Quand l'Agent A n'a proposé **aucune** modification, la seule version connue est celle du snapshot (production) :
+il n'y a rien à promouvoir… et l'humain serait **bloqué** (aucune décision ⇒ aucune réponse de l'IA dans le fil ⇒
+conversation impossible à enchaîner). L'IHM propose donc **« ACCEPTER SANS CHANGEMENT »** (barre d'actions de
+« Progression », visible dès que la campagne ne tourne plus et qu'aucune version nouvelle n'existe) :
+
+- la version **acceptée** est celle du snapshot, la campagne passe `ACCEPTED` et **l'échange entre dans le fil**
+  (la réponse utilisée est alors, par construction, celle produite par la version de production : les itérations
+  ont tourné avec elle) ;
+- le backend **détecte que le contenu recomposé est identique** à celui en production : il **n'écrit RIEN** — ni
+  sauvegarde (`backupId` / `backupFile` vides), ni réécriture du fichier — avec un message explicite ;
+- **aucune confirmation n'est demandée** : il n'y a rien à écraser (c'est une acceptation, pas un remplacement).
+
+Un contrôle par empreinte SHA-256 du prompt de production est fait avant/après (test unitaire **et**
+vérification live) : le fichier n'est pas touché.
 
 Aucune promotion automatique n'existe : même lorsque l'Agent B est satisfait, l'atelier attend une décision
 humaine. Le refus (`REJECTED`) ne supprime rien.
@@ -278,16 +345,23 @@ humaine. Le refus (`REJECTED`) ne supprime rien.
 
 ### Agent B — `agent/prompt_controller.txt`
 
-Sections : CONTEXTE · **VÉRIFIER AVANT DE SIGNALER UNE INVENTION** · CE QUE TU RECOIS · CONTRÔLES À MENER (10) ·
+Sections : CONTEXTE · CE QUE TU RECOIS · **VÉRIFIER AVANT DE SIGNALER UNE INVENTION** ·
+**MÉMOIRE : TOUT LIRE, MAIS JUGER LE DERNIER ÉCHANGE UNIQUEMENT** · CONTROLES DE CONTINUITÉ · CONTRÔLES À MENER (10) ·
 À PRÉSERVER · NE PAS INVENTER DE DÉFAUT · STABILITÉ · SÉVÉRITÉ · TYPES D'ANOMALIE · **ORIGINE DU PROBLÈME** ·
 INTERDICTIONS · SORTIE.
 
 Ce qu'il reçoit : question figée, réponse du Coach, prompt système utilisé, zone éditable, synthèse financière,
-`additionalData` (projet, produits compatibles, engagements) et **`providedData` = le CONTENU des fichiers fournis
+`additionalData` (projet, produits compatibles, engagements), **`conversationHistory` = les échanges déjà validés
+de la conversation** (contexte à LIRE EN ENTIER, à ne jamais réévaluer) et **`providedData` = le CONTENU des fichiers fournis
 au Coach** (fiches produits avec leurs URL officielles, arbres de décision, synthèse) + la liste de leurs
 descriptions. Ce contenu est **indispensable** : sans lui, Agent B ne peut pas vérifier une URL ou un produit et
 signale comme « inventé » ce qui figurait dans les données (faux positif constaté : `INVENTED_URL` sur une URL
 officielle de fiche fournie).
+
+**Périmètre du jugement** : l'historique sert à COMPRENDRE où en est le client ; rien de ce qui a déjà été validé
+n'est réévalué (pas d'anomalie, de sévérité ni de point positif portant sur un échange passé). Les contrôles de
+continuité (information déjà donnée à ne pas redemander, `CONTEXT_LOST`, redite inutile) ne s'appliquent qu'à
+**l'échange courant** et seulement si l'historique n'est pas vide.
 
 Sortie JSON : `status` (`GOOD` / `NEEDS_IMPROVEMENT` / `BAD`), `summary`, `positivePoints[]`,
 `issues[]{type, severity, source, observation, expectedBehavior}`,
@@ -297,13 +371,15 @@ d'« améliorer » un prompt quand le problème vient des données ou d'une règ
 
 ### Agent A — `agent/prompt_editor.txt`
 
-Sections : ZONE ÉDITABLE · CE QUE TU RECOIS · **DONNÉES RÉELLES AVANT D'ÉCRIRE UNE RÈGLE** ·
+Sections : ZONE ÉDITABLE · CE QUE TU RECOIS · **PREMIÈRE QUESTION OU QUESTION DE SUIVI** ·
+**DONNÉES RÉELLES AVANT D'ÉCRIRE UNE RÈGLE** ·
 **ORDRE D'AUTORITÉ** (1 règles backend → 2 parties protégées → 3 décision humaine → 4 avis humain → 5 Agent B →
 6 ses propres choix) · MÉTHODE · NE PAS MODIFIER POUR MODIFIER · ANTI-SURAPPRENTISSAGE · SÉPARATION DES
 RESPONSABILITÉS · INTERDICTIONS · FEEDBACK INJUSTIFIÉ.
 
 Ce qu'il reçoit : zone courante, diagnostic d'Agent B, avis humain, comportements à préserver, modifications
-précédentes, `snapshotContext` (contexte figé) **et `providedData` = le contenu des fichiers fournis au Coach**
+précédentes, `snapshotContext` (contexte figé), **`conversationHistory`** (les échanges validés : la zone peut donc
+porter des règles de CONTINUITÉ, jamais pour la seule question testée) **et `providedData` = le contenu des fichiers fournis au Coach**
 (même parité que l'Agent B) : il n'écrit donc pas de règle portant sur un produit, un taux ou une URL qui n'existe
 pas réellement.
 
@@ -318,15 +394,16 @@ Les deux prompts **ne nomment jamais les marqueurs** `[[[` / `]]]` (évite toute
 
 ## 13. Tests
 
-**203 tests, 0 échec** (26 classes ; commande : `mvnw.cmd test`).
+**236 tests, 0 échec** (27 classes ; commande : `mvnw.cmd test`).
 
 | Suite | Points verrouillés (extraits de la liste §46) |
 |---|---|
-| `PromptOptimizationServiceTest` (34) | 1 itération / 50 acceptées, 51 et 0 refusées, question vide, prompt sans zone, compteur restant exact, fin de campagne, conservation de **toutes** les versions, parties protégées identiques de V0 à VN, snapshot jamais réécrit, aucun fichier de production touché par les itérations, zone hors-zone rejetée, STOP pendant l'appel, `STOP_REQUESTED → PAUSED`, reprise depuis `PAUSED` / `ERROR` / `COMPLETED`, avis humain transmis à l'Agent A, double REPRENDRE refusé, erreurs Coach / Agent B / Agent A avec étape tracée, refus de promotion, **un fournisseur par étape** (indépendance, raccourci historique, MOCK refusé pour chacune des 3 étapes, campagne héritée sans routage) |
-| `PromptOptimizationStoreTest` (14) | Écriture atomique, append-only, dédoublonnage, identifiants invalides, redémarrage, verrou concurrent |
+| `PromptOptimizationServiceTest` (44) | 1 itération / 50 acceptées, 51 et 0 refusées, question vide, prompt sans zone, compteur restant exact, fin de campagne, conservation de **toutes** les versions, parties protégées identiques de V0 à VN, snapshot jamais réécrit, aucun fichier de production touché par les itérations, zone hors-zone rejetée, STOP pendant l'appel, `STOP_REQUESTED → PAUSED`, reprise depuis `PAUSED` / `ERROR` / `COMPLETED`, avis humain transmis à l'Agent A, double REPRENDRE refusé, erreurs Coach / Agent B / Agent A avec étape tracée, refus de promotion, **un fournisseur par étape** (indépendance, raccourci historique, MOCK refusé pour chacune des 3 étapes, campagne héritée sans routage), **fil de conversation** (ouverture au démarrage, historique rejoué au cycle suivant — vérifié sur le prompt ET sur l'appel Coach réellement reçu —, projet précédent transmis au classifieur, fil inconnu ou d'un autre agent refusé, correction d'un tour, cycle sans fil = zéro mémoire), **acceptation sans changement** (aucune version produite ⇒ campagne `ACCEPTED`, aucune sauvegarde, **fichier de prompt comparé avant/après**, échange écrit dans le fil), **réponse de la version acceptée** (réutilisée si une itération a répondu avec elle — aucun appel IA ajouté —, sinon **régénérée** par un rejeu du Coach, +1 appel compté) |
+| `PromptOptimizationStoreTest` (16) | Écriture atomique, append-only, dédoublonnage, identifiants invalides, redémarrage, verrou concurrent, **fils** (lecture, tri du plus récent, association campagne → fil, identifiant interdit) |
 | `PromptZoneServiceTest` (16) | Zone unique / non vide / marqueurs inversés, sortie de zone refusée, recomposition idempotente, marqueurs à demi effacés refusés à la sauvegarde, **tous** les prompts métier marqués, `generic.txt` non optimisable |
-| `PromptOptimizationControllerTest` (7) | Contrat HTTP : zones exposées, refus MOCK / question vide / itérations hors bornes, campagne inconnue, identifiant invalide, codes 400 et messages lisibles, endpoints de « Retenir » absents |
-| `AgentFilesPromptTest` (8) · `PromptOptimizationModelsTest` (8) · `AgentPromptHistoryStoreTest` (5) · `RemoteAIServicePromptResolutionTest` (4) · `MockAIServiceAtelierTest` (2) · `CoachContextBuilderTest` (5) · `ChatControllerTest` (5) | Composition du prompt, normalisations tolérantes, sauvegardes, prompt figé prioritaire, refus en mode démo, non-régression du chat |
+| `PromptOptimizationControllerTest` (9) | Contrat HTTP : zones exposées, refus MOCK / question vide / itérations hors bornes, campagne inconnue, identifiant invalide, codes 400 et messages lisibles, endpoints de « Retenir » absents, **fils** (liste JSON, fil inconnu / identifiant invalide, tour hors bornes) |
+| `PromptOptimizationModelsTest` (13) | Parsing tolérant des sorties des deux agents, statuts illisibles jamais « tout va bien », libellés humanisés, **fil de conversation** (échanges complets uniquement, remplacement en place sans doublon, rôle illisible → question client, correction bornée, aller-retour JSON) |
+| `AgentFilesPromptTest` (8) · `AgentPromptHistoryStoreTest` (5) · `RemoteAIServicePromptResolutionTest` (4) · `MockAIServiceAtelierTest` (2) · `CoachContextBuilderTest` (9) · `ChatControllerTest` (5) | Composition du prompt, normalisations tolérantes, sauvegardes, prompt figé prioritaire, refus en mode démo, non-régression du chat |
 
 **Vérification IHM** (page réelle, backend + frontend lancés, campagnes réellement exécutées avec DeepSeek) :
 
@@ -342,21 +419,43 @@ Les deux prompts **ne nomment jamais les marqueurs** `[[[` / `]]]` (évite toute
 - `Promouvoir` avec **confirmation explicite** (« le prompt actuel sera conservé dans l'historique ») —
   le bloc a été affiché puis **annulé** pour ne pas réécrire un prompt métier réel.
 
+**Vérification de l'enchaînement de la conversation** (instance dédiée sur le port 9798, DeepSeek, prompt de
+production restauré à l'identique après le test — empreinte SHA-256 comparée avant/après) :
+
+- cycle 1 : `POST /campaigns` → fil ouvert (`turns = 0`, campagne associée) ; itération `V0 → V1` ;
+  promotion `V1` → campagne `ACCEPTED` et fil à **2 tours**, le tour « assistant » étant **exactement** la réponse
+  de l'itération qui a produit `V1` (comparaison stricte des chaînes) ;
+- cycle 2 : `POST /campaigns` avec `threadId` → le Coach **répond à la question de suivi** (« allonger à 60 mois »)
+  sans redemander le projet ni le montant, en rappelant la fourchette du produit promu ; **Agent B** rend un
+  diagnostic `GOOD` qui raisonne bien sur l'échange courant (« question de suivi », « continuité respectée »,
+  « pas de répétition inutile ») ;
+- preuve de la mémoire transmise : `historyCount = 0` au cycle 1, **`historyCount = 2`** au cycle 2 dans la page
+  Logs (`GET /api/logs`, entrées « Atelier prompts — … ») ;
+- erreurs lisibles : fil inconnu → 400 « Fil de conversation inconnu », tour hors bornes → 400, correction d'un
+  tour → 200 ;
+- **acceptation sans changement** : promotion de la version de base d'une campagne `completedIterations = 1` →
+  `ACCEPTED` + `promotedVersion = V0`, message « Aucune modification n'a été proposée… aucune écriture »,
+  `backupId` / `backupFile` vides, **empreinte SHA-256 du prompt de production identique avant/après**, échange
+  écrit dans le fil (2 tours, version `V0`) et **cycle suivant accepté sur le même fil** (la conversation n'est
+  plus bloquée).
+
 ---
 
 ## 14. Limites restantes
 
 1. **Boucle pilotée par l'IHM** : pas de file de tâches ni d'exécution en arrière-plan ; l'onglet doit rester
    ouvert pendant la campagne (une requête = une itération).
-2. **Un seul scénario par campagne** : le multi-scénarios (§45) n'est pas implémenté (l'architecture le
-   permet : un snapshot par question).
+2. **Un seul scénario par campagne** : une campagne = une question. L'enchaînement se fait par le **fil de
+   conversation** (campagne → promotion → question suivante), pas par plusieurs questions dans la même campagne
+   (le multi-scénarios §45 reste à faire : un snapshot par question).
 3. **Fournisseur réel obligatoire** : l'atelier refuse le mode MOCK (message explicite nommant l'étape) ;
    les autres modules continuent de fonctionner en mode démo. Le routage des modèles est **figé avec la campagne**
    (changer de modèle ⇒ nouvelle campagne).
 4. **Une campagne active par agent** (et une seule pour l'agent principal, transverse).
 5. Comme en production, les données réclamées par le Coach (`NEED_DATA`) lui sont **fournies** (fichiers
-   autorisés du catalogue) et le contexte de référence est **enrichi** puis persisté ; aucune donnée n'est
-   inventée et l'Agent B ne juge que la réponse finale destinée au client.
+   autorisés du catalogue) et le contexte de référence est **enrichi** puis persisté ; si elles ne peuvent pas
+   l'être, l'itération est **dégradée comme en production** (réponse de repli, motif tracé) — elle n'est jamais
+   bloquée. Aucune donnée n'est inventée et l'Agent B ne juge que la réponse finale destinée au client.
 6. **Pas de scoring automatique** : l'Agent B fournit un diagnostic, l'humain décide.
 7. **La promotion réécrit un fichier réel** (`agent/<fichier>.txt`) : action humaine explicite, sauvegarde
    préalable systématique. Les tests de promotion volontairement limités aux **refus** pour ne jamais modifier
@@ -411,8 +510,15 @@ $env:Path = "$env:JAVA_HOME\bin;$env:Path"
    données financières, classification, projet, prompt hors zone).
 6. La campagne déroule ses itérations ; pour chacune : réponse du Coach, résumé Agent B, `Voir l'analyse
    Agent B`, `Voir le prompt utilisé (Vn)`, et — **uniquement si l'Agent A a produit une nouvelle version** —
-   `Voir le prompt produit (Vn+1)` et `Changements Vn → Vn+1` (diff de la seule zone), et `Promouvoir Vn+1`.
+   `Voir le prompt produit (Vn+1)` et `Changements Vn → Vn+1` (diff de la seule zone).
    Les actions suivent l'état réel : un diff `Vn → Vn` n'est jamais proposé (itération « sans modification »).
+   **Promotion depuis une itération** — un seul bouton, volontairement simple : `Promouvoir` (le numéro de
+   version est rappelé dans l'info-bulle) cible **la version qui a produit la réponse affichée** : on ne peut
+   juger un prompt que par la réponse qu'il a réellement donnée. La réponse entre alors dans la conversation
+   **telle quelle** (aucun appel IA ajouté). La version que l'Agent A vient de produire et qui n'a pas encore
+   répondu reste promouvable **depuis le tableau des versions** (sa réponse est alors générée, +1 appel IA).
+   Les boutons de promotion ne sont proposés que tant qu'**aucune version n'a été acceptée** (après la décision,
+   tout reste consultable mais plus promouvable).
    > `Voir le prompt` affiche d'abord la **zone modifiable** (la seule partie que l'Agent A peut réécrire) ;
    > le **prompt complet** (parties protégées + zone surlignée) reste **replié par défaut** et s'ouvre avec
    > un bouton *Afficher / Masquer le prompt complet*.

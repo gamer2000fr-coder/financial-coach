@@ -7,8 +7,11 @@ import {
   Eye,
   History as HistoryIcon,
   MessageSquare,
+  Pencil,
   Plus,
   RefreshCw,
+  Send,
+  Sparkles,
   ThumbsDown,
   ThumbsUp,
   Type,
@@ -19,6 +22,7 @@ import {
   fetchPromptCampaign,
   fetchPromptComparison,
   fetchPromptOptimizationAgents,
+  fetchPromptThreads,
   iteratePromptCampaign,
   promotePromptVersion,
   rejectPromptCampaign,
@@ -26,6 +30,7 @@ import {
   sendPromptHumanFeedback,
   startPromptCampaign,
   stopPromptCampaign,
+  updatePromptTurn,
 } from './api'
 import type { AIProvider } from './types'
 import type {
@@ -35,6 +40,8 @@ import type {
   PromptComparison,
   PromptIteration,
   PromptOptimizationAgents,
+  PromptThread,
+  PromptTurn,
   PromptVersionView,
   PromptZoneInfo,
   PromptZoneKey,
@@ -192,8 +199,17 @@ export default function PromptLab() {
   const [promotionVersion, setPromotionVersion] = useState<OpenPanel | null>(null)
   const [labelTables, setLabelTables] = useState<Record<string, Record<string, string>> | null>(null)
   const [stopping, setStopping] = useState(false)
+  /** FIL DE CONVERSATION : la mémoire de l'atelier (tours validés par promotion, rejoués au cycle suivant). */
+  const [thread, setThread] = useState<PromptThread | null>(null)
+  /** Question suivante saisie dans le bloc de conversation (repart avec tout l'historique). */
+  const [nextQuestion, setNextQuestion] = useState('')
+  /** Tour en cours de correction (un seul à la fois). */
+  const [editingTurn, setEditingTurn] = useState<{ index: number; content: string } | null>(null)
   const stopRef = useRef(false)
   const runningRef = useRef(false)
+  /** Agents dont la conversation a déjà été restaurée : « Nouvelle conversation » reste respecté. */
+  const restoredAgentsRef = useRef<string[]>([])
+  const threadScrollRef = useRef<HTMLDivElement | null>(null)
 
   /**
    * Libellé lisible d'un code technique : la table du BACKEND fait foi (source unique, mêmes libellés
@@ -245,13 +261,47 @@ export default function PromptLab() {
   }, [])
 
   /**
+   * CONVERSATION REPRISE au chargement de la page : le fil le plus récent de l'agent sélectionné. Une page
+   * rechargée ne perd donc plus la conversation — seul le DÉTAIL de la campagne précédente n'est plus
+   * affiché (l'IHM ne propose pas de reprendre une campagne).
+   */
+  useEffect(() => {
+    if (!agentId || restoredAgentsRef.current.includes(agentId)) return
+    restoredAgentsRef.current.push(agentId)
+    let active = true
+    fetchPromptThreads()
+      .then((threads) => {
+        if (!active) return
+        const mine = threads.find((item) => item.agentId === agentId && item.turns.length > 0)
+        if (mine) {
+          setThread(mine)
+          setZoneKey(mine.zoneKey)
+        }
+      })
+      .catch(() => {
+        // Aucun fil lisible : la page reste parfaitement utilisable (démarrage sans mémoire).
+      })
+    return () => {
+      active = false
+    }
+  }, [agentId])
+
+  /** La conversation défile en bas : le dernier tour est toujours visible. */
+  useEffect(() => {
+    const node = threadScrollRef.current
+    if (node) node.scrollTop = node.scrollHeight
+  }, [thread?.turns.length, campaign?.campaignId])
+
+  /**
    * L'IHM ne propose PAS de reprendre une campagne passée (l'historique n'est pas consulté) : seul l'état de
    * la campagne courante est rafraîchi. Le backend conserve ses fichiers — une nouvelle campagne clôt
-   * automatiquement les précédentes (`CANCELLED`).
+   * automatiquement les précédentes (`CANCELLED`). Le FIL de conversation, lui, est repris sous l'agent.
    */
   const refresh = useCallback(async (campaignId: string) => {
     try {
-      setDetail(await fetchPromptCampaign(campaignId))
+      const current = await fetchPromptCampaign(campaignId)
+      setDetail(current)
+      if (current.thread) setThread(current.thread)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur de rafraîchissement.')
     }
@@ -302,6 +352,10 @@ export default function PromptLab() {
   }
 
   const selectedZone = selectableZones(agents).find((zone) => zone.agentId === agentId) ?? null
+  /** Nombre d'ÉCHANGES déjà figés dans la conversation (question + réponse d'une version promue). */
+  const threadExchanges = thread ? thread.turns.filter((turn) => turn.role === 'assistant').length : 0
+  /** Une conversation est EN COURS : elle s'enchaîne depuis son propre bloc, pas depuis « Question de test ». */
+  const threadActive = threadExchanges > 0
   const canStart = Boolean(agents?.enabled && selectedZone?.optimizable && question.trim() && iterations >= 1)
   const zonesShown = selectableZones(agents)
 
@@ -310,6 +364,11 @@ export default function PromptLab() {
    * traitement en cours).
    */
   const canDecide = Boolean(campaign && campaign.status !== 'RUNNING' && campaign.status !== 'STOP_REQUESTED')
+  /**
+   * Fenêtre de DÉCISION : les boutons de promotion ne sont proposés que tant qu'aucune version n'a été
+   * acceptée (après, la campagne est close : tout reste consultable mais plus promouvable).
+   */
+  const canPromote = Boolean(canDecide && campaign && !campaign.promotedVersion)
   /**
    * Itérations ENCORE disponibles sur le plafond CUMULÉ (demandées + ajoutées) : une reprise ne peut jamais
    * dépasser `maxIterations`. Valeur réellement appliquée = saisie bornée à ce reste.
@@ -324,9 +383,41 @@ export default function PromptLab() {
   const producedNewVersion = (iteration: PromptIteration) =>
     iteration.resultingVersion !== iteration.promptVersion
 
+  /** Version encore PROMOUVABLE : connue, ni en production, ni déjà promue. */
+  const promotableVersion = (version: string): boolean => Boolean(detail
+    && detail.versions.some((item) => item.version === version && !item.production && !item.promoted))
+
+  /**
+   * Itération qui a RÉELLEMENT répondu avec cette version ({@code promptVersion}, réponse non vide).
+   * <p>
+   * C'est la clé du modèle « je lis une réponse, je valide le prompt qui l'a produite » : une version ne
+   * peut être jugée que par la réponse qu'elle a effectivement donnée.
+   */
+  const answeringIteration = (version: string): PromptIteration | null =>
+    detail?.iterations.find((iteration) => iteration.promptVersion === version && Boolean(iteration.coachResponse))
+      ?? null
+
+  /** Campagne courante clôturée par une décision humaine : la conversation peut alors s'enchaîner. */
+  const campaignDecided = !campaign
+    || campaign.status === 'ACCEPTED' || campaign.status === 'REJECTED' || campaign.status === 'CANCELLED'
+  /**
+   * L'Agent A n'a proposé AUCUNE modification : la seule version connue est celle du snapshot (production).
+   * Il n'y a donc rien à promouvoir — mais il faut pouvoir ACCEPTER la campagne, sinon la conversation reste
+   * bloquée (aucune décision, donc aucune réponse de l'IA dans le fil).
+   */
+  const noVersionProduced = Boolean(detail && detail.versions.length <= 1)
+  /**
+   * Action DIRECTE, sans confirmation : accepter une campagne sans modification n'écrit RIEN (le backend le
+   * vérifie : ni sauvegarde, ni réécriture du prompt). Il n'y a donc rien à écraser, donc rien à confirmer.
+   */
+  const canAcceptUnchanged = Boolean(campaign && canDecide && noVersionProduced && !campaign.promotedVersion)
+  /** La campagne courante a-t-elle déjà son échange dans la conversation (promotion faite) ? */
+  const campaignInThread = Boolean(campaign && thread?.turns.some((turn) => turn.campaignId === campaign.campaignId))
+  const canContinue = Boolean(threadActive && nextQuestion.trim() && !busy && campaignDecided)
+
   async function handleStart() {
     await guard(async () => {
-      const created = await startPromptCampaign({
+      const started = await startPromptCampaign({
         agentId,
         question: question.trim(),
         iterations,
@@ -335,8 +426,58 @@ export default function PromptLab() {
         controllerProvider,
         editorProvider,
       })
-      setNotice(`Campagne ${created.campaignId} créée : snapshot de référence figé.`)
-      await drive(created.campaignId)
+      setThread(started.thread)
+      setNotice(`Campagne ${started.campaign.campaignId} créée : snapshot de référence figé.`)
+      await drive(started.campaign.campaignId)
+    })
+  }
+
+  /**
+   * QUESTION SUIVANTE : un NOUVEAU cycle démarre avec TOUT l'historique de la conversation. Le prompt utilisé
+   * est celui qui vient d'être promu (il est en production) : la conversation teste donc la version acceptée
+   * sur une question de suivi, exactement comme dans le chat.
+   */
+  async function handleContinue() {
+    const text = nextQuestion.trim()
+    if (!text || !thread) return
+    await guard(async () => {
+      const started = await startPromptCampaign({
+        agentId,
+        question: text,
+        iterations,
+        zoneKey: thread.zoneKey,
+        provider,
+        controllerProvider,
+        editorProvider,
+        threadId: thread.threadId,
+      })
+      setThread(started.thread)
+      setNextQuestion('')
+      setEditingTurn(null)
+      setNotice(`Nouveau cycle ${started.campaign.campaignId} démarré avec ${threadExchanges} échange(s) d'historique.`)
+      await drive(started.campaign.campaignId)
+    })
+  }
+
+  /** Nouvelle conversation : le prochain cycle repart SANS mémoire (les fils précédents restent sur disque). */
+  function handleNewConversation() {
+    setThread(null)
+    setNextQuestion('')
+    setEditingTurn(null)
+    setNotice("Nouvelle conversation : le prochain cycle démarrera sans historique (aucune mémoire).")
+  }
+
+  /**
+   * Correction d'un tour : l'humain garde la main sur la réponse qui sera rejouée au cycle suivant (une
+   * réponse mal attribuée viciérait l'optimisation du prompt).
+   */
+  async function handleSaveTurn() {
+    if (!thread || !editingTurn) return
+    const { index, content } = editingTurn
+    await guard(async () => {
+      setThread(await updatePromptTurn(thread.threadId, index, content.trim()))
+      setEditingTurn(null)
+      setNotice("Réponse corrigée : c'est ce texte qui sera rejoué dans les prochains cycles.")
     })
   }
 
@@ -423,6 +564,20 @@ export default function PromptLab() {
     })
   }
 
+  /**
+   * ACCEPTER SANS CHANGEMENT : l'Agent A n'a proposé aucune modification, donc accepter la campagne ne réécrit
+   * RIEN (le backend le vérifie : ni sauvegarde, ni prompt). AUCUNE confirmation n'est demandée — il n'y a rien
+   * à écraser. C'est ce qui débloque l'enchaînement : la réponse de l'IA entre dans la conversation.
+   */
+  async function handleAcceptUnchanged() {
+    if (!campaign) return
+    await guard(async () => {
+      const result = await promotePromptVersion(campaign.campaignId, campaign.basePromptVersion)
+      setNotice(result.message)
+      await refresh(campaign.campaignId)
+    })
+  }
+
   async function handleReject() {
     if (!campaign) return
     await guard(async () => {
@@ -440,8 +595,9 @@ export default function PromptLab() {
   }
 
   /**
-   * Revient à la configuration pour démarrer une NOUVELLE campagne (l'IHM ne conserve pas d'historique :
-   * les fichiers de la campagne précédente restent sur disque, mais ne sont plus proposés).
+   * Revient à la configuration pour démarrer une NOUVELLE campagne (l'IHM ne conserve pas d'historique de
+   * CAMPAGNES : les fichiers de la campagne précédente restent sur disque, mais ne sont plus proposés).
+   * La CONVERSATION, elle, n'est pas perdue : c'est elle qui porte la mémoire des cycles suivants.
    */
   function newCampaign() {
     stopRef.current = true
@@ -455,6 +611,7 @@ export default function PromptLab() {
     setShowFeedback(false)
     setFeedbackText('')
     setPromotionVersion(null)
+    setEditingTurn(null)
     setNotice(null)
     setError(null)
   }
@@ -523,6 +680,7 @@ export default function PromptLab() {
   /** Contenu de la confirmation de promotion (le cadre est fourni par l'appelant). */
   function promotionPanel(panel: OpenPanel | null) {
     if (!panel || !campaign) return null
+    const answered = answeringIteration(panel.version)
     return (
       <>
         <h2><ThumbsUp size={16} /> Confirmer la promotion</h2>
@@ -531,6 +689,18 @@ export default function PromptLab() {
           la version <b>{panel.version}</b> issue de cette campagne.
         </p>
         <p>Le prompt actuel sera conservé dans l'historique (retour arrière possible).</p>
+        {answered ? (
+          <p className="plab-ok">
+            La <b>réponse de l'itération {answered.iterationNumber}</b> — celle qui a été produite par cette
+            version — rejoindra la conversation de l'atelier : la mémoire contiendra donc exactement la réponse
+            du prompt promu.
+          </p>
+        ) : (
+          <p className="plab-hint">
+            Cette version <b>n'a pas encore répondu</b> : sa réponse sera <b>générée avec ce prompt</b> (un appel IA
+            supplémentaire) puis rejoindra la conversation de l'atelier.
+          </p>
+        )}
         <div className="plab-actions">
           <button type="button" onClick={() => setPromotionVersion(null)} disabled={busy}>ANNULER</button>
           <button type="button" className="plab-primary" onClick={() => handlePromote(panel.version)} disabled={busy}>
@@ -664,8 +834,21 @@ export default function PromptLab() {
             </details>
           </>
         )}
+        {threadActive && (
+          <p className="plab-hint">
+            Une <b>conversation</b> est ouverte avec cet agent : enchaînez la question suivante depuis le bloc
+            <b> « Conversation de l'atelier »</b> ci-dessous (tout l'historique sera transmis au Coach), ou
+            cliquez <b>« Nouvelle conversation »</b> pour repartir sans mémoire.
+          </p>
+        )}
         <div className="plab-actions">
-          <button type="button" className="plab-primary" disabled={!canStart || busy} onClick={handleStart}>
+          <button
+            type="button"
+            className="plab-primary"
+            disabled={!canStart || busy || threadActive}
+            onClick={handleStart}
+            title={threadActive ? "Une conversation est en cours : utilisez « Conversation de l'atelier »." : undefined}
+          >
             <Wand2 size={16} /> GO — démarrer l'optimisation
           </button>
           {campaign && (
@@ -675,6 +858,141 @@ export default function PromptLab() {
           )}
         </div>
       </section>
+
+      {/* 1bis) Conversation de l'atelier : la MÉMOIRE de l'atelier. Une version promue fait entrer la réponse
+          de l'IA dans la conversation ; la question suivante repart avec tout l'historique. */}
+      {(thread || campaign) && (
+        <section className="mkt-card plab-thread">
+          <h2>
+            <MessageSquare size={16} /> Conversation de l'atelier
+            {threadExchanges > 0 && ` (${threadExchanges} échange(s))`}
+          </h2>
+          <p className="plab-hint">
+            Comme dans la page coach : chaque cycle d'itérations porte sur <b>une question</b>. Dès qu'une version
+            est promue, la <b>réponse de l'IA pour cette version</b> entre dans la conversation, et la question
+            suivante repart avec <b>tout l'historique</b> — comme un client qui poursuit l'échange.
+          </p>
+
+          {!thread && (
+            <p className="plab-hint">
+              Aucune conversation en mémoire : le prochain cycle démarre <b>sans historique</b> (les fils
+              précédents restent sur disque, mais ne sont pas rejoués).
+            </p>
+          )}
+
+          {thread && (
+            <>
+              <div className="plab-thread-scroll" ref={threadScrollRef}>
+                {thread.turns.map((turn: PromptTurn, index: number) => (
+                  turn.role === 'user' ? (
+                    <div key={`${turn.campaignId}-${index}`} className="message-row user">
+                      <div className="message-bubble user">
+                        <div className="message-meta"><span>Question de test</span></div>
+                        <div className="message-text">{turn.content}</div>
+                      </div>
+                      <div className="avatar user-avatar">V</div>
+                    </div>
+                  ) : (
+                    <div key={`${turn.campaignId}-${index}`} className="message-row assistant">
+                      <div className="avatar assistant-avatar"><Sparkles size={17} /></div>
+                      <div className="message-bubble assistant">
+                        <div className="message-meta">
+                          <span>Réponse de l'IA — version {turn.version || '—'} promue</span>
+                        </div>
+                        {editingTurn?.index === index ? (
+                          <>
+                            <textarea
+                              className="plab-thread-edit"
+                              rows={6}
+                              value={editingTurn.content}
+                              onChange={(event) => setEditingTurn({ index, content: event.target.value })}
+                            />
+                            <div className="plab-actions">
+                              <button type="button" onClick={() => setEditingTurn(null)} disabled={busy}>ANNULER</button>
+                              <button
+                                type="button"
+                                className="plab-primary"
+                                onClick={handleSaveTurn}
+                                disabled={busy || !editingTurn.content.trim()}
+                              >
+                                <Check size={14} /> ENREGISTRER
+                              </button>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="message-text">{turn.content || '(réponse vide)'}</div>
+                            <div className="plab-thread-meta">
+                              <span className="plab-tag ok">★ {turn.version || 'version'} promue</span>
+                              <span className="plab-mono">cycle {turn.campaignId}</span>
+                              <button
+                                type="button"
+                                className="plab-thread-edit-btn"
+                                onClick={() => setEditingTurn({ index, content: turn.content })}
+                                disabled={busy}
+                              >
+                                <Pencil size={13} /> Corriger la réponse
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )
+                ))}
+
+                {campaign && !campaignInThread && (
+                  <div className="message-row user">
+                    <div className="message-bubble user pending">
+                      <div className="message-meta"><span>Question de test — en cours</span></div>
+                      <div className="message-text">{campaign.question}</div>
+                    </div>
+                    <div className="avatar user-avatar">V</div>
+                  </div>
+                )}
+              </div>
+
+              {campaign && !campaignInThread && (
+                <p className="plab-hint">
+                  ⏳ La réponse de l'IA n'est pas encore figée : <b>promouvoir une version</b> ajoute à la
+                  conversation la réponse produite par l'itération qui l'a créée (c'est elle qui deviendra la
+                  mémoire des cycles suivants). Si l'Agent A n'a proposé aucune modification, utilisez
+                  <b> ACCEPTER SANS CHANGEMENT</b> : le prompt reste identique et la réponse entre quand même
+                  dans la conversation.
+                </p>
+              )}
+
+              <div className="plab-thread-composer">
+                <label className="plab-field">
+                  <span>Question suivante — le cycle repart avec l'historique complet</span>
+                  <textarea
+                    rows={3}
+                    value={nextQuestion}
+                    disabled={busy}
+                    onChange={(event) => setNextQuestion(event.target.value)}
+                    placeholder="Et si j'allongeais la durée à 60 mois ? Qu'est-ce que cela change pour ma mensualité ?"
+                  />
+                </label>
+                <div className="plab-actions">
+                  <button type="button" className="plab-primary" disabled={!canContinue} onClick={handleContinue}>
+                    <Send size={16} /> GO — enchaîner ({threadExchanges} échange(s) de mémoire)
+                  </button>
+                  <button type="button" onClick={handleNewConversation} disabled={busy}>
+                    <Plus size={15} /> Nouvelle conversation
+                  </button>
+                </div>
+                {!campaignDecided && (
+                  <p className="plab-hint">
+                    Pour enchaîner : <b>promouvoir une version</b>, <b>accepter la campagne sans changement</b> (si
+                    l'éditeur n'a rien proposé) ou refuser la campagne — la réponse de l'IA doit d'abord être figée
+                    dans la conversation.
+                  </p>
+                )}
+              </div>
+            </>
+          )}
+        </section>
+      )}
 
       {campaign && detail && (
         <>
@@ -772,6 +1090,18 @@ export default function PromptLab() {
                 </button>
               )}
               {campaign.status === 'STOP_REQUESTED' && <span className="plab-hint">Arrêt demandé : la réponse en cours se termine…</span>}
+              {/* Aucune modification proposée : promouvoir serait identique ⇒ action DIRECTE, sans confirmation. */}
+              {canAcceptUnchanged && (
+                <button
+                  type="button"
+                  className="plab-primary"
+                  onClick={handleAcceptUnchanged}
+                  disabled={busy}
+                  title="L'Agent A n'a proposé aucune modification : accepter enregistre la réponse de l'IA dans la conversation de l'atelier. Le prompt n'est pas réécrit — il n'y a donc rien à confirmer."
+                >
+                  <ThumbsUp size={15} /> ACCEPTER SANS CHANGEMENT
+                </button>
+              )}
               {(campaign.status === 'PAUSED' || campaign.status === 'STOP_REQUESTED') && (
                 <>
                   <button type="button" onClick={() => setShowFeedback((open) => !open)} disabled={busy}>
@@ -830,8 +1160,13 @@ export default function PromptLab() {
           {/* 5) Versions */}
           <section className="mkt-card">
             <h2><Braces size={16} /> Versions du prompt ({detail.versions.length})</h2>            <p className="plab-hint">
-              <b>Promouvoir</b> installe une version en production — action depuis la ligne de la version
-              (ou depuis l'itération qui l'a produite), confirmée, avec sauvegarde du prompt actuel.
+              <b>Promouvoir</b> installe une version en production (action confirmée, avec sauvegarde du prompt
+              actuel). Deux points d'entrée : la <b>version qui a répondu</b> — bouton sur l'itération concernée, à
+              côté de la réponse que vous venez de juger — et <b>cette table</b>, pour n'importe quelle version,
+              dont la <b>dernière proposée par l'Agent A</b> qui n'a pas encore répondu (sa réponse sera alors
+              <b>générée avec ce prompt</b>). Quand l'Agent A n'a proposé <b>aucune</b> modification, la campagne
+              s'accepte <b>sans changement</b> (barre d'actions de « Progression ») : le prompt n'est pas réécrit et
+              <b>aucune confirmation</b> n'est demandée.
             </p>            <div className="mkt-table-scroll">
               <table className="mkt-table">
                 <thead>
@@ -858,7 +1193,7 @@ export default function PromptLab() {
                             <Braces size={14} /> Changements
                           </button>
                         )}
-                        {!version.production && !version.promoted && canDecide && (
+                        {!version.production && !version.promoted && canPromote && (
                           <button type="button" onClick={() => setPromotionVersion({ version: version.version, iteration: null })} disabled={busy}>
                             <ThumbsUp size={14} /> Promouvoir
                           </button>
@@ -878,7 +1213,9 @@ export default function PromptLab() {
                 Aucune nouvelle version pour l'instant : <b>{campaign.basePromptVersion}</b> est le prompt de
                 production et l'Agent A n'a proposé aucun changement. Le numéro de version n'avance QUE quand la
                 zone est réellement réécrite — les itérations « sans modification » réutilisent donc la même
-                version (d'où « Voir le prompt utilisé (V0) » sur plusieurs itérations).
+                version (d'où « Voir le prompt utilisé (V0) » sur plusieurs itérations). Pour enchaîner la
+                conversation malgré tout, utilisez <b>ACCEPTER SANS CHANGEMENT</b> : le prompt reste identique et
+                aucune confirmation n'est demandée.
               </p>
             )}
           </section>
@@ -940,6 +1277,14 @@ export default function PromptLab() {
                     </span>
                   )}
                   {iteration.status === 'ERROR' && <span className="plab-tag ko">erreur</span>}
+                  {iteration.error.includes('NEED_DATA') && (
+                    <span
+                      className="plab-tag ko"
+                      title="Le prompt a demandé des données que le contexte ne contient pas : l'itération est dégradée exactement comme en production (la réponse de repli est enregistrée, la campagne continue)."
+                    >
+                      données indisponibles → réponse dégradée
+                    </span>
+                  )}
                 </header>
                 <h3>Réponse du Coach</h3>
                 <pre className="plab-pre response">{iteration.coachResponse || '(aucune réponse enregistrée)'}</pre>
@@ -968,9 +1313,14 @@ export default function PromptLab() {
                       </button>
                     </>
                   )}
-                  {producedNewVersion(iteration) && canDecide && (
-                    <button type="button" onClick={() => setPromotionVersion({ version: iteration.resultingVersion, iteration: iteration.iterationNumber })} disabled={busy}>
-                      <ThumbsUp size={14} /> Promouvoir {iteration.resultingVersion}
+                  {canPromote && promotableVersion(iteration.promptVersion) && (
+                    <button
+                      type="button"
+                      onClick={() => setPromotionVersion({ version: iteration.promptVersion, iteration: iteration.iterationNumber })}
+                      disabled={busy}
+                      title={`Promouvoir ${iteration.promptVersion} : c'est le prompt qui a produit la réponse ci-dessus — vous validez donc le prompt dont vous venez de juger la réponse.`}
+                    >
+                      <ThumbsUp size={14} /> Promouvoir
                     </button>
                   )}
                   {!producedNewVersion(iteration) && (

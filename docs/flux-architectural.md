@@ -30,11 +30,11 @@ flowchart TD
     PRJ --> REQ{"Intention produit ?<br/>(FINANCING_REQUEST / PRODUCT_INFORMATION)"}
     REQ -- "oui, projet inconnu" --> CLARIF["Question de clarification (pas de produits)"]
     REQ --> AGENT["Sélection de l'agent : thème explicite du message, sinon mapping projectType"]
-    AGENT --> PROD["Backend : findCompatible(products.json) → compatibleProducts + restriction du catalogue"]
+    AGENT --> PROD["Backend : findCompatible(products.json) → compatibleProducts + catalogue MONTRÉ restreint"]
     PROD --> DATA["providedData : synthèse financière + data de l'agent actif (fiche + arbre de décision)"]
     DATA --> COACH["Appel coach (agent actif) :<br/>generic.txt + [agent_principal]→principal.txt + [agent]→prompt agent"]
     COACH --> LOOP{"status = NEED_DATA ?"}
-    LOOP -- "oui (max 3)" --> FETCH["fetch des fichiers demandés (whitelist catalogue)"]
+    LOOP -- "oui (max 3)" --> FETCH["fetch des fichiers demandés (tout le catalogue déclaré)"]
     FETCH --> DATA
     LOOP -- "non" --> LOG["Réponse finale + logs (prompt, agent, filtrage, réponse, historique)"]
 ```
@@ -94,7 +94,7 @@ sequenceDiagram
 | Clarification | projet inconnu/confiance basse en demande produit | `ChatController` (pas de produits) |
 | **Agent actif** | thème explicite du message (assurance, épargne, crédit immo…) sinon mapping `projectType → thème` | `selectAgentTheme` + `agents.json` |
 | **Menu produits autorisé** | famille autorisée (par type de projet) + type autorisé + bornes montant | `ProjectProductMappingService` + `products.json` (`findCompatible`) |
-| Restriction catalogue | fichiers visibles = hors `/catalogue` + fiches des familles autorisées | `ChatController.isCatalogueEntryAllowed` / `catalogueDocFamilies` |
+| Restriction catalogue | catalogue MONTRÉ = hors `/catalogue` + fiches des familles autorisées ; tout fichier du catalogue est **fourni sur demande** | `CoachContextBuilder.isCatalogueEntryAllowed` / `catalogueDocFamilies` |
 | **Données de l'agent** | fiches + arbres de décision injectés d'office | `AgentFiles` (`agent.data`) + `DataRequestService.readEntry` |
 | Prompt système | `generic.txt` (gabarit) + `principal.txt` ([agent_principal]) + prompt de l'agent ([agent]) | `AgentFiles.systemPromptFor` |
 | Choix de l'offre finale | l'agent choisit parmi le menu en appliquant les règles des fiches | LLM (fiches + cascade + compatibleProducts) |
@@ -294,17 +294,25 @@ flowchart TD
     VN --> LOOP
     LOOP --> DEC["Décision HUMAINE<br/>comparer · promouvoir · refuser"]
     DEC --> PROMO["Promotion explicite<br/>sauvegarde du prompt actuel puis écriture de la zone"]
+    PROMO --> MEM["FIL DE CONVERSATION<br/>la réponse de la version promue entre dans la mémoire"]
+    MEM -.->|"question suivante : l'historique complet est rejoué"| Q
     HUMAN["Avis humain<br/>(prioritaire)"] -.-> A
 ```
+
+Le **fil de conversation** est ce qui permet de tester un prompt sur un échange **qui continue** : la mémoire
+n'accepte que les échanges **validés par une promotion** (une question sans version promue n'a pas de réponse
+figée, elle n'est jamais rejouée), elle est **gelée dans le snapshot** de chaque cycle, et elle est fournie au
+Coach, à l'Agent B et à l'Agent A. Contrat de jugement : l'Agent B **lit tout l'historique** mais **ne juge que
+le dernier échange** (les réponses déjà validées ne sont jamais réévaluées).
 
 ### 8.2 Qui décide quoi
 
 | Acteur | Fait | Ne fait pas |
 |---|---|---|
 | **Backend Java** | Fige le contexte, compose le prompt (`préfixe + zone + suffixe`), valide chaque proposition, persiste tout, applique la promotion | N'invente aucune amélioration |
-| **Agent B** (contrôleur) | Diagnostique la réponse du Coach : points à améliorer, sévérité, **origine** (prompt / données / règle backend / variabilité du modèle), comportements à préserver | Ne réécrit rien, ne juge pas le métier |
+| **Agent B** (contrôleur) | Diagnostique la réponse du Coach **du dernier échange** : points à améliorer, sévérité, **origine** (prompt / données / règle backend / variabilité du modèle), comportements à préserver — en lisant tout l'historique pour comprendre le contexte | Ne réécrit rien, ne juge pas le métier, ne réévalue jamais une réponse déjà validée |
 | **Agent A** (éditeur) | Réécrit **la seule zone éditable** en suivant un ordre d'autorité (règles → parties protégées → décision humaine → avis humain → Agent B → lui-même) | Ne touche ni au reste du prompt, ni aux règles, ni au code |
-| **Humain** | Donne un avis prioritaire, arrête/reprend, retient une version et **promouvoit** | — |
+| **Humain** | Donne un avis prioritaire, arrête/reprend, retient une version, **promouvoit** et enchaîne les questions (la conversation de l'atelier) | — |
 
 ### 8.3 Les trois garanties
 

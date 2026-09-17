@@ -388,17 +388,27 @@ class PromptOptimizationServiceTest {
         assertEquals(PromptOptimizationModels.CAMPAIGN_ERROR, campaignState.status());
     }
 
+    /**
+     * Une demande de données INSATISFIABLE (le Coach réclame un fichier que le catalogue ne permet pas de
+     * fournir) ne doit JAMAIS bloquer : c'est exactement le comportement du chat en production — l'itération est
+     * conservée avec la réponse de repli (celle que le client recevrait), le motif est tracé dans `error`, et la
+     * campagne reste utilisable (décision, promotion, conversation).
+     */
     @Test
-    void anUnresolvableDataRequestStopsTheCampaign() {
-        // Le Coach réclame des données, mais AUCUN fichier autorisé n'est fourni : l'atelier n'invente rien.
+    void anUnresolvableDataRequestDegradesTheIterationWithoutBlocking() {
         ai.coachStatus = AIModels.AIStatus.NEED_DATA;
         var campaign = service.start(new StartRequest("credit_conso", QUESTION, 1, null, AIModels.AIProvider.DEEPSEEK));
 
         var iteration = service.iterate(campaign.campaignId());
 
-        assertEquals(PromptOptimizationModels.ITERATION_ERROR, iteration.status());
-        assertTrue(iteration.error().contains("NEED_DATA"));
-        assertEquals(PromptOptimizationModels.CAMPAIGN_ERROR, service.campaign(campaign.campaignId()).status());
+        assertEquals(PromptOptimizationModels.ITERATION_COMPLETED, iteration.status(),
+                "la demande non satisfiable ne bloque plus l'itération");
+        assertEquals(PromptOptimizationService.UNAVAILABLE_DATA_ANSWER, iteration.coachResponse(),
+                "la réponse est celle du repli de PRODUCTION (celle que le client recevrait)");
+        assertTrue(iteration.error().contains("NEED_DATA"), iteration.error());
+        assertNotNull(iteration.controllerFeedback(), "Agent B juge la réponse de repli, comme toute réponse client");
+        assertEquals(PromptOptimizationModels.CAMPAIGN_COMPLETED, service.campaign(campaign.campaignId()).status(),
+                "la campagne reste utilisable (décision, promotion, conversation)");
     }
 
     @Test
@@ -786,6 +796,223 @@ class PromptOptimizationServiceTest {
         assertEquals("DEEPSEEK", campaign.editorProvider());
     }
 
+    // --- Fil de conversation : la mémoire de l'atelier -----------------------------------------------
+
+    /**
+     * Une promotion enregistre l'échange dans le fil (question + réponse de la version promue). Le test
+     * simule cette écriture — comme le fait {@code promoteVersion} — parce qu'une promotion réelle réécrit
+     * le prompt de PRODUCTION (aucun test ne doit modifier {@code ./agent}) : la partie testée ici est la
+     * REPRISE du fil par le cycle suivant, pas l'écriture du fichier de prompt.
+     */
+    private String seedExchange(PromptOptimizationModels.Campaign campaign, String answer, String version) {
+        String threadId = store.threadOf(campaign.campaignId()).orElseThrow().threadId();
+        store.saveThread(store.thread(threadId).orElseThrow()
+                .withExchange(campaign.campaignId(), campaign.question(), answer, version));
+        return threadId;
+    }
+
+    @Test
+    void startOpensAConversationThreadAndAttachesTheCampaign() {
+        var campaign = service.start(new StartRequest("credit_conso", QUESTION, 1, null, AIModels.AIProvider.DEEPSEEK));
+
+        var thread = store.threadOf(campaign.campaignId()).orElseThrow();
+
+        assertEquals("credit_conso", thread.agentId());
+        assertEquals(PromptOptimizationModels.ZONE_AGENT, thread.zoneKey());
+        assertEquals(List.of(campaign.campaignId()), thread.campaignIds());
+        assertTrue(thread.empty(), "aucun échange n'entre dans la mémoire avant une promotion");
+        assertTrue(thread.history().isEmpty(), "le premier cycle démarre sans mémoire");
+        assertEquals(1, store.threads().size());
+    }
+
+    @Test
+    void aFollowUpCycleReplaysTheValidatedHistoryAndThePreviousProject() {
+        var first = service.start(new StartRequest("credit_conso", QUESTION, 2, null, AIModels.AIProvider.DEEPSEEK));
+        String threadId = seedExchange(first, "Réponse de la version promue V2.", "V2");
+        ai.coachCalls = 0;
+        ai.lastHistory = List.of();
+
+        var second = service.start(new StartRequest("credit_conso",
+                "Et si j'allongeais la durée à 60 mois ?", 1, null, AIModels.AIProvider.DEEPSEEK, threadId));
+
+        // 1) L'historique est FIGÉ dans le snapshot du nouveau cycle (reproductibilité).
+        var frozenHistory = store.snapshot(second.campaignId()).orElseThrow().history();
+        assertEquals(2, frozenHistory.size());
+        assertEquals("user", frozenHistory.get(0).role());
+        assertEquals(QUESTION, frozenHistory.get(0).content());
+        assertEquals("assistant", frozenHistory.get(1).role());
+        assertEquals("Réponse de la version promue V2.", frozenHistory.get(1).content());
+
+        // 2) Il est réellement TRANSMIS au Coach (même contrat que le chat).
+        service.iterate(second.campaignId());
+        assertEquals(2, ai.lastHistory.size());
+        assertEquals("Réponse de la version promue V2.", ai.lastHistory.get(1).content());
+        assertNotNull(ai.lastHistory.get(0).timestamp(), "l'historique rejoué est daté");
+
+        // 3) La question de suivi reste dans le PROJET de l'échange précédent (comme dans le chat).
+        assertTrue(ai.lastCurrentProjectDescription.contains("type = VEHICLE"),
+                "le classifieur reçoit le projet précédent : " + ai.lastCurrentProjectDescription);
+        assertTrue(ai.lastCurrentProjectDescription.contains("15000"),
+                "le montant connu du projet est transmis : " + ai.lastCurrentProjectDescription);
+
+        // 4) Le fil enchaîne les deux campagnes et ne duplique pas l'échange.
+        var thread = store.thread(threadId).orElseThrow();
+        assertEquals(List.of(first.campaignId(), second.campaignId()), thread.campaignIds());
+        assertEquals(1, thread.exchanges());
+        assertEquals(2, thread.turns().size());
+    }
+
+    @Test
+    void startRefusesAnUnknownOrForeignConversationThread() {
+        var unknown = assertThrows(IllegalArgumentException.class, () -> service.start(
+                new StartRequest("credit_conso", QUESTION, 1, null, AIModels.AIProvider.DEEPSEEK, "th-inexistant")));
+        assertTrue(unknown.getMessage().contains("Fil de conversation inconnu"), unknown.getMessage());
+
+        store.saveThread(new PromptOptimizationModels.ConversationThread("th-epargne", "epargne", "Épargne",
+                PromptOptimizationModels.ZONE_AGENT, List.of(), List.of(),
+                "2026-09-17T08:00:00Z", "2026-09-17T08:00:00Z"));
+        var foreign = assertThrows(IllegalArgumentException.class, () -> service.start(
+                new StartRequest("credit_conso", QUESTION, 1, null, AIModels.AIProvider.DEEPSEEK, "th-epargne")));
+        assertTrue(foreign.getMessage().contains("appartient à"), foreign.getMessage());
+        assertTrue(store.threads().size() >= 1, "un démarrage refusé n'écrit rien");
+    }
+
+    @Test
+    void theReplayedAnswerCanBeCorrectedByTheHuman() {
+        var campaign = service.start(new StartRequest("credit_conso", QUESTION, 1, null, AIModels.AIProvider.DEEPSEEK));
+        String threadId = seedExchange(campaign, "Réponse à corriger", "V1");
+
+        var updated = service.updateTurn(threadId, 1, "  Réponse corrigée  ");
+
+        assertEquals("Réponse corrigée", updated.history().get(1).content());
+        assertEquals("Réponse corrigée", service.thread(threadId).history().get(1).content(),
+                "la correction est persistée : c'est elle qui sera rejouée");
+        assertEquals("user", service.thread(threadId).history().get(0).role());
+
+        assertThrows(IllegalArgumentException.class, () -> service.updateTurn(threadId, 5, "hors bornes"));
+        assertThrows(IllegalArgumentException.class, () -> service.updateTurn(threadId, 0, "   "));
+        assertThrows(IllegalArgumentException.class, () -> service.thread("th-inexistant"));
+        assertThrows(IllegalArgumentException.class, () -> service.thread(""));
+    }
+
+    @Test
+    void aNewCycleWithoutThreadStartsWithoutMemory() {
+        var first = service.start(new StartRequest("credit_conso", QUESTION, 1, null, AIModels.AIProvider.DEEPSEEK));
+        seedExchange(first, "Réponse promue", "V1");
+        ai.lastHistory = List.of();
+
+        var second = service.start(new StartRequest("credit_conso", QUESTION, 1, null, AIModels.AIProvider.DEEPSEEK));
+
+        assertTrue(store.snapshot(second.campaignId()).orElseThrow().history().isEmpty(),
+                "sans fil, le cycle démarre sans mémoire");
+        service.iterate(second.campaignId());
+        assertTrue(ai.lastHistory.isEmpty(), "le Coach ne reçoit aucune mémoire");
+        assertEquals(2, store.threads().size(), "chaque cycle sans fil ouvre sa propre conversation");
+        assertNotEquals(first.campaignId(), second.campaignId());
+    }
+
+    /**
+     * ACCEPTER SANS CHANGEMENT : quand l'Agent A n'a rien proposé, aucune version nouvelle n'existe — et sans
+     * cette acceptation l'humain resterait bloqué (aucune décision ⇒ aucune réponse de l'IA dans le fil ⇒
+     * conversation impossible à enchaîner). La version acceptée est alors IDENTIQUE au prompt en production :
+     * rien n'est écrit (ni sauvegarde, ni réécriture).
+     * <p>
+     * Le test ne peut pas corrompre le prompt de production : la zone recomposée depuis la version du snapshot
+     * EST, par construction, celle du fichier courant — une écriture hypothétique serait identique. Le contenu
+     * du fichier est malgré tout comparé avant/après pour vérifier la garantie « aucune écriture ».
+     */
+    @Test
+    void aCampaignWithoutAnyProposedChangeCanStillBeAccepted() throws Exception {
+        Path production = Path.of("agent", "credit-conso.txt");
+        String before = Files.readString(production);
+        var campaign = service.start(new StartRequest("credit_conso", QUESTION, 1, null, AIModels.AIProvider.DEEPSEEK));
+        ai.edition = new PromptOptimizationModels.EditorResult(PromptOptimizationModels.EDITOR_NO_CHANGE,
+                "zone inchangée", List.of(), List.of(), List.of(), List.of(), false);
+
+        var iteration = service.iterate(campaign.campaignId());
+        assertTrue(iteration.noChange());
+        assertEquals(campaign.basePromptVersion(), iteration.resultingVersion());
+        assertEquals(1, store.versions(campaign.campaignId()).size(), "aucune version nouvelle produite");
+
+        var result = service.promoteVersion(campaign.campaignId(), campaign.basePromptVersion());
+
+        assertEquals(PromptOptimizationModels.CAMPAIGN_ACCEPTED, result.campaign().status());
+        assertEquals(campaign.basePromptVersion(), result.campaign().promotedVersion());
+        assertTrue(result.backupFile().isEmpty(), "aucune écriture ⇒ aucune sauvegarde à restaurer");
+        assertTrue(result.message().contains("Aucune modification"), result.message());
+        assertEquals(before, Files.readString(production), "le prompt de production n'est pas réécrit");
+
+        // La conversation est DÉBLOQUÉE : la réponse de l'IA est entrée dans le fil (c'est ce qui permet la suite).
+        var thread = store.threadOf(campaign.campaignId()).orElseThrow();
+        assertEquals(1, thread.exchanges());
+        assertEquals(2, thread.history().size());
+        assertEquals(ai.coachAnswer, thread.history().get(1).content());
+        assertEquals(campaign.basePromptVersion(), thread.turns().get(1).version());
+    }
+
+    /**
+     * La conversation doit contenir la réponse produite PAR la version acceptée — jamais celle qui a motivé le
+     * changement (générée avec la version PRÉCÉDENTE), sinon la mémoire du cycle suivant décrirait un prompt qui
+     * n'est plus en production.
+     * <p>
+     * L'éditeur « modifie » ici la zone en la réécrivant à l'IDENTIQUE : une nouvelle version est bien produite
+     * (le numéro avance) mais le contenu ne change pas, donc la promotion n'écrit rien — le test ne touche pas au
+     * prompt de production.
+     */
+    private String zoneRewrittenIdentical(String campaignId) {
+        return store.snapshot(campaignId).orElseThrow().initialEditableSection();
+    }
+
+    @Test
+    void theExchangeRecordsTheAnswerProducedByTheAcceptedVersion() {
+        ai.coachAnswers = List.of("Réponse de la version V0.", "Réponse de la version V1.", "Réponse de la version V2.");
+        var campaign = service.start(new StartRequest("credit_conso", QUESTION, 2, null, AIModels.AIProvider.DEEPSEEK));
+        ai.edition = new PromptOptimizationModels.EditorResult(PromptOptimizationModels.EDITOR_UPDATED,
+                zoneRewrittenIdentical(campaign.campaignId()), List.of("zone réécrite à l'identique"),
+                List.of(), List.of(), List.of(), false);
+
+        var first = service.iterate(campaign.campaignId());
+        var second = service.iterate(campaign.campaignId());
+        assertEquals("V0", first.promptVersion());
+        assertEquals("V1", first.resultingVersion());
+        assertEquals("V1", second.promptVersion(), "la 2e itération a RÉELLEMENT répondu avec V1");
+        int aiCallsBeforePromotion = service.campaign(campaign.campaignId()).aiCalls();
+
+        var result = service.promoteVersion(campaign.campaignId(), "V1");
+
+        var thread = store.threadOf(campaign.campaignId()).orElseThrow();
+        assertEquals(2, thread.history().size());
+        assertEquals("Réponse de la version V1.", thread.history().get(1).content(),
+                "c'est la réponse de la version PROMUE, pas celle qui a motivé le changement");
+        assertEquals("V1", thread.turns().get(1).version());
+        assertEquals(2, ai.coachCalls, "la réponse de V1 existait déjà : aucun appel IA supplémentaire");
+        assertEquals(aiCallsBeforePromotion, result.campaign().aiCalls(), "aucun appel IA ajouté");
+        assertTrue(result.message().contains("produite par cette version"), result.message());
+    }
+
+    @Test
+    void aVersionThatNeverAnsweredIsReplayedToProduceItsAnswer() {
+        ai.coachAnswers = List.of("Réponse de la version V0.", "Réponse de la version V1.");
+        var campaign = service.start(new StartRequest("credit_conso", QUESTION, 1, null, AIModels.AIProvider.DEEPSEEK));
+        ai.edition = new PromptOptimizationModels.EditorResult(PromptOptimizationModels.EDITOR_UPDATED,
+                zoneRewrittenIdentical(campaign.campaignId()), List.of("zone réécrite à l'identique"),
+                List.of(), List.of(), List.of(), false);
+
+        var only = service.iterate(campaign.campaignId());
+        assertEquals("V1", only.resultingVersion());
+        assertEquals(1, ai.coachCalls);
+        int aiCallsBeforePromotion = service.campaign(campaign.campaignId()).aiCalls();
+
+        var result = service.promoteVersion(campaign.campaignId(), "V1");
+
+        assertEquals(2, ai.coachCalls, "V1 n'avait jamais répondu : le Coach est rejoué avec cette version");
+        var thread = store.threadOf(campaign.campaignId()).orElseThrow();
+        assertEquals("Réponse de la version V1.", thread.history().get(1).content());
+        assertEquals(aiCallsBeforePromotion + 1, result.campaign().aiCalls(),
+                "l'appel de rejeu est compté dans la campagne");
+        assertTrue(result.message().contains("générée"), result.message());
+    }
+
     // --- Doubles de test ------------------------------------------------------------------------------
 
     /** Faux fournisseur IA : scripte la boucle de l'atelier, sans réseau. */
@@ -806,12 +1033,21 @@ class PromptOptimizationServiceTest {
         RuntimeException controllerFailure;
         RuntimeException editorFailure;
         Runnable duringCoachCall;
+        /**
+         * Réponses du Coach consommées dans l'ORDRE des appels (la dernière est répétée si la liste est
+         * épuisée) : permet de distinguer la réponse d'une version de celle d'une autre.
+         */
+        List<String> coachAnswers = List.of();
         /** Fichiers que le Coach demande au PREMIER appel (vide = réponse directe). */
         List<String> needsDataPaths = List.of();
         /** Contexte exact transmis à Agent B (contrôleur) au dernier appel. */
         Map<String, Object> lastControllerContext;
         /** Contexte exact transmis à Agent A (éditeur) au dernier appel. */
         Map<String, Object> lastEditorContext;
+        /** Description du projet transmise au CLASSIFIEUR au dernier appel (mémoire du fil). */
+        String lastCurrentProjectDescription = "";
+        /** Historique transmis au COACH au dernier appel (exactement `conversationHistory`). */
+        List<ConversationModels.Message> lastHistory = List.of();
         int coachCalls;
         int controllerCalls;
         int editorCalls;
@@ -831,6 +1067,7 @@ class PromptOptimizationServiceTest {
         @Override
         public IntentClassification classifyIntent(String userMessage, String currentProjectDescription,
                                                   AIModels.AIProvider provider) {
+            lastCurrentProjectDescription = currentProjectDescription == null ? "" : currentProjectDescription;
             return classification;
         }
 
@@ -854,6 +1091,7 @@ class PromptOptimizationServiceTest {
                                                         AIModels.AIProvider provider) {
             coachCalls++;
             lastSystemPrompt = systemPrompt;
+            lastHistory = history == null ? List.of() : history;
             if (duringCoachCall != null) {
                 duringCoachCall.run();
             }
@@ -864,7 +1102,9 @@ class PromptOptimizationServiceTest {
                 return new AIModels.AIAnswer(AIModels.AIStatus.NEED_DATA, "",
                         new AIModels.DataRequest(needsDataPaths), Map.of(), "", null);
             }
-            return new AIModels.AIAnswer(coachStatus, coachAnswer, null, Map.of(), "", null);
+            String answer = coachAnswers.isEmpty() ? coachAnswer
+                    : coachAnswers.get(Math.min(coachCalls - 1, coachAnswers.size() - 1));
+            return new AIModels.AIAnswer(coachStatus, answer, null, Map.of(), "", null);
         }
 
         @Override

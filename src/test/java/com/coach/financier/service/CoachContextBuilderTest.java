@@ -14,7 +14,10 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -68,7 +71,7 @@ class CoachContextBuilderTest {
         return p;
     }
 
-    /** Financement véhicule : agent « crédit conso » + catalogue RESTREINT (pas de crédit immo). */
+    /** Financement véhicule : agent « crédit conso » + catalogue MONTRÉ restreint (pas de crédit immo). */
     @Test
     void vehicleFinancingIsRoutedToConsumerCreditAgentAndRestrictsCatalogue() {
         IntentClassification c = classification(FinancialIntent.FINANCING_REQUEST, ProjectType.VEHICLE,
@@ -81,15 +84,19 @@ class CoachContextBuilderTest {
         assertEquals("Crédit à la consommation", ctx.agentLibelle());
         assertFalse(ctx.clarificationRequired());
         assertTrue(ctx.restrictedCatalog());
+        // Tout fichier du catalogue est FOURNISSABLE sur demande (« s'il le demande, on l'autorise ») : la
+        // restriction ne porte que sur ce qui est MONTRÉ spontanément à l'IA (le catalogue envoyé).
         assertNotNull(ctx.allowedCatalogPaths());
-        assertTrue(ctx.allowedCatalogPaths().contains("/data/catalogue/credit_conso.json"),
-                "la fiche crédit conso reste visible");
-        assertFalse(ctx.allowedCatalogPaths().contains("/data/catalogue/credit_immo.json"),
-                "la fiche crédit immo est masquée hors périmètre");
-        assertFalse(ctx.allowedCatalogPaths().contains("/data/catalogue/assurance_auto.json"),
-                "les fiches d'assurance sont masquées hors périmètre");
-        assertTrue(ctx.allowedCatalogPaths().contains("/data/transaction/transactions_2026_08.json"),
-                "les fichiers hors /data/catalogue restent toujours visibles");
+        assertTrue(ctx.allowedCatalogPaths().contains("/data/catalogue/credit_conso.json"));
+        assertTrue(ctx.allowedCatalogPaths().contains("/data/catalogue/credit_immo.json"),
+                "fournissable si le Coach le demande explicitement");
+        assertTrue(ctx.allowedCatalogPaths().contains("/data/transaction/transactions_2026_08.json"));
+        assertFalse(catalogPaths(ctx).contains("/data/catalogue/credit_immo.json"),
+                "mais la fiche crédit immo n'est PAS montrée hors périmètre");
+        assertFalse(catalogPaths(ctx).contains("/data/catalogue/assurance_auto.json"),
+                "les fiches d'assurance ne sont pas montrées hors périmètre");
+        assertTrue(catalogPaths(ctx).contains("/data/catalogue/credit_conso.json"),
+                "la fiche crédit conso est montrée");
         assertFalse(ctx.compatibleProducts().isEmpty(), "des produits compatibles sont filtrés par le backend");
         assertTrue(ctx.allowedFamilies().contains(ProductFamily.AUTO_LOAN));
         assertTrue(ctx.debug().contains("[AGENT]") && ctx.debug().contains("theme=credit_conso"));
@@ -97,7 +104,20 @@ class CoachContextBuilderTest {
         assertTrue(ctx.debug().contains("[COACH]"));
     }
 
-    /** Question générique : agent générique, aucun produit, aucune restriction de catalogue. */
+    /** Chemins réellement MONTRÉS à l'IA (le catalogue envoyé est une liste de {path, description}). */
+    private static Set<String> catalogPaths(CoachContext ctx) {
+        Set<String> paths = new LinkedHashSet<>();
+        if (ctx.catalog() instanceof List<?> entries) {
+            for (Object entry : entries) {
+                if (entry instanceof Map<?, ?> map && map.get("path") != null) {
+                    paths.add(String.valueOf(map.get("path")));
+                }
+            }
+        }
+        return paths;
+    }
+
+    /** Question générique : agent générique, aucun produit, aucune restriction de catalogue montré. */
     @Test
     void genericQuestionUsesGenericAgentAndKeepsTheFullCatalogue() {
         IntentClassification c = classification(FinancialIntent.BUDGET_ANALYSIS, ProjectType.UNKNOWN, null);
@@ -107,7 +127,8 @@ class CoachContextBuilderTest {
         assertEquals("generic", ctx.agentTheme());
         assertFalse(ctx.requiresProducts());
         assertFalse(ctx.restrictedCatalog());
-        assertNull(ctx.allowedCatalogPaths());
+        assertNotNull(ctx.allowedCatalogPaths(), "tout le catalogue reste fournissable sur demande");
+        assertTrue(ctx.allowedCatalogPaths().contains("/data/catalogue/credit_immo.json"));
         assertTrue(ctx.compatibleProducts().isEmpty());
         assertTrue(ctx.allowedFamilies().isEmpty());
         assertNull(ctx.project());

@@ -890,6 +890,29 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .plab-feedbacks li.pending { border-left-color: #b45309; }
 .plab-feedbacks li div { margin-top: 4px; }
 
+/* Conversation de l'atelier : même rendu que la page coach (bulles + avatars), dans un bloc borné.
+   Hauteur DOUBLÉE (460 → 920 px) : la conversation doit rester lisible sans scroller en permanence. */
+.plab-thread-scroll {
+  display: flex; flex-direction: column; gap: 16px; padding: 18px;
+  background: #fff; border: 1px solid #e7e7e7; border-radius: 8px; max-height: 920px; overflow: auto;
+}
+.plab-thread-scroll::-webkit-scrollbar { width: 9px; }
+.plab-thread-scroll::-webkit-scrollbar-thumb { background: #cfcfcf; border-radius: 99px; }
+.plab-thread-scroll .message-row { max-width: 92%; }
+.plab-thread-scroll .message-text { white-space: pre-wrap; font-size: 13.5px; line-height: 1.5; }
+.message-bubble.pending { border-style: dashed; }
+.plab-thread-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; font-size: 11.5px; color: #666; }
+.plab-thread-edit-btn {
+  display: inline-flex; align-items: center; gap: 5px; background: #fff; border: 1px solid #dcdcdc;
+  border-radius: 5px; padding: 3px 8px; font-size: 11.5px; color: #444; cursor: pointer;
+}
+.plab-thread-edit-btn:hover:not(:disabled) { background: #f4f4f4; }
+.plab-thread-edit {
+  width: 100%; border: 1px solid #dcdcdc; border-radius: 6px; padding: 8px; font-size: 13px;
+  font-family: ui-monospace, Menlo, Consolas, monospace; resize: vertical;
+}
+.plab-thread-composer { margin-top: 14px; }
+
 @media (max-width: 860px) {
   .plab-two { grid-template-columns: 1fr; }
 }

@@ -47,7 +47,7 @@ Empêcher structurellement l'IA de recommander ou de mentionner un produit banca
 | F18 | Pop-in de satisfaction | À la fin d'une conversation : note 1 à 5, motifs si note ≤ 3, commentaire facultatif, bouton **Passer** — avis toujours facultatif |
 | F19 | Qualité & Satisfaction du Coach | Indicateurs de satisfaction client **et** contrôles de conformité du Coach, croisement des deux, rapport IA quotidien |
 | F20 | Feedback Conseiller | Le conseiller évalue en quelques secondes la pertinence du travail du Coach (résumé, besoin, produits, intérêts, suivi, email) ; KPI, pertinence produit, qualité des emails, analyse IA |
-| F21 | Atelier d'optimisation des prompts | Boucle contrôlée **Agent A (éditeur) / Agent B (contrôleur)** qui améliore **une seule zone** du prompt d'un agent métier, sur une question **figée** : snapshot de référence, avis humain prioritaire, STOP/reprise, historique complet et **promotion en production par un humain uniquement** |
+| F21 | Atelier d'optimisation des prompts | Boucle contrôlée **Agent A (éditeur) / Agent B (contrôleur)** qui améliore **une seule zone** du prompt d'un agent métier, sur une question **figée** : snapshot de référence, avis humain prioritaire, STOP/reprise, historique complet et **promotion en production par un humain uniquement** ; les cycles **s'enchaînent dans une conversation** (la réponse de chaque version promue devient la mémoire du cycle suivant, que l'Agent B **lit sans la juger**) |
 
 ### 2.1 Pages / écrans (frontend React, routage par hash, pas de react-router)
 
@@ -285,13 +285,13 @@ Améliorer un prompt « à la main » ne prouve rien : on ne sait pas **ce qui**
 | **Agent B — contrôleur** | `agent/prompt_controller.txt` | Analyse la réponse du Coach **sans rien réécrire** : points satisfaisants, points à améliorer (type, sévérité, **origine** : prompt / données / règle backend / variabilité du modèle), comportements à préserver, recommandation |
 | **Humain** | IHM | Décide : avis prioritaire, arrêt, reprise, et surtout **promotion** d'une version en production |
 
-Si le Coach réclame des données (`NEED_DATA` — ce n'est **pas** une réponse client), l'atelier fait **comme en production** : les fichiers autorisés du catalogue lui sont fournis, le **contexte de référence est enrichi** (et tracé sur l'itération), puis le Coach produit la réponse destinée au client — **c'est seulement à ce moment qu'Agent B intervient**.
+Si le Coach réclame des données (`NEED_DATA` — ce n'est **pas** une réponse client), l'atelier fait **comme en production** : les fichiers autorisés du catalogue lui sont fournis, le **contexte de référence est enrichi** (et tracé sur l'itération), puis le Coach produit la réponse destinée au client — **c'est seulement à ce moment qu'Agent B intervient**. Si ces données **ne peuvent pas** être fournies, l'itération n'est **pas bloquée** : elle est **dégradée comme en production** (réponse de repli enregistrée, motif affiché), et la campagne continue — c'est une information utile (« le prompt réclame des données que le contexte ne contient pas »), jamais un point de blocage de la conversation.
 
 ```mermaid
 flowchart TD
-    Q[Question de test figée] --> SNAP[Snapshot de référence<br/>données + classification + prompt hors zone : FIGÉS]
+    Q[Question de test figée] --> SNAP[Snapshot de référence<br/>données + classification + prompt hors zone + HISTORIQUE : FIGÉS]
     SNAP --> COACH[Le Coach répond avec la version courante du prompt]
-    COACH --> B[Agent B : diagnostic de la réponse<br/>aucune réécriture]
+    COACH --> B[Agent B : diagnostic du DERNIER échange<br/>aucune réécriture]
     B --> A[Agent A : nouvelle zone éditable<br/>+ avis humain prioritaire si présent]
     A --> VAL{Validation BACKEND<br/>marqueurs, longueur, non vide}
     VAL -- refusée --> KEEP[La version est CONSERVÉE<br/>l'échec est enregistré et expliqué]
@@ -299,8 +299,29 @@ flowchart TD
     NEW -->|itérations restantes| COACH
     NEW --> CMP[Comparer · refuser]
     CMP -->|décision humaine explicite| PROD[PROMOTION<br/>le prompt actuel est sauvegardé]
+    PROD --> MEM[La réponse de la version promue<br/>entre dans la CONVERSATION]
+    MEM -->|question suivante, tout l'historique| SNAP
     HUMAN[Avis humain] -.prioritaire.-> A
 ```
+
+#### La conversation de l'atelier (enchaîner les cycles)
+
+Tester un prompt sur **une seule** question isolée ne dit rien de sa tenue dans un **vrai échange**. L'atelier
+conserve donc un **fil de conversation** :
+
+- chaque campagne reste **une question** (contexte figé, comparaison honnête) ;
+- **promouvoir une version fait entrer la réponse de l'IA dans la conversation** : c'est la réponse **produite par
+  la version promue** (celle que le client recevrait avec le prompt mis en production) — réutilisée si une itération
+  a déjà répondu avec elle, sinon **générée** avec ce prompt. Elle est affichée dans un bloc identique à la page
+  coach, et **corrigeable** par l'humain ;
+- la **question suivante** relance un cycle complet (itérations, Agent B, Agent A, promotion) **avec tout
+  l'historique** : le Coach, l'Agent B et l'Agent A reçoivent les échanges déjà validés, exactement comme dans le
+  chat ; une question de suivi (« et si j'allongeais la durée à 60 mois ? ») reste donc dans le projet en cours ;
+- l'**Agent B lit tout l'historique pour comprendre le contexte, mais ne juge que le dernier échange** : les
+  réponses déjà validées ne sont jamais réévaluées ; les contrôles de continuité (information déjà donnée, réponse
+  qui ignore l'échange précédent, redite inutile) portent sur l'échange courant ;
+- l'humain garde la main : « **Nouvelle conversation** » repart sans mémoire, et le fil le plus récent de l'agent
+  est rechargé à l'ouverture de la page (le rechargement du navigateur ne fait plus perdre l'échange en cours).
 
 Ce que l'humain voit dans la page :
 
@@ -308,9 +329,13 @@ Ce que l'humain voit dans la page :
 - **Snapshot de référence** : la liste de ce qui est **figé** (question, données financières, classification d'intention, projet, prompt hors zone) — c'est ce qui rend la comparaison honnête ;
 - **Production vs candidat** : le prompt **actuellement en production** reste distingué de toutes les versions de la campagne ; aucune version candidate n'est utilisée par les conversations tant qu'un humain ne l'a pas promue ;
 - **Progression** : état, itération _n / N_, réalisées / restantes, appels IA, caractères envoyés, durée ;
-- **Par itération** : la réponse du Coach, l'analyse de l'Agent B (points à améliorer, sévérité, origine), les changements demandés à l'Agent A, le prompt de la version, et un **diff de la seule zone éditable** — les boutons « Voir le prompt produit / Changements » n'apparaissent que si l'Agent A a réellement modifié la zone (sinon un repère « sans modification → aucune nouvelle version » l'explique) ;
-- **Actions** : `GO`, `STOP` (arrêt gracieux), `REPRENDRE`, « Ajouter mon avis », « Ajouter mon avis et continuer (+n) », **« Continuer sans avis (+n) »** (prolonger un cycle terminé sans écrire d'avis), `COMPARER`, « Promouvoir » (avec confirmation explicite), « Refuser la campagne » ;
-- **Avis humains** : visuellement distincts du diagnostic automatique, avec leur statut (appliqué / en attente).
+- **Par itération** : la réponse du Coach, l'analyse de l'Agent B (points à améliorer, sévérité, origine), les changements demandés à l'Agent A, le prompt de la version, un **diff de la seule zone éditable** — les boutons « Voir le prompt produit / Changements » n'apparaissent que si l'Agent A a réellement modifié la zone (sinon un repère « sans modification → aucune nouvelle version » l'explique) — et un bouton **`Promouvoir`** qui valide **le prompt dont la réponse vient d'être lue** (la version proposée, jamais utilisée, se promeut depuis le tableau des versions : sa réponse est alors générée) ;
+- **Actions** : `GO`, `STOP` (arrêt gracieux), `REPRENDRE`, « Ajouter mon avis », « Ajouter mon avis et continuer (+n) », **« Continuer sans avis (+n) »** (prolonger un cycle terminé sans écrire d'avis), `COMPARER`, « Promouvoir » (avec confirmation explicite), **« ACCEPTER SANS CHANGEMENT »** (visible quand l'Agent A n'a rien proposé : action **directe**, sans confirmation, qui accepte la campagne **sans réécrire le prompt** et fait entrer la réponse de l'IA dans la conversation), « Refuser la campagne » ;
+- **Avis humains** : visuellement distincts du diagnostic automatique, avec leur statut (appliqué / en attente) ;
+- **Conversation de l'atelier** : les échanges déjà validés (comme dans la page coach), la question en cours
+  (« en attente de promotion »), la réponse de l'IA de chaque version promue (corrigeable) et un champ
+  « question suivante » qui relance un cycle **avec tout l'historique** — plus « Nouvelle conversation » pour
+  repartir sans mémoire.
 
 Règles fonctionnelles fortes :
 
@@ -319,7 +344,8 @@ Règles fonctionnelles fortes :
 3. Un agent **sans zone** (prompt non marqué) n'est **pas** optimisable : l'atelier ne devine jamais la zone ;
 4. `STOP` n'interrompt **jamais** brutalement un appel IA : la réponse en cours est enregistrée, puis la campagne passe en pause ;
 5. **Aucune promotion automatique** : le passage en production est une action humaine, confirmée, et le prompt précédent est sauvegardé (retour arrière possible) ;
-6. Aucun code ni règle métier n'est modifié par l'atelier : il ne change **qu'un texte de prompt**.
+6. **On n'est jamais bloqué** : si l'Agent A n'a proposé **aucune** modification, aucune version nouvelle n'existe — « **ACCEPTER SANS CHANGEMENT** » accepte alors la campagne **sans réécrire le prompt** (le backend vérifie que le contenu est identique : ni sauvegarde, ni écriture) et **sans demander de confirmation** (il n'y a rien à écraser) : la réponse de l'IA entre dans la conversation et l'échange peut continuer ;
+7. Aucun code ni règle métier n'est modifié par l'atelier : il ne change **qu'un texte de prompt**.
 
 ---
 
@@ -342,12 +368,17 @@ Règles fonctionnelles fortes :
 | `INSURANCE` | INSURANCE_AUTO, INSURANCE_HOME, INSURANCE_BORROWER |
 | `BUDGET` / `OTHER_FINANCIAL` / `UNKNOWN` | *(aucun produit automatique)* |
 
-### 4.2 Restriction du catalogue visible (contexte financement)
+### 4.2 Restriction du catalogue MONTRÉ (contexte financement)
 Quand le message relève d'un **besoin de financement** et que le projet est connu :
 - les fichiers **hors `/data/catalogue/`** restent visibles (transactions, synthèse) ;
-- parmi les fichiers `/data/catalogue/*.json`, seuls ceux dont les familles documentées croisent les familles autorisées sont visibles.
+- parmi les fichiers `/data/catalogue/*.json`, seuls ceux dont les familles documentées croisent les familles autorisées sont **montrés** à l'IA.
 
-Exemple concret (projet VEHICLE) : `credit_conso.json` est **visible** ; `credit_immo.json`, `epargne.json`, `assurance_*.json` sont **cachés** — à la fois dans le catalogue présenté à l'IA **et** dans la whitelist de récupération (l'IA ne peut pas les obtenir, même en les demandant).
+Exemple concret (projet VEHICLE) : `credit_conso.json` est **montré** ; `credit_immo.json`, `epargne.json`,
+`assurance_*.json` ne le sont **pas** — l'IA ne peut donc pas les découvrir spontanément. En revanche, **s'il
+demande explicitement un fichier déclaré au catalogue, il lui est fourni** (« s'il le demande, on l'autorise ») :
+c'est le comportement du chat, qui répond une phrase de repli quand la donnée manque. La barrière reste double :
+seuls les chemins du **catalogue** sont lisibles (aucun fichier inventé), et seuls les produits de
+`compatibleProducts` sont **recommandables**.
 
 ### 4.3 Produits vs engagements existants
 - `existingCredits` : crédits **déjà souscrits** (ex. crédit immobilier 956 €/mois) → utilisés pour l'endettement/le reste à vivre, **jamais** proposés comme solution.
@@ -478,5 +509,5 @@ Toutes les données sont **fictives** et servent uniquement la démonstration.
 - Atelier d'optimisation : il n'attribue **pas** de note automatique de qualité ; il compare des réponses et fournit un diagnostic, la décision finale reste humaine ;
 - Atelier d'optimisation : la boucle est pilotée par l'IHM (une requête HTTP = une itération) — il n'y a ni file de tâches ni exécution en arrière-plan : l'onglet doit rester ouvert pendant la campagne ;
 - Atelier d'optimisation : les missions commencent avec GPT/DeepSeek réellement configurés ; en mode MOCK l'atelier refuse de démarrer (les autres modules continuent de fonctionner en mode démo) ;
-- Atelier d'optimisation : l'IHM **ne permet pas de reprendre une campagne passée** (pas d'historique à l'écran) : démarrer une nouvelle campagne clôt automatiquement la précédente (statut *Annulée*), ses fichiers restant sur disque ;
-- Atelier d'optimisation : le contexte est figé, donc la boucle `NEED_DATA` (demande de fichier complémentaire) est **désactivée** pendant une campagne.
+- Atelier d'optimisation : l'IHM **ne permet pas de reprendre une campagne passée** (pas d'historique de campagnes à l'écran) : démarrer une nouvelle campagne clôt automatiquement la précédente (statut *Annulée*), ses fichiers restant sur disque — en revanche la **conversation** (fil de l'atelier) est reprise automatiquement, et la question suivante ouvre une nouvelle campagne avec la mémoire des échanges validés ;
+- Atelier d'optimisation : si le Coach réclame un fichier que le contexte ne peut pas fournir, l'itération est **dégradée comme en production** (réponse de repli + motif affiché) au lieu d'échouer : la campagne et la conversation ne sont jamais bloquées.

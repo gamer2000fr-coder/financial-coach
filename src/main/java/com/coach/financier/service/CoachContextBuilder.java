@@ -18,8 +18,8 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -124,20 +124,25 @@ public class CoachContextBuilder {
 
         // Contexte compact transmis au coach.
         // Catalogue RESTREINT en contexte financement : seuls les fichiers de données et les
-        // produits compatibles restent visibles -> on empêche structurellement l'IA de
-        // récupérer un produit hors périmètre (ex. credit_immo.json pour un véhicule).
+        // produits compatibles restent VISIBLES -> l'IA ne découvre pas spontanément un produit hors périmètre
+        // (ex. credit_immo.json pour un véhicule).
         boolean restrictCatalog = requiresProducts && projectUsable;
         Set<ProductFamily> debugFamilies = Set.of();
         int catalogBefore = dataRequestService.catalogEntries().size();
-        Set<String> allowedCatalogPaths = null;
+        // FICHIERS FOURNISSABLES : TOUT ce que le catalogue déclare. Dès que le Coach DEMANDE un fichier du
+        // catalogue, il lui est fourni (règle simple : « s'il le demande, on l'autorise ») — la whitelist du
+        // catalogue reste la seule barrière (aucun fichier hors catalogue, aucun fichier inventé) et il n'y a
+        // donc plus de demande légitime refusée. La restriction ci-dessus ne limite plus que ce qui est MONTRÉ.
+        Set<String> allowedCatalogPaths = new LinkedHashSet<>();
+        for (Map<String, String> entry : dataRequestService.catalogEntries()) {
+            allowedCatalogPaths.add(entry.get("path"));
+        }
         List<Map<String, String>> visibleEntries;
         if (restrictCatalog) {
             debugFamilies = mappingService.getAllowedFamilies(project.getType());
-            allowedCatalogPaths = new HashSet<>();
             visibleEntries = new ArrayList<>();
             for (Map<String, String> entry : dataRequestService.catalogEntries()) {
                 if (isCatalogueEntryAllowed(entry.get("path"), debugFamilies)) {
-                    allowedCatalogPaths.add(entry.get("path"));
                     visibleEntries.add(entry);
                 }
             }

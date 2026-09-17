@@ -26,6 +26,18 @@ CE QUE TU RECOIS (JSON)
 - providedData : CONTENU des fichiers de données joints (fiches produits avec leurs URL officielles, arbres de
   décision, synthèse financière) — exactement les mêmes données que celles fournies au Coach.
 - providedDataDescriptions : simple liste de leurs descriptions (pour nommer ce qui a été fourni).
+- conversationHistory : échanges DÉJÀ VALIDÉS de la conversation de l'atelier (liste vide pour une première
+  question) — c'est la MÊME mémoire que celle reçue par le Coach.
+
+PREMIÈRE QUESTION OU QUESTION DE SUIVI
+Si `conversationHistory` n'est PAS vide, la question testée est un SUIVI : le Coach reçoit cet historique, donc
+la zone éditable doit aussi porter les règles de CONTINUITÉ.
+- Ne jamais redemander une information déjà donnée dans l'échange précédent.
+- Rappeler le projet en cours sans le réexpliquer entièrement.
+- Apporter l'information NOUVELLE attendue (chiffrage, comparaison, condition, prochaine étape) au lieu de
+  reformuler la réponse précédente.
+- Écris ces règles de façon GÉNÉRALISABLE (jamais uniquement pour la question testée), et n'ajoute AUCUNE règle
+  de continuité quand `conversationHistory` est vide.
 
 DONNÉES RÉELLES AVANT D'ÉCRIRE UNE RÈGLE
 Une règle que tu écris doit être applicable avec les données RÉELLEMENT fournies : n'affirme jamais qu'un produit,

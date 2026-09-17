@@ -22,7 +22,7 @@ Retourne UNIQUEMENT un JSON valide avec ces champs :
 - projectType : VEHICLE, REAL_ESTATE_PURCHASE, HOME_WORK, ELECTRONICS, FURNITURE, TRAVEL,
   EDUCATION, WEDDING, HEALTH_EXPENSE, CASH_NEED, DEBT_RESTRUCTURING, SAVINGS, BUDGET,
   INVESTMENT, INSURANCE, OTHER_FINANCIAL, UNKNOWN
-- projectObject : chaîne courte (ex. "Clio 5", "réfection cuisine") ou null
+- projectObject : chaîne courte reprenant les mots du client (ex. "voiture d'occasion", "réfection cuisine") ou null
 - amount : nombre (ex. 8700) ou null — n'invente aucun montant absent du message ou du contexte
 - currency : "EUR" par défaut
 - refersToCurrentProject : true si le message renvoie au projet courant sans le redéfinir
@@ -55,9 +55,9 @@ Exemple : « je voudrais assurer mon appartement que je viens d'acheter avec un 
 INSURANCE (assurance habitation), PAS un crédit.
 
 Exemples :
-{"inScope":true,"intent":"PURCHASE","projectType":"VEHICLE","projectObject":"Clio 5","amount":8700,
+{"inScope":true,"intent":"PURCHASE","projectType":"VEHICLE","projectObject":"voiture d'occasion","amount":8700,
  "currency":"EUR","refersToCurrentProject":false,"projectChanged":true,"confidence":"HIGH",
- "reason":"Le client souhaite acheter une voiture, modèle Clio 5."}
+ "reason":"Le client souhaite acheter une voiture d'occasion."}
 
 {"inScope":true,"intent":"FINANCING_REQUEST","projectType":"VEHICLE","projectObject":null,"amount":null,
  "currency":"EUR","refersToCurrentProject":true,"projectChanged":false,"confidence":"HIGH",

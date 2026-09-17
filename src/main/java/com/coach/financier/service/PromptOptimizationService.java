@@ -7,8 +7,10 @@ import com.coach.financier.ai.MockAIService;
 import com.coach.financier.config.PromptOptimizationProperties;
 import com.coach.financier.model.AIModels;
 import com.coach.financier.model.AgentDefinition;
+import com.coach.financier.model.ConversationModels;
 import com.coach.financier.model.CurrentProject;
 import com.coach.financier.model.IntentClassification;
+import com.coach.financier.model.ProjectType;
 import com.coach.financier.model.PromptOptimizationModels;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -60,10 +62,20 @@ public class PromptOptimizationService {
      * indéfiniment (même limite qu'en production).
      */
     public static final String NEED_DATA_MESSAGE = "Le Coach demande des données supplémentaires (NEED_DATA) que "
-            + "le catalogue ne permet pas de fournir (fichiers autorisés uniquement, aucun inventé).";
+            + "le catalogue ne permet pas de fournir (fichiers autorisés uniquement, aucun inventé). "
+            + "L'itération est CONSERVÉE avec la réponse de repli du chat (comportement de production) : "
+            + "la campagne et la conversation continuent normalement.";
 
     /** Nombre maximal de complétions du contexte pour UNE itération (même limite que la production). */
     public static final int MAX_CONTEXT_COMPLETIONS = 3;
+
+    /**
+     * Réponse de repli quand le Coach réclame des données que le catalogue ne permet pas de fournir : c'est
+     * EXACTEMENT le message du chat en production ({@code ChatController}) — l'itération de l'atelier ne bloque
+     * donc jamais, et la réponse enregistrée est celle que le client recevrait réellement.
+     */
+    public static final String UNAVAILABLE_DATA_ANSWER =
+            "Je n'ai pas pu finaliser l'analyse demandée à partir des données disponibles.";
 
     /** Trace de l'atelier dans la page Logs. */
     public static final String LOG_AGENT_PREFIX = "Atelier prompts — ";
@@ -104,15 +116,30 @@ public class PromptOptimizationService {
      * @param provider           fournisseur du COACH (celui vu par le client)
      * @param controllerProvider fournisseur de l'Agent B (contrôleur) — {@code null} ⇒ celui du coach
      * @param editorProvider     fournisseur de l'Agent A (éditeur) — {@code null} ⇒ celui du coach
+     * @param threadId           FIL DE CONVERSATION à poursuivre — {@code null} ⇒ un nouveau fil est ouvert
+     *                           (aucune mémoire). Le fil fournit l'historique transmis au Coach.
      */
     public record StartRequest(String agentId, String question, int iterations, String zoneKey,
                               AIModels.AIProvider provider, AIModels.AIProvider controllerProvider,
-                              AIModels.AIProvider editorProvider) {
+                              AIModels.AIProvider editorProvider, String threadId) {
 
         /** Raccourci historique : les trois étapes utilisent le même fournisseur. */
         public StartRequest(String agentId, String question, int iterations, String zoneKey,
                             AIModels.AIProvider provider) {
-            this(agentId, question, iterations, zoneKey, provider, provider, provider);
+            this(agentId, question, iterations, zoneKey, provider, provider, provider, null);
+        }
+
+        /** Raccourci : un fournisseur pour les trois étapes, et un fil de conversation à poursuivre. */
+        public StartRequest(String agentId, String question, int iterations, String zoneKey,
+                            AIModels.AIProvider provider, String threadId) {
+            this(agentId, question, iterations, zoneKey, provider, provider, provider, threadId);
+        }
+
+        /** Raccourci : fournisseurs par étape, sans fil de conversation. */
+        public StartRequest(String agentId, String question, int iterations, String zoneKey,
+                            AIModels.AIProvider provider, AIModels.AIProvider controllerProvider,
+                            AIModels.AIProvider editorProvider) {
+            this(agentId, question, iterations, zoneKey, provider, controllerProvider, editorProvider, null);
         }
     }
 
@@ -130,7 +157,12 @@ public class PromptOptimizationService {
         return provider;
     }
 
-    /** Résultat d'une promotion : campagne mise à jour + sauvegarde du prompt remplacé (§17). */
+    /**
+     * Résultat d'une promotion : campagne mise à jour + sauvegarde du prompt remplacé (§17).
+     * <p>
+     * {@code backupId} / {@code backupFile} sont VIDES quand la version acceptée est identique au prompt en
+     * production (aucune modification proposée) : rien n'a été écrit, il n'y a donc rien à restaurer.
+     */
     public record PromotionResult(PromptOptimizationModels.Campaign campaign, String backupId, String backupFile,
                                   String message) {
     }
@@ -169,22 +201,38 @@ public class PromptOptimizationService {
         if (!zoneInfo.optimizable()) {
             throw new IllegalArgumentException(zoneInfo.error());
         }
+        // FIL DE CONVERSATION (§ mémoire de l'atelier) : un fil existant est REPRIS tel quel — les échanges
+        // déjà validés par une promotion deviennent l'historique (`conversationHistory`) transmis au Coach,
+        // exactement comme dans le chat. Sans fil, le cycle démarre sans mémoire.
+        // Validation AVANT toute écriture : un fil inconnu (ou appartenant à un autre agent) ne doit ni
+        // clôturer les campagnes en cours ni créer quoi que ce soit.
+        PromptOptimizationModels.ConversationThread previousThread = requireThread(request.threadId(), agent);
         String campaignId = nextCampaignId();
         // La REPRISE d'une campagne n'est pas proposée dans l'IHM : une nouvelle campagne clôt donc les
         // précédentes (statut CANCELLED) pour ne jamais bloquer sur « une campagne est déjà en cours ».
         // Les fichiers restent sur disque (rien n'est supprimé), mais ils ne sont plus utilisés.
         closePreviousCampaigns(campaignId);
 
+        List<ConversationModels.Message> history = previousThread == null ? List.of() : previousThread.history();
+        // La question renvoie souvent au projet de l'échange précédent (« et si je prends 48 mois ? ») :
+        // le classifieur reçoit la description du projet de la campagne précédente, comme dans le chat.
+        IntentClassification previousClassification = previousThread == null ? null
+                : lastClassificationOf(previousThread);
+        String currentProjectDescription = describeProject(previousClassification);
+
         AIService ai = aiServiceFactory.get(provider);
         // La classification est calculée UNE fois puis GELÉE dans le snapshot : c'est un appel IA comptabilisé.
-        IntentClassification classification = ai.classifyIntent(question, "", provider);
+        IntentClassification classification = ai.classifyIntent(question, currentProjectDescription, provider);
         if (classification.isOutOfScope()) {
             throw new IllegalArgumentException("La question de test est hors périmètre du coach financier.");
         }
         CurrentProject project = new CurrentProject();
+        if (previousClassification != null && continuesProject(classification)) {
+            project.apply(previousClassification);
+        }
         project.apply(classification);
 
-        CoachContext context = contextBuilder.build(question, classification, project, List.of(), agent.getTheme());
+        CoachContext context = contextBuilder.build(question, classification, project, history, agent.getTheme());
         String template = AgentFiles.readPromptOrDefault("generic.txt", "");
         String principal = AgentFiles.readPromptOrDefault(AgentFiles.PRINCIPAL_PROMPT_FILE, "");
         PromptZoneService.Zone zone = zoneService.parse(AgentFiles.readPromptOrDefault(zoneInfo.zoneFile(), ""));
@@ -212,13 +260,22 @@ public class PromptOptimizationService {
                 "", "", "", "",
                 Instant.now().toString(), Instant.now().toString());
         store.create(campaign, snapshot);
+        // Le fil est ouvert/associé DÈS le démarrage : la campagne en cours est rattachable à sa
+        // conversation (l'IHM affiche la question en attente de promotion) et la promotion y ajoutera
+        // l'échange complet (question + réponse de la version promue).
+        PromptOptimizationModels.ConversationThread thread = (previousThread == null
+                ? new PromptOptimizationModels.ConversationThread(nextThreadId(), agent.getTheme(),
+                        AgentFiles.libelleFor(agent.getTheme()), zoneInfo.zoneKey(), List.of(), List.of(),
+                        Instant.now().toString(), Instant.now().toString())
+                : previousThread).withCampaign(campaignId);
+        store.saveThread(thread);
         PromptOptimizationModels.Campaign running = store.saveCampaignAndReturn(update(campaign,
                 PromptOptimizationModels.CAMPAIGN_RUNNING, campaign.completedIterations(),
                 campaign.currentCandidateVersion(), campaign.aiCalls(), 0L, 0L,
                 "", "", "", "", null));
-        log.info("Campagne {} démarrée : agent={}, zone={}, itérations demandées={}, fournisseurs={} (coach) / {} (Agent B) / {} (Agent A)",
+        log.info("Campagne {} démarrée : agent={}, zone={}, itérations demandées={}, fournisseurs={} (coach) / {} (Agent B) / {} (Agent A), fil={} ({} message(s) d'historique)",
                 campaignId, agent.getTheme(), zoneInfo.zoneFile(), request.iterations(), provider,
-                controllerProvider.name(), editorProvider.name());
+                controllerProvider.name(), editorProvider.name(), thread.threadId(), history.size());
         return running;
     }
 
@@ -275,6 +332,8 @@ public class PromptOptimizationService {
         List<String> contextAddedData = new ArrayList<>();
         String status = PromptOptimizationModels.ITERATION_COMPLETED;
         String error = "";
+        /** Motif NON bloquant : le Coach a demandé des données que le contexte ne contient pas. */
+        String needDataWarning = "";
         String step = STEP_COACH;
         int aiCalls = 0;
 
@@ -290,13 +349,13 @@ public class PromptOptimizationService {
             int completions = 0;
             while (answer.status() == AIModels.AIStatus.NEED_DATA) {
                 if (completions >= MAX_CONTEXT_COMPLETIONS) {
-                    throw new IllegalStateException(NEED_DATA_MESSAGE + requestedPaths(answer));
+                    break; // borne atteinte : on dégrade comme en production (jamais de blocage)
                 }
                 completions++;
                 int providedBefore = snapshot.providedData().size();
                 PromptOptimizationModels.Snapshot completed = completeContext(campaign, snapshot, answer);
                 if (completed == null) {
-                    throw new IllegalStateException(NEED_DATA_MESSAGE + requestedPaths(answer));
+                    break; // rien à fournir : on dégrade comme en production (jamais de blocage)
                 }
                 snapshot = completed;
                 for (int i = providedBefore; i < snapshot.providedData().size(); i++) {
@@ -309,6 +368,19 @@ public class PromptOptimizationService {
                         snapshot.financialSummary(), snapshot.catalog(), AIModels.BankingContextMode.SYNTHESIS_AVAILABLE,
                         snapshot.additionalData(), snapshot.history(), provider);
                 aiCalls++;
+            }
+            if (answer.status() == AIModels.AIStatus.NEED_DATA) {
+                // EXACTEMENT comme en PRODUCTION : une demande de données que le catalogue ne permet pas de
+                // fournir ne bloque JAMAIS l'itération (elle interromprait la conversation et empêcherait toute
+                // décision). L'itération est CONSERVÉE avec la réponse de repli — celle que le client recevrait
+                // vraiment — et le motif est tracé dans `error` : c'est une information utile à l'optimisation du
+                // prompt (le prompt demande des données que le contexte ne contient pas), pas un échec.
+                String requested = requestedPaths(answer);
+                needDataWarning = NEED_DATA_MESSAGE + requested;
+                answer = new AIModels.AIAnswer(AIModels.AIStatus.ANSWER, UNAVAILABLE_DATA_ANSWER, null, Map.of(),
+                        "", null);
+                log.info("Itération {} de la campagne {} : demande de données insatisfiable — itération dégradée "
+                        + "comme en production{}", number, campaignId, requested);
             }
             coachResponse = answer.answer() == null ? "" : answer.answer();
 
@@ -356,7 +428,7 @@ public class PromptOptimizationService {
         PromptOptimizationModels.Iteration iteration = new PromptOptimizationModels.Iteration(
                 "it-" + campaignId + "-" + number, campaignId, number, version, section, zoneService.hash(section),
                 coachResponse, feedback, edition, resultingVersion, resultingSection, changeSummary, noChange,
-                humanApplied, contextAddedData, status, error, campaign.provider(),
+                humanApplied, contextAddedData, status, error.isBlank() ? needDataWarning : error, campaign.provider(),
                 campaign.controllerProvider(), campaign.editorProvider(), campaign.model(), promptChars, duration,
                 startedAt, Instant.now().toString());
         store.appendIteration(iteration);
@@ -553,6 +625,19 @@ public class PromptOptimizationService {
      * PROMOTION (§17) : action HUMAINE explicite. Le prompt ACTUEL est sauvegardé avant remplacement
      * (retour arrière possible), puis le fichier de la zone est réécrit en ne changeant QUE la zone.
      */
+    /**
+     * PROMOTION (§17) : action HUMAINE explicite. Le prompt ACTUEL est sauvegardé avant remplacement
+     * (retour arrière possible), puis le fichier de la zone est réécrit en ne changeant QUE la zone.
+     * <p>
+     * Cas particulier INDISPENSABLE : quand l'Agent A n'a proposé aucune modification, la version promue est
+     * identique au prompt en production. La campagne est alors simplement ACCEPTÉE, <b>sans aucune écriture</b>
+     * (ni sauvegarde, ni réécriture) : c'est ce qui permet d'enchaîner la conversation au lieu de rester bloqué
+     * sur une campagne qui ne produira jamais de version.
+     * <p>
+     * MÉMOIRE : la réponse enregistrée dans le fil de conversation est celle <b>produite par la version
+     * acceptée</b> (réutilisée si une itération a déjà répondu avec elle, sinon RÉGÉNÉRÉE par un appel au Coach
+     * — c'est ce qui ajoute 1 appel IA à la campagne).
+     */
     public PromotionResult promoteVersion(String campaignId, String version) {
         return store.withCampaignLock(campaignId, () -> {
             PromptOptimizationModels.Campaign campaign = store.require(campaignId);
@@ -591,17 +676,71 @@ public class PromptOptimizationService {
             if (rejection != null) {
                 throw new IllegalStateException("Version non promouvable : " + rejection);
             }
-            AgentPromptHistoryStore.PromptBackup backup = historyStore.backup(key, snapshot.zoneFile(), currentContent,
-                    "promotion de " + version + " (campagne " + campaignId + ")");
-            agentPromptStore.write(key, preserveLineEndings(currentContent, zoneService.compose(zone, section)));
-            log.info("Version {} promue pour l'agent {} (campagne {})", version, key, campaignId);
+            // ACCEPTATION SANS CHANGEMENT : quand l'Agent A n'a rien proposé, aucune version nouvelle n'existe
+            // (toutes les itérations sont « sans modification »). Pouvoir accepter la campagne TELLE QUELLE est
+            // indispensable : sans cela, l'humain resterait bloqué et ne pourrait pas enchaîner la conversation.
+            // Dans ce cas le contenu recomposé est IDENTIQUE au fichier en production : on n'écrit RIEN (ni
+            // sauvegarde, ni réécriture) — il n'y a donc rien à écraser.
+            String updatedContent = preserveLineEndings(currentContent, zoneService.compose(zone, section));
+            boolean unchanged = updatedContent.equals(currentContent);
+            String backupId = "";
+            String backupFile = "";
+            if (unchanged) {
+                log.info("Campagne {} acceptée SANS modification du prompt {} (version {}) : aucune écriture",
+                        campaignId, key, version);
+            } else {
+                AgentPromptHistoryStore.PromptBackup backup = historyStore.backup(key, snapshot.zoneFile(),
+                        currentContent, "promotion de " + version + " (campagne " + campaignId + ")");
+                agentPromptStore.write(key, updatedContent);
+                backupId = backup.backupId();
+                backupFile = backup.backupFile();
+                log.info("Version {} promue pour l'agent {} (campagne {})", version, key, campaignId);
+            }
+            // MÉMOIRE DE L'ATELIER : c'est la RÉPONSE DE LA VERSION ACCEPTÉE qui entre dans la conversation —
+            // celle que le client recevrait avec le prompt désormais en production.
+            // 1) si une itération a RÉELLEMENT répondu avec cette version, sa réponse est réutilisée (aucun
+            //    appel IA) ; 2) sinon (la version vient d'être produite par la dernière itération) la réponse
+            //    est GÉNÉRÉE en rejouant le Coach avec cette version : le tour de la conversation porte donc
+            //    toujours la réponse du prompt promu, jamais celle qui a motivé le changement.
+            boolean threadExists = store.threadOf(campaignId).isPresent();
+            String threadAnswer = "";
+            boolean answerRegenerated = false;
+            int extraAiCalls = 0;
+            if (threadExists) {
+                AcceptedAnswer accepted = acceptedAnswerOf(campaign, snapshot, version);
+                threadAnswer = accepted.content();
+                answerRegenerated = accepted.regenerated() && !threadAnswer.isBlank();
+                extraAiCalls = answerRegenerated ? accepted.aiCalls() : 0;
+                if (threadAnswer.isBlank()) {
+                    // Repli (aucune réponse exploitable) : on n'écrit JAMAIS un tour vide dans l'historique.
+                    threadAnswer = lastCoachResponse(campaignId);
+                    answerRegenerated = false;
+                    extraAiCalls = 0;
+                    log.warn("Campagne {} : aucune réponse exploitable pour la version {} — repli sur la "
+                            + "dernière réponse connue de la campagne", campaignId, version);
+                }
+            }
             PromptOptimizationModels.Campaign promoted = store.saveCampaignAndReturn(
                     update(campaign, PromptOptimizationModels.CAMPAIGN_ACCEPTED, campaign.completedIterations(),
-                            campaign.currentCandidateVersion(), campaign.aiCalls(),
+                            campaign.currentCandidateVersion(), campaign.aiCalls() + extraAiCalls,
                             0L, 0L, "", "", campaign.stopRequestedAt(), campaign.pausedAt(), version));
-            return new PromotionResult(promoted, backup.backupId(), backup.backupFile(),
-                    "La version " + version + " remplace la zone du prompt de « " + key
-                            + " ». Le prompt précédent est conservé dans l'historique (" + backup.backupFile() + ").");
+            if (threadExists) {
+                String answer = threadAnswer;
+                store.threadOf(campaignId).ifPresent(thread -> store.saveThread(
+                        thread.withExchange(campaignId, campaign.question(), answer, version)));
+            }
+            String conversation = threadExists
+                    ? (answerRegenerated
+                            ? " La réponse de cette version vient d'être générée avec ce prompt et rejoint la "
+                                    + "conversation de l'atelier."
+                            : " La réponse produite par cette version rejoint la conversation de l'atelier.")
+                    : "";
+            return new PromotionResult(promoted, backupId, backupFile, (unchanged
+                    ? "Aucune modification n'a été proposée : le prompt de « " + key + " » reste identique "
+                            + "(version " + version + " acceptée, aucune écriture)."
+                    : "La version " + version + " remplace la zone du prompt de « " + key
+                            + " ». Le prompt précédent est conservé dans l'historique (" + backupFile + ").")
+                    + conversation);
         });
     }
 
@@ -641,6 +780,43 @@ public class PromptOptimizationService {
 
     public List<PromptOptimizationModels.HumanFeedback> feedbacks(String campaignId) {
         return store.currentFeedbacks(campaignId).values();
+    }
+
+    // --- Fils de conversation (mémoire de l'atelier) -------------------------------------------------
+
+    /** Fils connus, du plus récemment modifié au plus ancien (l'IHM reprend la conversation en cours). */
+    public List<PromptOptimizationModels.ConversationThread> threads() {
+        return store.threads();
+    }
+
+    /** Fil demandé : un identifiant inconnu est une erreur LISIBLE (jamais un fil vide silencieux). */
+    public PromptOptimizationModels.ConversationThread thread(String threadId) {
+        if (threadId == null || threadId.isBlank()) {
+            throw new IllegalArgumentException("Fil de conversation non précisé.");
+        }
+        return store.thread(threadId.trim()).orElseThrow(
+                () -> new IllegalArgumentException("Fil de conversation inconnu : " + threadId));
+    }
+
+    /** Fil auquel appartient une campagne ({@code null} si elle n'en a pas : campagne antérieure). */
+    public PromptOptimizationModels.ConversationThread threadOfCampaign(String campaignId) {
+        store.require(campaignId);
+        return store.threadOf(campaignId).orElse(null);
+    }
+
+    /**
+     * Corrige le contenu d'un tour du fil : l'humain garde la main sur ce qui sera rejoué au cycle suivant
+     * (une réponse mal attribuée viciérait l'optimisation du prompt).
+     */
+    public PromptOptimizationModels.ConversationThread updateTurn(String threadId, int index, String content) {
+        PromptOptimizationModels.ConversationThread thread = thread(threadId);
+        String text = content == null ? "" : content.strip();
+        if (text.isEmpty()) {
+            throw new IllegalArgumentException("Le contenu du tour est vide.");
+        }
+        PromptOptimizationModels.ConversationThread updated = thread.withTurnContent(index, text);
+        store.saveThread(updated);
+        return updated;
     }
 
     /** Prompt système COMPLET d'une version (parties figées + zone de cette version) — IHM « Voir le prompt ». */
@@ -697,6 +873,163 @@ public class PromptOptimizationService {
 
     // --- Aides internes --------------------------------------------------------------------------------
 
+    /**
+     * FIL DE CONVERSATION demandé, ou {@code null} (nouveau fil). Un identifiant inconnu et un fil
+     * appartenant à un AUTRE agent sont refusés explicitement : reprendre la conversation d'un autre agent
+     * produirait un historique incohérent (le Coach verrait des échanges d'un autre métier).
+     */
+    private PromptOptimizationModels.ConversationThread requireThread(String threadId, AgentDefinition agent) {
+        if (threadId == null || threadId.isBlank()) {
+            return null;
+        }
+        PromptOptimizationModels.ConversationThread thread = store.thread(threadId.trim()).orElseThrow(
+                () -> new IllegalArgumentException("Fil de conversation inconnu : " + threadId));
+        if (!thread.agentId().equalsIgnoreCase(agent.getTheme())) {
+            throw new IllegalArgumentException("Le fil de conversation " + thread.threadId() + " appartient à "
+                    + "l'agent « " + thread.agentLibelle() + " » : sélectionnez cet agent ou démarrez une "
+                    + "nouvelle conversation.");
+        }
+        return thread;
+    }
+
+    /** Classification GELÉE de la dernière campagne du fil (projet de l'échange précédent). */
+    private IntentClassification lastClassificationOf(PromptOptimizationModels.ConversationThread thread) {
+        if (thread == null || thread.campaignIds().isEmpty()) {
+            return null;
+        }
+        String previous = thread.campaignIds().get(thread.campaignIds().size() - 1);
+        return store.snapshot(previous).map(PromptOptimizationModels.Snapshot::classification).orElse(null);
+    }
+
+    /** Description du projet précédent, au FORMAT attendu par le classifieur (même contrat que le chat). */
+    private static String describeProject(IntentClassification classification) {
+        if (classification == null || classification.getProjectType() == null
+                || classification.getProjectType() == ProjectType.UNKNOWN) {
+            return "";
+        }
+        StringBuilder text = new StringBuilder("type = ").append(classification.getProjectType());
+        if (classification.getProjectObject() != null && !classification.getProjectObject().isBlank()) {
+            text.append("\nobject = ").append(classification.getProjectObject());
+        }
+        if (classification.getAmount() != null) {
+            text.append("\namount = ").append(classification.getAmount());
+        }
+        return text.toString();
+    }
+
+    /**
+     * La nouvelle question RENVOIE-t-elle au projet de l'échange précédent ? Même logique que le chat : le
+     * projet courant n'est conservé que si la question ne porte pas de projet propre et n'annonce aucun
+     * changement (« et si je prends 48 mois ? » reste dans le projet précédent).
+     */
+    private static boolean continuesProject(IntentClassification classification) {
+        ProjectType type = classification.getProjectType();
+        boolean ownProject = type != null && type != ProjectType.UNKNOWN && type != ProjectType.OTHER_FINANCIAL;
+        return !ownProject && !classification.isProjectChanged();
+    }
+
+    /**
+     * Réponse de la version ACCEPTÉE : contenu + provenance (réutilisée d'une itération, ou régénérée).
+     * {@code aiCalls} compte les appels IA réellement consommés (0 ou 1).
+     */
+    private record AcceptedAnswer(String content, boolean regenerated, int aiCalls) {
+    }
+
+    /**
+     * Réponse du Coach produite PAR la version acceptée — c'est elle qui entre dans la conversation, puisque
+     * c'est le prompt désormais en production (c'est donc la réponse que le client recevrait).
+     * <p>
+     * 1) Si une itération a réellement RÉPONDU avec cette version, sa réponse existe : on la réutilise (la plus
+     * récente fait foi, aucun appel IA).
+     * <p>
+     * 2) Sinon — cas courant : la version vient d'être produite par la dernière itération, elle n'a donc jamais
+     * répondu — la réponse est GÉNÉRÉE en rejouant le Coach avec cette version. La conversation ne contient
+     * jamais la réponse qui a « motivé » le changement (générée avec la version PRÉCÉDENTE), sinon l'historique
+     * rejoué au cycle suivant décrirait un prompt qui n'est plus celui en production.
+     */
+    private AcceptedAnswer acceptedAnswerOf(PromptOptimizationModels.Campaign campaign,
+                                            PromptOptimizationModels.Snapshot snapshot, String version) {
+        List<PromptOptimizationModels.Iteration> iterations = sortedIterations(campaign.campaignId());
+        for (int index = iterations.size() - 1; index >= 0; index--) {
+            PromptOptimizationModels.Iteration iteration = iterations.get(index);
+            if (version != null && version.equals(iteration.promptVersion()) && !iteration.coachResponse().isBlank()) {
+                return new AcceptedAnswer(iteration.coachResponse(), false, 0);
+            }
+        }
+        String replayed = replayCoachWithVersion(campaign, snapshot, version);
+        return new AcceptedAnswer(replayed, true, replayed.isBlank() ? 0 : 1);
+    }
+
+    /**
+     * REJOUE le Coach avec le prompt de la version demandée et le contexte FIGÉ du snapshot : c'est exactement
+     * l'appel d'une itération (même question, mêmes données, même historique), mais sans Agent B ni Agent A.
+     * La boucle {@code NEED_DATA} est bornée comme en production (le contexte de référence est alors enrichi).
+     */
+    private String replayCoachWithVersion(PromptOptimizationModels.Campaign campaign,
+                                          PromptOptimizationModels.Snapshot snapshot, String version) {
+        String section = store.editableSectionOf(campaign.campaignId(), version).orElse("");
+        AIModels.AIProvider provider = coachProviderOf(campaign);
+        AIService ai = aiServiceFactory.get(provider);
+        try {
+            PromptOptimizationModels.Snapshot context = snapshot;
+            String composed = composePrompt(context, section);
+            AIModels.AIAnswer answer = ai.answerWithSystemPrompt(composed, context.question(),
+                    legacyOf(context.classification()), context.financialSummary(), context.catalog(),
+                    AIModels.BankingContextMode.SYNTHESIS_AVAILABLE, context.additionalData(), context.history(),
+                    provider);
+            int completions = 0;
+            while (answer.status() == AIModels.AIStatus.NEED_DATA && completions < MAX_CONTEXT_COMPLETIONS) {
+                completions++;
+                PromptOptimizationModels.Snapshot completed = completeContext(campaign, context, answer);
+                if (completed == null) {
+                    break;
+                }
+                context = completed;
+                composed = composePrompt(context, section);
+                answer = ai.answerWithSystemPrompt(composed, context.question(), legacyOf(context.classification()),
+                        context.financialSummary(), context.catalog(), AIModels.BankingContextMode.SYNTHESIS_AVAILABLE,
+                        context.additionalData(), context.history(), provider);
+            }
+            log.info("Réponse de la version {} générée par rejeu du Coach (campagne {})", version,
+                    campaign.campaignId());
+            if (answer.status() == AIModels.AIStatus.NEED_DATA) {
+                // Même dégradation qu'en itération (et qu'en production) : jamais de tour vide dans la mémoire.
+                log.info("Rejeu de la version {} (campagne {}) : demande de données insatisfiable{} — réponse de "
+                        + "repli utilisée", version, campaign.campaignId(), requestedPaths(answer));
+                return UNAVAILABLE_DATA_ANSWER;
+            }
+            return answer.answer() == null ? "" : answer.answer();
+        } catch (Exception e) {
+            // La promotion, elle, est DÉJÀ faite : un échec de génération ne doit pas la remettre en cause.
+            log.warn("Rejeu du Coach pour la version {} de la campagne {} impossible : {}", version,
+                    campaign.campaignId(), errorMessage(e));
+            return "";
+        }
+    }
+
+    /** Dernière réponse non vide de la campagne (repli : la conversation ne contient jamais de tour vide). */
+    private String lastCoachResponse(String campaignId) {
+        List<PromptOptimizationModels.Iteration> iterations = sortedIterations(campaignId);
+        for (int index = iterations.size() - 1; index >= 0; index--) {
+            if (!iterations.get(index).coachResponse().isBlank()) {
+                return iterations.get(index).coachResponse();
+            }
+        }
+        return "";
+    }
+
+    private List<PromptOptimizationModels.Iteration> sortedIterations(String campaignId) {
+        List<PromptOptimizationModels.Iteration> iterations = new ArrayList<>(store.iterations(campaignId).values());
+        iterations.sort(Comparator.comparingInt(PromptOptimizationModels.Iteration::iterationNumber));
+        return iterations;
+    }
+
+    private static String nextThreadId() {
+        String stamp = java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")
+                .format(java.time.LocalDateTime.now());
+        return "th-" + stamp + "-" + java.util.UUID.randomUUID().toString().substring(0, 4);
+    }
+
     /** Agent demandé, ou refus explicite (jamais de repli silencieux sur le générique). */
     private static AgentDefinition resolveAgent(String agentId) {
         if (agentId == null || agentId.isBlank()) {
@@ -711,8 +1044,7 @@ public class PromptOptimizationService {
     }
 
     /** Refuse une campagne supplémentaire sur le MÊME agent tant qu'une autre est en cours (§36). */
-    private void ensureNoOtherActiveCampaign(String campaignId, String agentTheme) {
-        for (PromptOptimizationModels.Campaign other : store.list()) {
+    private void ensureNoOtherActiveCampaign(String campaignId, String agentTheme) {        for (PromptOptimizationModels.Campaign other : store.list()) {
             if (other.campaignId().equals(campaignId) || !other.agentId().equalsIgnoreCase(agentTheme)) {
                 continue;
             }
@@ -803,6 +1135,10 @@ public class PromptOptimizationService {
         context.put("agentLibelle", campaign.agentLibelle());
         context.put("iterationNumber", number);
         context.put("question", snapshot.question());
+        // MÉMOIRE DE L'ATELIER : l'historique COMPLET est fourni pour COMPRENDRE le contexte. Le jugement,
+        // lui, porte sur le SEUL échange courant (`question` + `coachResponse`) : les réponses déjà validées
+        // ne sont jamais réévaluées (contrat du prompt de l'Agent B).
+        context.put("conversationHistory", snapshot.history());
         context.put("coachResponse", coachResponse);
         context.put("coachPrompt", composedPrompt);
         context.put("editableSection", section);
@@ -830,6 +1166,10 @@ public class PromptOptimizationService {
         context.put("agentLibelle", campaign.agentLibelle());
         context.put("iterationNumber", number);
         context.put("question", snapshot.question());
+        // MÊME MÉMOIRE QUE LE CONTRÔLEUR : l'éditeur sait que la question est un SUIVI — il peut donc écrire
+        // des règles de continuité (ne pas redemander ce qui a déjà été donné, rappeler l'échange précédent)
+        // au lieu de règles valables seulement pour une première question.
+        context.put("conversationHistory", snapshot.history());
         context.put("editableSection", section);
         context.put("controllerFeedback", feedback == null ? Map.of() : objectMapper.convertValue(feedback, Map.class));
         context.put("humanFeedback", humanFeedback.map(PromptOptimizationModels.HumanFeedback::content).orElse(null));

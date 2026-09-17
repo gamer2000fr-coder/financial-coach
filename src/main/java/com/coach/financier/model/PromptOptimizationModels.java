@@ -1,5 +1,7 @@
 package com.coach.financier.model;
 
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -573,6 +575,168 @@ public final class PromptOptimizationModels {
         public List<Map<String, Object>> providedData() {
             Object value = additionalData.get("providedData");
             return value instanceof List<?> list ? (List<Map<String, Object>>) list : List.of();
+        }
+    }
+
+    // --- Fil de conversation de l'atelier (mémoire des cycles) -------------------------------------
+
+    /** Rôle d'un tour : la question de test posée par l'humain. */
+    public static final String ROLE_USER = "user";
+    /** Rôle d'un tour : la réponse du Coach pour une version PROMUE de la zone. */
+    public static final String ROLE_ASSISTANT = "assistant";
+
+    /**
+     * Un TOUR de la conversation de l'atelier : la question de test (rôle {@code user}) ou la réponse du
+     * Coach (rôle {@code assistant}).
+     * <p>
+     * Un tour « assistant » n'existe QUE si une version a été PROMUE : c'est la réponse produite par
+     * l'itération dont cette version est issue. C'est exactement ce que l'IHM affiche « comme dans la page
+     * coach », et ce qui est rejoué au cycle suivant ({@code conversationHistory} du payload du Coach).
+     */
+    public record Turn(String role, String content, String campaignId, String version, String createdAt) {
+
+        public Turn {
+            role = ROLE_ASSISTANT.equalsIgnoreCase(role) ? ROLE_ASSISTANT : ROLE_USER;
+            content = content == null ? "" : content.strip();
+            campaignId = campaignId == null ? "" : campaignId;
+            version = version == null ? "" : version;
+            createdAt = createdAt == null || createdAt.isBlank() ? Instant.now().toString() : createdAt;
+        }
+
+        public boolean user() {
+            return ROLE_USER.equals(role);
+        }
+
+        public boolean assistant() {
+            return ROLE_ASSISTANT.equals(role);
+        }
+
+        /** Corrige le contenu du tour (la réponse de l'IA reste sous contrôle humain). */
+        public Turn withContent(String value) {
+            return new Turn(role, value, campaignId, version, createdAt);
+        }
+
+        /** Conversion vers le format d'historique du chat : le Coach reçoit EXACTEMENT le même contrat. */
+        public ConversationModels.Message asMessage() {
+            return new ConversationModels.Message(role, content, instantOf(createdAt));
+        }
+
+        private static Instant instantOf(String raw) {
+            try {
+                return Instant.parse(raw);
+            } catch (RuntimeException e) {
+                return Instant.now();
+            }
+        }
+    }
+
+    /**
+     * FIL DE CONVERSATION de l'atelier : la MÉMOIRE qui enchaîne les campagnes (une campagne = une
+     * question de test). Le fil est la SOURCE UNIQUE de l'historique transmis au Coach du cycle suivant.
+     * <p>
+     * Seuls les échanges RÉELLEMENT validés par une promotion y entrent : une question sans version promue
+     * n'a pas de réponse figée, elle n'est donc jamais rejouée (sinon l'historique contiendrait des
+     * questions sans réponses).
+     * <p>
+     * Le fil appartient à UN agent (et à une zone) : changer d'agent, c'est changer de conversation.
+     */
+    public record ConversationThread(String threadId, String agentId, String agentLibelle, String zoneKey,
+                                     List<Turn> turns, List<String> campaignIds,
+                                     String createdAt, String updatedAt) {
+
+        public ConversationThread {
+            threadId = threadId == null ? "" : threadId;
+            agentId = agentId == null ? "" : agentId;
+            agentLibelle = agentLibelle == null ? "" : agentLibelle;
+            zoneKey = ZONE_PRINCIPAL.equals(zoneKey) ? ZONE_PRINCIPAL : ZONE_AGENT;
+            turns = turns == null ? List.of() : List.copyOf(turns);
+            campaignIds = campaignIds == null ? List.of() : List.copyOf(campaignIds);
+            createdAt = createdAt == null || createdAt.isBlank() ? Instant.now().toString() : createdAt;
+            updatedAt = updatedAt == null || updatedAt.isBlank() ? createdAt : updatedAt;
+        }
+
+        /** Historique transmis au Coach : rôle + contenu de chaque tour validé, dans l'ordre chronologique. */
+        public List<ConversationModels.Message> history() {
+            return turns.stream().map(Turn::asMessage).toList();
+        }
+
+        /** Nombre d'ÉCHANGES complets (une question + la réponse de la version promue). */
+        public int exchanges() {
+            return (int) turns.stream().filter(Turn::assistant).count();
+        }
+
+        /** Aucun échange validé : le prochain cycle démarre sans mémoire. */
+        public boolean empty() {
+            return turns.isEmpty();
+        }
+
+        /** Dernier tour enregistré (affiche en bas de la conversation dans l'IHM). */
+        public Turn lastTurn() {
+            return turns.isEmpty() ? null : turns.get(turns.size() - 1);
+        }
+
+        /** Associe une campagne au fil (idempotent) — dès le DÉMARRAGE, avant toute promotion. */
+        public ConversationThread withCampaign(String campaignId) {
+            if (campaignId == null || campaignId.isBlank() || campaignIds.contains(campaignId)) {
+                return this;
+            }
+            List<String> next = new ArrayList<>(campaignIds);
+            next.add(campaignId);
+            return new ConversationThread(threadId, agentId, agentLibelle, zoneKey, turns, next, createdAt,
+                    Instant.now().toString());
+        }
+
+        /**
+         * Enregistre l'ÉCHANGE d'une campagne : la question de test, puis la réponse du Coach associée à la
+         * version promue.
+         * <p>
+         * Une NOUVELLE promotion de la même campagne REMPLACE son échange, <b>à sa place</b> (l'ordre
+         * chronologique de la conversation est conservé et aucun échange n'est jamais dupliqué) ; les
+         * échanges des autres campagnes ne sont jamais modifiés. Une campagne encore inconnue du fil est
+         * ajoutée en fin de conversation.
+         */
+        public ConversationThread withExchange(String campaignId, String question, String answer, String version) {
+            String now = Instant.now().toString();
+            Turn userTurn = new Turn(ROLE_USER, question, campaignId, "", now);
+            Turn answerTurn = new Turn(ROLE_ASSISTANT, answer, campaignId, version, now);
+            List<Turn> next = new ArrayList<>(turns);
+            for (int index = next.size() - 1; index >= 0; index--) {
+                Turn turn = next.get(index);
+                if (turn.user() && campaignId != null && campaignId.equals(turn.campaignId())) {
+                    next.set(index, userTurn);
+                    if (index + 1 < next.size() && next.get(index + 1).assistant()) {
+                        next.set(index + 1, answerTurn);
+                    } else {
+                        next.add(index + 1, answerTurn);
+                    }
+                    return new ConversationThread(threadId, agentId, agentLibelle, zoneKey, next,
+                            campaignIdsWith(campaignId), createdAt, now);
+                }
+            }
+            next.add(userTurn);
+            next.add(answerTurn);
+            return new ConversationThread(threadId, agentId, agentLibelle, zoneKey, next, campaignIdsWith(campaignId),
+                    createdAt, now);
+        }
+
+        /** Corrige le contenu d'un tour : l'humain garde la main sur ce qui est rejoué ensuite. */
+        public ConversationThread withTurnContent(int index, String content) {
+            if (index < 0 || index >= turns.size()) {
+                throw new IllegalArgumentException("Tour inexistant dans le fil de conversation : " + index);
+            }
+            List<Turn> next = new ArrayList<>(turns);
+            next.set(index, next.get(index).withContent(content));
+            return new ConversationThread(threadId, agentId, agentLibelle, zoneKey, next, campaignIds, createdAt,
+                    Instant.now().toString());
+        }
+
+        private List<String> campaignIdsWith(String campaignId) {
+            if (campaignId == null || campaignId.isBlank() || campaignIds.contains(campaignId)) {
+                return campaignIds;
+            }
+            List<String> next = new ArrayList<>(campaignIds);
+            next.add(campaignId);
+            return next;
         }
     }
 

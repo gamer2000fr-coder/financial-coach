@@ -32,7 +32,7 @@ flowchart TB
         TX[transaction/*.json]
         MKTFS[marketing/events/*.jsonl · aggregates/*.json · reports/*.json]
         QLTFS[quality/feedback/*.jsonl · checks/*.jsonl · aggregates/*.json · reports/*.json]
-        PLABFS[prompt-optimization/campaigns/&lt;id&gt;/*<br/>+ history/ (sauvegardes de prompts)]
+        PLABFS[prompt-optimization/campaigns/&lt;id&gt;/*<br/>+ history/ (sauvegardes de prompts)<br/>+ threads/ (fils de conversation)]
     end
     UI --> API
     API --> CTRL
@@ -78,7 +78,7 @@ service/
   ConversationService          # sessions en mémoire (sessionId → Conversation)
   FinancialAnalysisService     # calcul de la synthèse financière (analyze())
   FinancialSynthesisStore      # lecture de synthese_financier.json (FS puis classpath)
-  DataRequestService           # catalogue data.json + fetch des fichiers + cascade + whitelist restreinte
+  DataRequestService           # catalogue data.json + fetch des fichiers + cascade + whitelist déclarative
   ProductCatalogueService      # lecture products.json + filtrage produits compatible
   ProductUrlIndex              # index id → URL officielle des produits (whitelist anti-invention)
   ProjectProductMappingService # mapping déterministe ProjectType → ProductFamily
@@ -146,7 +146,7 @@ model/
 | `ChatController` | Orchestrateur : comprend → sélectionne l'agent → filtre → fait répondre → journalise |
 | `ConversationService` | Sessions en mémoire (création, messages, résumé, projet courant) |
 | `FinancialAnalysisService` | Calcule les agrégats (revenus, dépenses, soldes, taux 3 mois) |
-| `DataRequestService` | Catalogue + accès fichiers (whitelist, cascade, restriction) |
+| `DataRequestService` | Catalogue + accès fichiers (déclaratif, cascade, tout chemin demandé du catalogue est fourni) |
 | `ProjectProductMappingService` | **Règle métier** type de projet → familles autorisées |
 | `ProductCatalogueService` | Charge les produits (`products.json`) et filtre (famille + montant) |
 | `CreditSimulationService` | Mensualité déterministe si montant/durée/TAEG fournis |
@@ -205,8 +205,9 @@ Tous les fichiers sont lus **depuis le système de fichiers `./data`** (racine d
 | `prompt-optimization/campaigns/<campaignId>/editions.jsonl` | Édition de la zone par l'Agent A **sous avis humain** (hors itération) |
 | `prompt-optimization/campaigns/<campaignId>/feedback.jsonl` | Avis humains (append-only, statut appliqué/en attente) |
 | `prompt-optimization/history/promotions.jsonl` + `<backupId>-<fichier>` | Sauvegardes de prompts **avant promotion** (retour arrière possible) |
+| `prompt-optimization/threads/<threadId>.json` | **Fil de conversation** de l'atelier : tours acceptés (question + réponse produite par la version acceptée) et campagnes associées — c'est la mémoire rejouée au cycle suivant |
 
-> Les **fiches produits** (`catalogue/*.json`) documentent des familles via la table `catalogueDocFamilies` (ex. `credit_immo` → MORTGAGE/HOME_IMPROVEMENT_LOAN). C'est ce qui permet la **restriction du catalogue** en contexte financement.
+> Les **fiches produits** (`catalogue/*.json`) documentent des familles via la table `catalogueDocFamilies` (ex. `credit_immo` → MORTGAGE/HOME_IMPROVEMENT_LOAN). C'est ce qui permet de **restreindre le catalogue MONTRÉ** en contexte financement.
 
 ---
 
@@ -310,11 +311,13 @@ app.prompt-optimization.hash-salt: ${PROMPT_OPT_HASH_SALT:…}
 | POST | `/api/advisor-feedback/report/generate`, `/batch`, `/demo-data` | Bouton « Générer l'analyse IA », batch quotidien, jeu de démonstration |
 | GET | `/api/prompt-optimization/agents` | **Atelier** : agents + zones optimisables, `enabled`, `demoMode`, `maxIterations` |
 | GET | `/api/prompt-optimization/campaigns` | Liste des campagnes (état, compteurs) — **non utilisée par l'IHM** |
-| POST | `/api/prompt-optimization/campaigns` | Démarre une campagne `{agentId, question, iterations, zoneKey, provider, controllerProvider, editorProvider}` → snapshot figé + `RUNNING` |
-| GET | `/api/prompt-optimization/campaigns/{id}` | Vue complète : campagne + snapshot + itérations + versions + avis |
+| POST | `/api/prompt-optimization/campaigns` | Démarre une campagne `{agentId, question, iterations, zoneKey, provider, controllerProvider, editorProvider, threadId}` → snapshot figé + `RUNNING`, **et renvoie le fil de conversation** `{campaign, thread}` |
+| GET | `/api/prompt-optimization/campaigns/{id}` | Vue complète : campagne + snapshot + itérations + versions + avis + **fil de conversation** |
 | POST | `/api/prompt-optimization/campaigns/{id}/iterate` | Exécute **une** itération (Coach → Agent B → Agent A → validation) |
 | POST | `/api/prompt-optimization/campaigns/{id}/stop` \| `/resume` \| `/promote` \| `/reject` \| `/feedback` | Ajustements et décisions humaines (arrêt gracieux, reprise avec `additionalIterations`, **promotion**, refus, avis) |
-| GET | `/api/prompt-optimization/campaigns/{id}/versions` \| `/compare` \| `/usage` | Versions, comparaison initiale ↔ courante, compteurs (itérations, appels IA, caractères, durée) | 
+| GET | `/api/prompt-optimization/campaigns/{id}/versions` \| `/compare` \| `/usage` | Versions, comparaison initiale ↔ courante, compteurs (itérations, appels IA, caractères, durée) |
+| GET | `/api/prompt-optimization/threads` \| `/threads/{threadId}` | **Fils de conversation** de l'atelier (mémoire des cycles : tours validés par promotion + campagnes associées) |
+| PUT | `/api/prompt-optimization/threads/{threadId}/turns/{index}` | Corrige le contenu d'un tour `{content}` (réponse rejouée au cycle suivant) |
 | GET | `/api/health` | Healthcheck (expose le fournisseur par défaut) |
 
 ### Exemple — POST /api/chat
@@ -378,12 +381,12 @@ sequenceDiagram
             CC->>PC: findCompatible(type, montant) → compatibleProducts
             CC->>AF: selectAgentTheme → AgentFiles.agentFor(theme)
             AF-->>CC: agent + libellé + données dédiées (fiche + cascade)
-            CC->>CC: restreint le catalogue visible + allowedPaths
+            CC->>CC: restreint le catalogue MONTRÉ (allowedPaths = tout le catalogue)
             CC->>CC: injecte données agent dans providedData
             CC->>CC: construit debug ([INTENT]/[PRODUCT_FILTER]/[COACH])
             CC->>AI2: answer(... agent/prompt spécialisé, currentProject/existingCredits/compatibleProducts ...)
             loop tant que NEED_DATA (max 3)
-                CC->>DRS: fetch(paths, allowedPaths)   // whitelist restreinte
+                CC->>DRS: fetch(paths, allowedPaths)   // tout le catalogue, sur demande
                 DRS-->>CC: {description, data} (+ cascade éventuelle)
                 CC->>AI2: answer(... avec données ajoutées ...)
             end
@@ -399,7 +402,7 @@ sequenceDiagram
 `RemoteAIService.answer` construit un payload dont les clés utiles sont :
 - `customerMessage` ; `classification` ;
 - `financialSummary` : agrégats (synthèse) ;
-- `bankingData` : **catalogue de données restreint** (contexte financement) ;
+- `bankingData` : **catalogue de données MONTRÉ** (restreint en contexte financement) ;
 - `additionalData` :
   - `providedData` : fichiers déjà fournis `[{description, data}]` (synthèse + **données dédiées de l'agent actif**) ;
   - `currentProject` : `{type, object, amount, currency}` (projet courant) ;
@@ -426,15 +429,22 @@ courant, sinon sur l'agent **générique** (aucun sous-type inventé).
 
 ### 6.3 Boucle NEED_DATA
 - L'IA répond `ANSWER`, ou `NEED_DATA` + `dataRequest.paths` (chemins EXACTS du catalogue).
-- Le backend lit les fichiers demandés **si et seulement s'ils sont dans la whitelist autorisée** (`allowedCatalogPaths`), puis re-appelle le coach. **Maximum 3 itérations consécutives** ; sinon réponse de repli.
+- Le backend lit les fichiers demandés **s'ils sont déclarés par le catalogue** (`allowedCatalogPaths`), puis re-appelle le coach. **Maximum 3 itérations consécutives** ; sinon réponse de repli
+  (le message du chat : « Je n'ai pas pu finaliser l'analyse demandée à partir des données disponibles. »).
 
-### 6.4 Restriction du catalogue (structurelle)
+### 6.4 Restriction du catalogue MONTRÉ (et non plus de ce qui est fournissable)
 En contexte financement (projet connu) :
 1. `allowedFamilies = mappingService.getAllowedFamilies(projectType)` ;
 2. pour chaque entrée du catalogue : hors `/data/catalogue/` → **visible** ; sinon visible si `familles documentées du fichier ∩ allowedFamilies ≠ ∅` ;
-3. les chemins retenus constituent `allowedCatalogPaths` (whitelist de `fetch`).
+3. les entrées retenues constituent le **catalogue envoyé** à l'IA (`bankingData`).
 
-Ainsi `credit_immo.json` est **structurellement inaccessible** pour un projet véhicule : il est absent du catalogue présenté **et** de la whitelist.
+Ainsi `credit_immo.json` n'est **pas montré** pour un projet véhicule : l'IA ne peut pas le découvrir
+spontanément. En revanche, **s'il le demande explicitement**, il lui est **fourni** (tout chemin déclaré par le
+catalogue reste dans `allowedCatalogPaths`) : la whitelist du catalogue est la seule barrière (aucun fichier hors
+catalogue, aucun fichier inventé) et aucune demande légitime n'est refusée — un refus dégradait la réponse du
+client (et bloquait l'atelier). La garantie de périmètre reste portée par le backend : `compatibleProducts`
+(filtrage Java) demeure la **seule** liste de produits recommandables, les engagements réels venant de
+`existingCredits`.
 
 ---
 
@@ -477,7 +487,12 @@ flowchart LR
 ### 9.1 Modèle « agents »
 - `agent/agents.json` déclare **7 agents** : générique (thème `generic`), crédit conso, crédit immo, épargne, assurance auto, assurance habitation, assurance emprunteur. Chaque agent : `{id, libelle, theme, prompt, data[]}`.
 - `agent/generic.txt` : **gabarit** du prompt système (règles du coach, clés du payload, format de réponse).
-- `agent/principal.txt` : contenu de l'**agent principal**.
+- `agent/principal.txt` : contenu de l'**agent principal**. Il commence par la règle **PÉRIMÈTRE DE LA MÉMOIRE**
+  (chaque conversation est INDÉPENDANTE : aucune information d'un échange antérieur ou d'une autre session ;
+  les EXEMPLES de format des prompts ne sont pas des données client ; en cas de manque, POSER LA QUESTION)
+  puis par la règle de **CONTINUITÉ** (lire l'historique de la conversation en cours).
+  ⚠️ Les exemples des prompts ne contiennent plus de valeur concrète (ex. « Clio 5 ») : un modèle peut
+  recopier un exemple et le présenter comme un fait du client.
 - 6 prompts spécialisés (`credit-conso.txt`, `credit-immo.txt`, `epargne.txt`, `assurance-auto.txt`, …) : expertise du thème + la fiche produit est fournie via `data`.
 
 ### 9.2 Construction du prompt système
@@ -516,7 +531,7 @@ chose : la zone éditable.
 | `marketing` | `marketing.txt` | `MarketingReportService` | Agrégats **déjà calculés** → `MarketingReport` (interprétation rédactionnelle) |
 | `qualite` | `qualite_coach_client.txt` | `QualityReportService` | Agrégats de satisfaction **et** de conformité + commentaires anonymisés → `QualityReport` |
 | `feedback_conseiller` | `feedback_conseiller.txt` | `AdvisorFeedbackReportService` | KPI de pertinence (évaluations, zones, produits, intérêts, emails) + commentaires anonymisés → `AdvisorFeedbackReport` |
-| `prompt_controller` | `prompt_controller.txt` | `PromptOptimizationService` (Agent B) | Réponse du Coach + contexte figé + score → **diagnostic** (`status`, `issues[]`, `mustPreserve[]`, recommandation) — **ne réécrit jamais** un prompt |
+| `prompt_controller` | `prompt_controller.txt` | `PromptOptimizationService` (Agent B) | Réponse du Coach **du seul échange courant** + contexte figé + `conversationHistory` (**lu, jamais jugé**) + `providedData` → **diagnostic** (`status`, `issues[]`, `mustPreserve[]`, recommandation) — **ne réécrit jamais** un prompt |
 | `prompt_editor` | `prompt_editor.txt` | `PromptOptimizationService` (Agent A) | Zone éditable + diagnostic Agent B + avis humain → **nouvelle zone éditable** uniquement |
 
 Ils ne figurent **pas** dans `agents.json` (donc jamais sélectionnables comme agent de coach) mais apparaissent dans `AgentPromptStore.entries()` après « Agent principal » (`SUIVI_KEY`, `MARKETING_KEY`, `QUALITY_KEY`), et sont éditables dans la page **Agents**.
@@ -1073,6 +1088,18 @@ sequenceDiagram
 | **B — contrôleur** | `agent/prompt_controller.txt` | `status` (GOOD / NEEDS_IMPROVEMENT / BAD), `summary`, `positivePoints[]`, `issues[]{type, severity, source, observation, expectedBehavior}`, `mustPreserve[]`, `recommendationForPromptEditor`, `requiresHumanOrBusinessReview` | Ne réécrit rien, ne modifie aucune règle, ne juge pas la réponse **métier** (seulement la qualité du prompt) |
 | **A — éditeur** | `agent/prompt_editor.txt` | `status` (UPDATED / NO_CHANGE_REQUIRED / HUMAN_OR_BUSINESS_REVIEW_REQUIRED), `editableSection`, `changeSummary[]`, `feedbackAddressed[]`, `preservedBehaviors[]`, `unresolvedPoints[]`, `humanFeedbackApplied` | Ne renvoie **que** la zone, jamais les délimiteurs, ne modifie jamais les parties protégées |
 
+**Mémoire du fil de conversation** : quand la question testée est un suivi, le fil de l'atelier fournit
+`conversationHistory` (les échanges **déjà acceptés** par une promotion) au Coach, à l'Agent B et à l'Agent A.
+Chaque tour « assistant » porte la **réponse produite par la version acceptée** : elle est **réutilisée** si une
+itération a déjà répondu avec cette version, sinon **régénérée** par un rejeu du Coach avec cette version (voir
+§20.10). C'est donc toujours la réponse du prompt désormais en production — jamais celle qui a « motivé » le
+changement (générée avec la version précédente).
+Contrat de l'Agent B (prompt) : il **lit tout** l'historique pour comprendre le contexte, mais **ne juge que le
+dernier échange** (question courante + réponse courante) — aucune réponse déjà validée n'est réévaluée. Les
+contrôles de continuité (information déjà donnée à ne pas redemander, `CONTEXT_LOST`, redite inutile) ne
+s'appliquent qu'à l'échange courant, et seulement si l'historique n'est pas vide. L'Agent A, lui, peut écrire
+des règles de CONTINUITÉ dans la zone éditable (jamais des règles valables pour la seule question testée).
+
 Ordre d'autorité donné à l'Agent A : **1)** règles backend → **2)** parties protégées → **3)** décision humaine → **4)** avis humain → **5)** Agent B → **6)** ses propres choix.
 Les analyses peuvent être `null` : un diagnostic peut être abandonné en cours d'itération, et l'atelier **rejoue** alors la zone précédente (conservatrice).
 
@@ -1126,7 +1153,7 @@ Un `STOP` arrivé **pendant** les appels IA n'est jamais perdu : l'itération en
 
 ### 20.8 Déroulé d'une itération (backend, strictement séquentiel)
 
-1. **Coach** : appel via `AIService.answerWithSystemPrompt(prompt figé, …)` — le fournisseur ne relit **pas** le disque (`resolveSystemPrompt` : override prioritaire). Si le Coach demande des données (`NEED_DATA`) : comme en **production**, les fichiers demandés et autorisés par le catalogue sont ajoutés au contexte de référence (`store.saveSnapshot`, empreinte recalculée), l'appel est **rejoué** dans la même itération (boucle bornée à `MAX_CONTEXT_COMPLETIONS = 3`, même limite qu'en production) et les données ajoutées sont **tracées** sur l'itération (`contextAddedData`). `NEED_DATA` n'étant **pas** une réponse client, **l'Agent B n'est jamais appelé** sur une demande de données : il n'intervient qu'après la réponse finale destinée au client. Si aucun fichier autorisé ne peut être fourni (ou après 3 tentatives), l'itération échoue en nommant les fichiers demandés — aucune donnée n'est inventée.
+1. **Coach** : appel via `AIService.answerWithSystemPrompt(prompt figé, …)` — le fournisseur ne relit **pas** le disque (`resolveSystemPrompt` : override prioritaire). Si le Coach demande des données (`NEED_DATA`) : comme en **production**, les fichiers demandés et autorisés par le catalogue sont ajoutés au contexte de référence (`store.saveSnapshot`, empreinte recalculée), l'appel est **rejoué** dans la même itération (boucle bornée à `MAX_CONTEXT_COMPLETIONS = 3`, même limite qu'en production) et les données ajoutées sont **tracées** sur l'itération (`contextAddedData`). `NEED_DATA` n'étant **pas** une réponse client, **l'Agent B n'est jamais appelé** sur une demande de données : il n'intervient qu'après la réponse finale destinée au client. Si aucun fichier autorisé ne peut être fourni (ou après 3 tentatives), l'itération **n'échoue pas** : elle est **dégradée exactement comme en production** — réponse de repli `UNAVAILABLE_DATA_ANSWER` (celle que le client recevrait) et motif `NEED_DATA_MESSAGE` + fichiers demandés dans `error` (+ repère IHM) — la campagne et la conversation continuent (aucune donnée n'est inventée).
 2. **Agent B** : `reviewCoachAnswer(contexte, provider)` → diagnostic ; contrat invalide → itération en échec (`Diagnostic du contrôleur invalide`).
 3. **Agent A** : `editPromptSection(contexte + diagnostic + avis humain, provider)` → zone proposée.
 4. **Validation backend** : délimiteurs interdits, zone vide, longueur > `max-editable-section-length` → proposition **rejetée**, version **inchangée**, itération en **échec lisible** (jamais un prompt cassé).
@@ -1149,8 +1176,15 @@ Un `STOP` arrivé **pendant** les appels IA n'est jamais perdu : l'itération en
 ### 20.10 Promotion (§17) et retour arrière
 
 Ordre des contrôles : campagne non active → version connue → dérive externe du fichier (le `prefix`/`suffix` du disque doit être **identique** au snapshot, sinon refus pour ne pas écraser une modification externe) → zone valide → zone **transverse** (agent principal) : aucune autre campagne active/pausée.
-Ensuite : **sauvegarde** (`AgentPromptHistoryStore.backup`) → écriture de la zone (`AgentPromptStore.write`, fins de ligne d'origine préservées) → campagne `ACCEPTED` + `promotedVersion`.
+Ensuite : **sauvegarde** (`AgentPromptHistoryStore.backup`) → écriture de la zone (`AgentPromptStore.write`, fins de ligne d'origine préservées) → campagne `ACCEPTED` + `promotedVersion` → **échange écrit dans le fil** avec la **réponse produite par la version acceptée** (`acceptedAnswerOf`) : **réutilisée** si une itération a déjà répondu avec cette version, sinon **régénérée** (`replayCoachWithVersion` : même question, mêmes données, même historique — `NEED_DATA` borné à 3 —, sans Agent B ni Agent A ; l'appel est **compté** dans `aiCalls`). Un échec du rejeu ne remet **pas** la promotion en cause (repli sur la dernière réponse connue, journalisé).
 Le contenu du prompt **hors zone** n'est jamais modifié par une promotion.
+
+**Acceptation SANS CHANGEMENT** : si la zone recomposée est **identique** au fichier en production (cas où l'Agent A
+n'a rien proposé : la seule version connue est celle du snapshot), la campagne est simplement `ACCEPTED` —
+**aucune écriture** (ni `backup`, ni `AgentPromptStore.write`, donc `backupId`/`backupFile` vides) et l'échange est
+écrit dans le fil de conversation. L'IHM expose cette action en **direct, sans confirmation** (« ACCEPTER SANS
+CHANGEMENT », barre d'actions de « Progression ») : sans elle, une campagne sans proposition bloquerait
+l'enchaînement de la conversation. Un test compare le prompt de production **avant/après** (aucune écriture).
 
 ### 20.11 Mode MOCK et fournisseurs réels
 
@@ -1174,6 +1208,12 @@ sans ces champs retombe sur le fournisseur du coach (constructeurs compacts de `
 - Progression (état, _n / N_, réalisées/restantes, appels IA, caractères, durée) et barre de progression.
 - Actions selon l'état : STOP, « Ajouter mon avis », REPRENDRE, « Ajouter mon avis et continuer », COMPARER, REFUSER.
 - Versions : « Voir le prompt » (la **zone modifiable** est affichée directement ; le **prompt complet** — parties protégées + zone surlignée — est **replié par défaut** derrière un bouton *Afficher / Masquer le prompt complet*), « Changements » (**diff LCS maison**, seules les lignes modifiées et 2 lignes de contexte), « Promouvoir » (confirmation explicite).
+- **Promotion depuis une itération** : un seul bouton `Promouvoir` (version rappelée dans l'info-bulle) qui cible
+  la version **qui a produit la réponse affichée** — le seul jugement possible d'un prompt est la réponse qu'il a
+  donnée ; la réponse entre alors dans la conversation telle quelle (aucun appel IA ajouté). La version proposée
+  par l'Agent A (jamais utilisée) se promeut depuis le **tableau des versions**, avec **génération** de sa réponse.
+  `canPromote` = décision possible **et** aucune version déjà acceptée : après acceptation, plus aucun bouton de
+  promotion (tout reste consultable).
 - Les boutons suivent l'**état réel** : la version de production n'est ni modifiable ni promouvable (sans effet) ;
   « Changements Vn → Vn+1 » (et « Voir le prompt produit ») n'apparaît que si l'Agent A a réellement produit une
   nouvelle version — une itération « sans modification » ne propose donc jamais un diff `Vn → Vn`, et elle affiche
@@ -1192,11 +1232,11 @@ sans ces champs retombe sur le fournisseur du coach (constructeurs compacts de `
 
 | Suite | Ce qu'elle verrouille |
 |---|---|
-| `PromptZoneServiceTest` (15) | Zone unique, non vide, marqueurs inversés/multiples, sortie de zone refusée, recomposition idempotente, empreinte, **tous les prompts métier marqués** et `generic.txt` non optimisable |
+| `PromptZoneServiceTest` (16) | Zone unique, non vide, marqueurs inversés/multiples, sortie de zone refusée, recomposition idempotente, empreinte, **tous les prompts métier marqués** et `generic.txt` non optimisable |
 | `AgentFilesPromptTest` (8) | Composition pure du prompt système, `[agent_principal]` / `[agent]`, retrait des marqueurs, repli sans fichier |
-| `PromptOptimizationModelsTest` (8) | Normalisation tolérante des diagnostics et des statuts |
-| `PromptOptimizationStoreTest` (14) | Écriture atomique, append-only, ids invalides refusés, redémarrage, verrou concurrent, `promotion` refusée si état illisible |
-| `PromptOptimizationServiceTest` (34) | Snapshot figé, déroulé d'une itération, **repli quand un diagnostic est manquant**, proposition hors zone rejetée (version conservée), STOP pendant l'appel + reprise, avis humain appliqué, refus de promotion, fins de ligne préservées, `zones()`, **un fournisseur par étape** |
+| `PromptOptimizationModelsTest` (13) | Normalisation tolérante des diagnostics et des statuts + **fil de conversation** (échanges complets, remplacement en place, rôle illisible, correction bornée, aller-retour JSON) |
+| `PromptOptimizationStoreTest` (16) | Écriture atomique, append-only, ids invalides refusés, redémarrage, verrou concurrent, `promotion` refusée si état illisible, **fils de conversation** |
+| `PromptOptimizationServiceTest` (44) | Snapshot figé, déroulé d'une itération, **repli quand un diagnostic est manquant**, proposition hors zone rejetée (version conservée), STOP pendant l'appel + reprise, avis humain appliqué, refus de promotion, fins de ligne préservées, `zones()`, **un fournisseur par étape**, **fil de conversation** (historique rejoué, fil étranger refusé, correction d'un tour), **acceptation sans changement** (prompt comparé avant/après), **réponse de la version acceptée** (réutilisée sans appel IA, ou régénérée et comptée), **demande de données insatisfiable** (itération dégradée, jamais d'échec) |
 | `AgentPromptHistoryStoreTest` (5) | Sauvegarde + relecture, index chronologique, `latestFor` non périmé |
 | `RemoteAIServicePromptResolutionTest` (4) | Le prompt **figé** gagne sur le disque ; repli sur le prompt d'agent sinon |
 | `MockAIServiceAtelierTest` (2) | Refus explicite de l'atelier en mode MOCK |

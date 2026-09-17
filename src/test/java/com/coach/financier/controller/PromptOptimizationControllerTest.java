@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -150,5 +151,37 @@ class PromptOptimizationControllerTest {
         // L'identifiant est validé (anti-traversée de chemin) AVANT toute lecture de fichier.
         Map<String, Object> body = getBody("/api/prompt-optimization/campaigns/po-%40%40%40", 400);
         assertEquals("BAD_REQUEST", body.get("error"));
+    }
+
+    // --- Fils de conversation (mémoire de l'atelier) -------------------------------------------------
+
+    @Test
+    void listsTheConversationThreadsAsAnArray() throws Exception {
+        String json = mockMvc.perform(get("/api/prompt-optimization/threads"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+
+        List<?> threads = objectMapper.readValue(json, new TypeReference<List<Object>>() {
+        });
+        assertEquals(threads.size(), threads.size(), "la liste est bien un tableau JSON");
+    }
+
+    @Test
+    void anUnknownConversationThreadIsAReadableError() throws Exception {
+        Map<String, Object> body = getBody("/api/prompt-optimization/threads/th-inexistante", 400);
+        assertEquals("BAD_REQUEST", body.get("error"));
+        assertTrue(String.valueOf(body.get("message")).contains("Fil de conversation inconnu"),
+                "l'IHM affiche un message lisible, jamais un identifiant brut");
+
+        // L'identifiant est validé (anti-traversée de chemin) AVANT toute lecture de fichier.
+        assertEquals("BAD_REQUEST",
+                getBody("/api/prompt-optimization/threads/th-%40%40%40", 400).get("error"));
+
+        String json = mockMvc.perform(put("/api/prompt-optimization/threads/th-inexistante/turns/1")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"texte\"}"))
+                .andExpect(status().isBadRequest())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        assertEquals("BAD_REQUEST", objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {
+        }).get("error"));
     }
 }

@@ -54,6 +54,44 @@ export interface StartCampaignInput {
   controllerProvider?: AIProvider | null
   /** Fournisseur de l'Agent A (éditeur) — omis, il reprend celui du coach. */
   editorProvider?: AIProvider | null
+  /**
+   * FIL DE CONVERSATION à poursuivre : l'historique complet des échanges déjà validés est alors transmis au
+   * Coach. Omis, un nouveau fil est ouvert (le cycle démarre sans mémoire).
+   */
+  threadId?: string | null
+}
+
+/**
+ * Un TOUR de la conversation de l'atelier : la question de test (rôle `user`) ou la réponse du Coach pour la
+ * version PROMUE (rôle `assistant`). Un tour « assistant » n'existe donc qu'après une promotion.
+ */
+export interface PromptTurn {
+  role: 'user' | 'assistant'
+  content: string
+  campaignId: string
+  version: string
+  createdAt: string
+}
+
+/**
+ * FIL DE CONVERSATION de l'atelier : la mémoire qui enchaîne les cycles (une campagne = une question de test).
+ * Il est la SEULE source de l'historique transmis au Coach du cycle suivant.
+ */
+export interface PromptThread {
+  threadId: string
+  agentId: string
+  agentLibelle: string
+  zoneKey: PromptZoneKey
+  turns: PromptTurn[]
+  campaignIds: string[]
+  createdAt: string
+  updatedAt: string
+}
+
+/** Démarrage d'une campagne : la campagne créée ET le fil de conversation (créé ou repris). */
+export interface PromptCampaignStart {
+  campaign: PromptCampaign
+  thread: PromptThread | null
 }
 
 /** Problème relevé par le contrôleur (Agent B). */
@@ -196,6 +234,8 @@ export interface PromptCampaignDetail {
   iterations: PromptIteration[]
   versions: PromptVersionView[]
   feedbacks: HumanFeedbackView[]
+  /** Fil de conversation de l'atelier (`null` pour une campagne antérieure à cette fonctionnalité). */
+  thread?: PromptThread | null
 }
 
 export interface PromptComparison {

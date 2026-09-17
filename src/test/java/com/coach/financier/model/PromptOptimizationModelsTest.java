@@ -9,6 +9,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -163,5 +164,92 @@ class PromptOptimizationModelsTest {
         assertEquals("Some new code", PromptOptimizationModels.issueTypeLabel("SOME_NEW_CODE"),
                 "un code inconnu est humanisé, jamais affiché brut");
         assertEquals("", PromptOptimizationModels.humanize(null));
+    }
+
+    // --- Fil de conversation de l'atelier : la MÉMOIRE des cycles -----------------------------------
+
+    private static PromptOptimizationModels.ConversationThread emptyThread() {
+        return new PromptOptimizationModels.ConversationThread("th-1", "credit_conso",
+                "Crédit à la consommation", PromptOptimizationModels.ZONE_AGENT, List.of(), List.of(),
+                "2026-09-17T08:00:00Z", "2026-09-17T08:00:00Z");
+    }
+
+    @Test
+    void aThreadOnlyKeepsCompleteExchanges() {
+        var thread = emptyThread();
+        assertTrue(thread.empty());
+        assertEquals(0, thread.exchanges());
+        assertTrue(thread.history().isEmpty(), "un fil neuf n'apporte aucune mémoire");
+
+        var first = thread.withCampaign("po-1")
+                .withExchange("po-1", "Je veux financer une voiture à 15 000 €", "Voici les solutions…", "V2");
+
+        assertEquals(1, first.exchanges());
+        assertEquals(2, first.turns().size());
+        assertEquals(2, first.history().size());
+        assertEquals("user", first.history().get(0).role());
+        assertEquals("assistant", first.history().get(1).role());
+        assertEquals("V2", first.turns().get(1).version(), "la réponse porte la version promue");
+        assertEquals(List.of("po-1"), first.campaignIds());
+        assertTrue(first.turns().get(0).user());
+        assertTrue(first.turns().get(1).assistant());
+        // L'association d'une campagne est IDEMPOTENTE (elle est faite au démarrage, puis à la promotion).
+        assertEquals(1, first.withCampaign("po-1").campaignIds().size());
+    }
+
+    @Test
+    void promotingAgainTheSameCampaignReplacesItsExchange() {
+        var thread = emptyThread()
+                .withExchange("po-1", "Question 1", "Réponse V1", "V1")
+                .withExchange("po-2", "Question 2", "Réponse V2", "V2")
+                .withExchange("po-1", "Question 1", "Réponse V3", "V3");
+
+        assertEquals(2, thread.exchanges(), "une seule réponse par campagne : jamais de doublon");
+        assertEquals(4, thread.turns().size());
+        assertEquals(List.of("Question 1", "Réponse V3", "Question 2", "Réponse V2"),
+                thread.turns().stream().map(turn -> turn.content()).toList(),
+                "l'échange corrigé reste à sa place : l'ordre chronologique est conservé");
+        assertEquals(List.of("po-1", "po-2"), thread.campaignIds());
+        assertEquals("Réponse V2", thread.lastTurn().content());
+    }
+
+    @Test
+    void theReplayedAnswerCanBeCorrectedButNeverHorsBornes() {
+        var thread = emptyThread().withExchange("po-1", "Question", "Réponse initiale", "V1");
+
+        var corrected = thread.withTurnContent(1, "Réponse corrigée par le conseiller");
+
+        assertEquals("Réponse corrigée par le conseiller", corrected.history().get(1).content());
+        assertEquals("Réponse initiale", thread.history().get(1).content(), "le fil d'origine n'est pas modifié");
+        assertThrows(IllegalArgumentException.class, () -> thread.withTurnContent(4, "hors bornes"));
+        assertThrows(IllegalArgumentException.class, () -> thread.withTurnContent(-1, "hors bornes"));
+    }
+
+    @Test
+    void anUnreadableRoleNeverInventsAnAiAnswer() {
+        var turn = new PromptOptimizationModels.Turn("ASSISTANT-TYPO", "  texte  ", "po-1", null, null);
+
+        assertEquals(PromptOptimizationModels.ROLE_USER, turn.role(),
+                "un rôle illisible devient une question client, jamais une réponse IA");
+        assertEquals("texte", turn.content());
+        assertEquals("", turn.version());
+        assertEquals("po-1", turn.campaignId());
+        assertFalse(turn.createdAt().isBlank(), "un tour est toujours daté");
+        assertEquals("user", turn.asMessage().role(), "l'historique est au format attendu par le chat");
+    }
+
+    @Test
+    void aThreadSurvivesAJsonRoundTrip() throws Exception {
+        var thread = emptyThread().withExchange("po-1", "Question 1", "Réponse promue V2", "V2");
+
+        String json = MAPPER.writeValueAsString(thread);
+        var read = MAPPER.readValue(json, PromptOptimizationModels.ConversationThread.class);
+
+        assertEquals(thread.turns().size(), read.turns().size());
+        assertEquals(2, read.history().size());
+        assertEquals("Question 1", read.history().get(0).content());
+        assertEquals("Réponse promue V2", read.history().get(1).content());
+        assertEquals("V2", read.turns().get(1).version());
+        assertEquals(List.of("po-1"), read.campaignIds());
     }
 }

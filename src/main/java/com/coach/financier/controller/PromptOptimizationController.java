@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -47,10 +48,18 @@ public class PromptOptimizationController {
      * <p>
      * {@code provider} = fournisseur du COACH ; {@code controllerProvider} (Agent B) et
      * {@code editorProvider} (Agent A) sont facultatifs : omis, ils reprennent le fournisseur du coach.
+     * <p>
+     * {@code threadId} = FIL DE CONVERSATION à poursuivre. Omis, un nouveau fil est ouvert : le cycle
+     * démarre sans mémoire (comportement historique). Fourni, l'historique complet du fil est transmis au
+     * Coach : c'est ce qui permet d'enchaîner les cycles comme une VRAIE conversation.
      */
     public record StartCampaignRequest(String agentId, String question, Integer iterations, String zoneKey,
                                        AIModels.AIProvider provider, AIModels.AIProvider controllerProvider,
-                                       AIModels.AIProvider editorProvider) {
+                                       AIModels.AIProvider editorProvider, String threadId) {
+    }
+
+    /** Corps de correction du contenu d'un tour de la conversation. */
+    public record TurnRequest(String content) {
     }
 
     /** Corps portant une version de prompt. */
@@ -88,13 +97,22 @@ public class PromptOptimizationController {
         return service.campaigns();
     }
 
-    /** Démarre une campagne : validation, snapshot de référence figé, statut RUNNING (aucune itération). */
+    /**
+     * Démarre une campagne : validation, snapshot de référence figé, statut RUNNING (aucune itération).
+     * <p>
+     * La réponse porte aussi le FIL DE CONVERSATION (créé ou repris) : l'IHM affiche la conversation de
+     * l'atelier et sait quelle mémoire sera transmise au cycle suivant.
+     */
     @PostMapping("/campaigns")
-    public PromptOptimizationModels.Campaign start(@RequestBody StartCampaignRequest request) {
+    public Map<String, Object> start(@RequestBody StartCampaignRequest request) {
         int iterations = request.iterations() == null ? 1 : request.iterations();
-        return service.start(new PromptOptimizationService.StartRequest(request.agentId(), request.question(),
-                iterations, request.zoneKey(), request.provider(), request.controllerProvider(),
-                request.editorProvider()));
+        PromptOptimizationModels.Campaign campaign = service.start(new PromptOptimizationService.StartRequest(
+                request.agentId(), request.question(), iterations, request.zoneKey(), request.provider(),
+                request.controllerProvider(), request.editorProvider(), request.threadId()));
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("campaign", campaign);
+        body.put("thread", service.threadOfCampaign(campaign.campaignId()));
+        return body;
     }
 
     /**
@@ -110,6 +128,7 @@ public class PromptOptimizationController {
         body.put("iterations", service.iterations(campaignId));
         body.put("versions", versionViews(campaignId));
         body.put("feedbacks", service.feedbacks(campaignId));
+        body.put("thread", service.threadOfCampaign(campaignId));
         return body;
     }
 
@@ -195,6 +214,28 @@ public class PromptOptimizationController {
         body.put("promptChars", campaign.totalPromptChars());
         body.put("durationMs", campaign.totalDurationMs());
         return body;
+    }
+
+    // --- Fils de conversation (mémoire de l'atelier) --------------------------------------------------
+
+    /** Fils connus, du plus récemment modifié au plus ancien (l'IHM reprend la conversation en cours). */
+    @GetMapping("/threads")
+    public List<PromptOptimizationModels.ConversationThread> threads() {
+        return service.threads();
+    }
+
+    /** Conversation complète d'un fil : les tours validés par promotion, dans l'ordre chronologique. */
+    @GetMapping("/threads/{threadId}")
+    public PromptOptimizationModels.ConversationThread thread(@PathVariable String threadId) {
+        return service.thread(threadId);
+    }
+
+    /** Corrige le contenu d'un tour : l'humain garde la main sur ce qui est rejoué au cycle suivant. */
+    @PutMapping("/threads/{threadId}/turns/{turnIndex}")
+    public PromptOptimizationModels.ConversationThread updateTurn(@PathVariable String threadId,
+                                                                 @PathVariable int turnIndex,
+                                                                 @RequestBody TurnRequest request) {
+        return service.updateTurn(threadId, turnIndex, request == null ? null : request.content());
     }
 
     // --- Aides ----------------------------------------------------------------------------------------

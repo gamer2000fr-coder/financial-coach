@@ -34,6 +34,8 @@ import java.util.regex.Pattern;
  *   snapshot.json     SNAPSHOT DE RÉFÉRENCE immuable (question, contexte figé, prompt de référence)
  *   iterations.jsonl  une ligne par itération (JAMAIS écrasée : l'historique complet est conservé)
  *   feedback.jsonl    retours humains, dans l'ordre chronologique
+ * threads/&lt;threadId&gt;.json
+ *   FIL DE CONVERSATION : la mémoire qui enchaîne les campagnes (historique rejoué au cycle suivant)
  * </pre>
  * Garanties :
  * <ul>
@@ -54,7 +56,7 @@ public class PromptOptimizationStore {
     private static final String ITERATIONS_FILE = "iterations.jsonl";
     private static final String EDITIONS_FILE = "editions.jsonl";
     private static final String FEEDBACK_FILE = "feedback.jsonl";
-    /** Identifiant de campagne accepté : jamais de séparateur de chemin. */
+    /** Identifiant accepté (campagne ET fil de conversation) : jamais de séparateur de chemin. */
     private static final Pattern CAMPAIGN_ID = Pattern.compile("[A-Za-z0-9_-]{1,80}");
 
     private final PromptOptimizationProperties properties;
@@ -280,6 +282,66 @@ public class PromptOptimizationStore {
         return currentFeedbacks(campaignId).values().stream()
                 .filter(feedback -> !feedback.applied())
                 .reduce((first, second) -> second);
+    }
+
+    // --- Fils de conversation (mémoire de l'atelier) ----------------------------------------------
+
+    /**
+     * Répertoire des FILS de conversation : {@code <dir>/threads/<threadId>.json}. Un fil enchaîne les
+     * campagnes et porte l'historique rejoué au cycle suivant (une campagne reste, elle, une seule
+     * question de test).
+     */
+    public Path threadsDir() {
+        return properties.baseDir().resolve("threads");
+    }
+
+    /** Écrit un fil (écriture ATOMIQUE, comme les autres états de l'atelier). */
+    public void saveThread(PromptOptimizationModels.ConversationThread thread) {
+        if (thread == null || thread.threadId().isBlank()) {
+            throw new IllegalArgumentException("Fil de conversation sans identifiant.");
+        }
+        writeJson(threadFile(thread.threadId()), thread);
+    }
+
+    public Optional<PromptOptimizationModels.ConversationThread> thread(String threadId) {
+        return readJson(threadFile(threadId), PromptOptimizationModels.ConversationThread.class);
+    }
+
+    /** Fils connus, du plus récemment modifié au plus ancien (les plus récents en premier dans l'IHM). */
+    public List<PromptOptimizationModels.ConversationThread> threads() {
+        List<PromptOptimizationModels.ConversationThread> threads = new ArrayList<>();
+        Path root = threadsDir();
+        if (!Files.isDirectory(root)) {
+            return threads;
+        }
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(root, "*.json")) {
+            for (Path file : stream) {
+                readJson(file, PromptOptimizationModels.ConversationThread.class).ifPresent(threads::add);
+            }
+        } catch (IOException e) {
+            log.warn("Liste des fils de conversation impossible dans {} : {}", root, e.getMessage());
+        }
+        threads.sort(Comparator.comparing(PromptOptimizationModels.ConversationThread::updatedAt).reversed());
+        return threads;
+    }
+
+    /**
+     * Fil auquel appartient une campagne, s'il existe. L'association est stockée DANS le fil
+     * ({@code campaignIds}) : une campagne n'a donc pas à connaître son fil, et les campagnes
+     * antérieures à cette fonctionnalité restent parfaitement lisibles.
+     */
+    public Optional<PromptOptimizationModels.ConversationThread> threadOf(String campaignId) {
+        if (campaignId == null || campaignId.isBlank()) {
+            return Optional.empty();
+        }
+        return threads().stream().filter(thread -> thread.campaignIds().contains(campaignId)).findFirst();
+    }
+
+    private Path threadFile(String threadId) {
+        if (threadId == null || !CAMPAIGN_ID.matcher(threadId).matches()) {
+            throw new IllegalArgumentException("Identifiant de fil de conversation invalide : " + threadId);
+        }
+        return threadsDir().resolve(threadId + ".json");
     }
 
     // --- Concurrence ------------------------------------------------------------------------------
