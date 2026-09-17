@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Construit le {@link CoachContext} transmis au Coach pour un tour de conversation.
@@ -231,9 +232,10 @@ public class CoachContextBuilder {
     private static String explicitAgentTheme(String message, String projectObject, CurrentProject project) {
         String hay = ((projectObject == null ? "" : projectObject + " ")
                 + (message == null ? "" : message)).toLowerCase(Locale.ROOT);
-        // Assurance-vie = placement (épargne), pas une assurance dommage.
-        if (hay.contains("assurance-vie") || containsAnyStr(hay, "livret", "épargne", "epargne",
-                "pea", "placer", "placement")) {
+        // Assurance-vie = placement (épargne), pas une assurance dommage. Les mots-clés courts sont comparés
+        // en MOT ENTIER : « placer » ne doit pas matcher « remplacer », ni « pea » matcher « peau ».
+        if (hay.contains("assurance-vie") || containsWord(hay, "livret", "pea", "placer", "placement")
+                || hay.contains("épargne") || hay.contains("epargne")) {
             return "epargne";
         }
         if (containsAnyStr(hay, "assurance", "mutuelle", "assureur")) {
@@ -250,23 +252,34 @@ public class CoachContextBuilder {
         return null;
     }
 
-    /** Sous-type d'assurance demandé (auto / habitation / emprunteur), déduit du message + contexte projet. */
+    /**
+     * Sous-type d'assurance demandé (auto / habitation / emprunteur), déduit du message + contexte projet.
+     * <p>
+     * Le sous-type est choisi par un SCORE (nombre de mots-clés reconnus) et non par le premier mot trouvé :
+     * une mention INCIDENTE ne doit pas l'emporter sur le besoin réel — « assurer mon appartement que je viens
+     * d'acheter avec un crédit immobilier » est une assurance HABITATION, pas une assurance emprunteur.
+     */
     private static String insuranceSubTheme(String message, String projectObject, CurrentProject project) {
         String hay = ((projectObject == null ? "" : projectObject + " ")
                 + (message == null ? "" : message)).toLowerCase(Locale.ROOT);
-        if (containsAnyStr(hay, "emprunteur", "prêt immobilier", "pret immobilier",
-                "crédit immobilier", "credit immobilier", "assurance de prêt", "assurance crédit")) {
+        int emprunteur = countWords(hay, "assurance de prêt", "assurance pret", "assurance crédit",
+                "assurance credit", "prêt immobilier", "pret immobilier", "crédit immobilier",
+                "credit immobilier", "assurance emprunteur", "emprunteur");
+        int habitation = countWords(hay, "habitation", "maison", "appartement", "logement", "locataire",
+                "résidence", "residence");
+        int auto = countWords(hay, "voiture", "véhicule", "vehicule", "auto", "moto", "deux-roues",
+                "deux roues", "permis");
+        if (emprunteur > 0 && emprunteur >= habitation && emprunteur >= auto) {
             return "assurance_emprunteur";
         }
-        if (containsAnyStr(hay, "voiture", "véhicule", "vehicule", "auto", "moto", "conduite", "permis")) {
-            return "assurance_auto";
-        }
-        if (containsAnyStr(hay, "habitation", "maison", "appartement", "logement",
-                "locataire", "résidence", "residence")) {
+        if (habitation > 0 && habitation >= auto) {
             return "assurance_habitation";
         }
-        // Aucun sous-type dans le message : on s'appuie sur le projet courant (assurance auto si véhicule,
-        // emprunteur si projet immobilier), sinon agent générique.
+        if (auto > 0) {
+            return "assurance_auto";
+        }
+        // Aucun sous-type dans le message : on s'appuie sur le projet courant (assurance emprunteur si projet
+        // immobilier, auto si projet véhicule), sinon agent générique — plutôt qu'un sous-type inventé.
         if (project != null && project.getType() == ProjectType.REAL_ESTATE_PURCHASE) {
             return "assurance_emprunteur";
         }
@@ -274,6 +287,32 @@ public class CoachContextBuilder {
             return "assurance_auto";
         }
         return AgentFiles.GENERIC_THEME;
+    }
+
+    /** Nombre de mots-clés/expressions reconnus en MOT ENTIER (voir {@link #containsWord}). */
+    private static int countWords(String text, String... keywords) {
+        int count = 0;
+        for (String keyword : keywords) {
+            if (containsWord(text, keyword)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /**
+     * Présence d'un des mots/expressions en MOT ENTIER (frontières non alphabétiques, pluriel en « s »
+     * toléré) : sans cela « auto » matcherait « prélèvement automatique » et « placer » matcherait
+     * « remplacer ».
+     */
+    private static boolean containsWord(String text, String... words) {
+        for (String word : words) {
+            if (Pattern.compile("(?<![\\p{L}\\p{N}])" + Pattern.quote(word) + "s?(?![\\p{L}\\p{N}])")
+                    .matcher(text).find()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean containsAnyStr(String text, String... values) {

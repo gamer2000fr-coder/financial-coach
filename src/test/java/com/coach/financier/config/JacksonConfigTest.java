@@ -58,4 +58,42 @@ class JacksonConfigTest {
 
         assertEquals("ok", node.path("answer").asText());
     }
+
+    /**
+     * Valeur d'énumération INCONNUE : défaut réel observé (« intent = DEBT_RESTRUCTURING », qui est une valeur
+     * de {@code projectType}) — sans tolérance, tout l'appel échouait en HTTP 500
+     * « Réponse classification invalide ».
+     */
+    @Test
+    void unknownEnumValueFallsBackInsteadOfFailingTheWholeCall() throws Exception {
+        String raw = "{\"inScope\":true,\"intent\":\"DEBT_RESTRUCTURING\","
+                + "\"projectType\":\"DEBT_RESTRUCTURING\",\"confidence\":\"HIGH\","
+                + "\"reason\":\"Le client veut racheter son crédit.\"}";
+
+        com.coach.financier.model.IntentClassification c =
+                mapper.readValue(raw, com.coach.financier.model.IntentClassification.class);
+
+        assertEquals(com.coach.financier.model.FinancialIntent.OTHER, c.getIntent(),
+                "un intent hors liste retombe sur OTHER au lieu de faire échouer la requête");
+        assertEquals(com.coach.financier.model.ProjectType.DEBT_RESTRUCTURING, c.getProjectType(),
+                "le projectType VALIDE est conservé (il pilote le choix de l'agent)");
+        assertEquals(com.coach.financier.model.ConfidenceLevel.HIGH, c.getConfidence());
+        assertNotNull(c.toLegacyCategory());
+        assertEquals(AIModels.RequestCategory.CREDIT, c.toLegacyCategory(),
+                "un rachat de crédit reste une demande de crédit pour l'IHM");
+    }
+
+    /** Un PLACEMENT (PEA, assurance-vie) reste une question d'ÉPARGNE, jamais de crédit. */
+    @Test
+    void anInvestmentIsNeverLabelledAsCredit() throws Exception {
+        String raw = "{\"inScope\":true,\"intent\":\"PRODUCT_INFORMATION\",\"projectType\":\"INVESTMENT\","
+                + "\"confidence\":\"HIGH\"}";
+
+        com.coach.financier.model.IntentClassification c =
+                mapper.readValue(raw, com.coach.financier.model.IntentClassification.class);
+
+        assertEquals(com.coach.financier.model.ProjectType.INVESTMENT, c.getProjectType());
+        assertEquals(AIModels.RequestCategory.SAVINGS, c.toLegacyCategory(),
+                "un placement ne doit pas être affiché comme un crédit");
+    }
 }

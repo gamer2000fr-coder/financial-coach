@@ -327,6 +327,20 @@ public final class PromptOptimizationModels {
     /** Plafond ABSOLU et CUMULÉ d'itérations par campagne (§33 : jamais de cycles sans fin). */
     public static final int MAX_ITERATIONS = 50;
 
+    /**
+     * Nombre d'itérations CONSÉCUTIVES sans aucune nouvelle version (l'éditeur ne propose plus rien)
+     * au-delà duquel la campagne s'arrête d'elle-même : inutile de consommer les itérations restantes.
+     */
+    public static final int MAX_CONSECUTIVE_NO_CHANGE = 3;
+
+    /** Message d'arrêt automatique sur plateau (aucun échec : la campagne est simplement mise en pause). */
+    public static String plateauMessage(int consecutiveIterations, int remainingIterations) {
+        return "Plateau : " + consecutiveIterations + " itérations consécutives sans aucune modification "
+                + "proposée par l'agent éditeur (Agent A) — la campagne est mise en pause pour ne pas "
+                + "consommer les " + Math.max(0, remainingIterations) + " itération(s) restante(s) du cycle. "
+                + "Ajoutez un avis pour orienter l'éditeur, ou reprenez pour continuer.";
+    }
+
     /** Statut de campagne ; une valeur illisible devient {@code ERROR} (jamais RUNNING par défaut). */
     public static String normalizeCampaignStatus(String raw) {
         return normalize(raw, List.of(CAMPAIGN_CREATED, CAMPAIGN_RUNNING, CAMPAIGN_STOP_REQUESTED,

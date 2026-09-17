@@ -12,8 +12,14 @@ public final class ConversationModels {
     public record Message(String role, String content, Instant timestamp) {}
 
     public static class Conversation {
-        /** Fenêtre glissante envoyée au coach à chaque tour (limite de contexte). */
-        private static final int COACH_HISTORY_LIMIT = 20;
+        /**
+         * Fenêtre d'historique envoyée au coach à chaque tour.
+         * <p>
+         * <b>0 = TOUT l'historique</b> (défaut) : le Coach doit savoir tout ce qui a déjà été échangé avec le
+         * client. Une valeur &gt; 0 borne volontairement le contexte (coût / taille de requête) ; la valeur
+         * vient de {@code app.chat.history-limit}. L'historique COMPLET reste dans {@link #transcript()}.
+         */
+        private int historyLimit;
 
         private final String sessionId;
         private final List<Message> messages = new ArrayList<>();
@@ -45,8 +51,26 @@ public final class ConversationModels {
             Message message = new Message(role, content, Instant.now());
             transcript.add(message);
             messages.add(message);
-            if (messages.size() > COACH_HISTORY_LIMIT) {
-                messages.remove(0);
+            trimHistory();
+        }
+
+        /**
+         * Borne l'historique envoyé au coach. {@code 0} (ou une valeur négative) = aucun bornage : tout
+         * l'historique est transmis à l'IA à chaque appel.
+         */
+        public synchronized void setHistoryLimit(int limit) {
+            this.historyLimit = Math.max(0, limit);
+            trimHistory();
+        }
+
+        /** Nombre de messages d'historique transmis au coach ({@code 0} = illimité). */
+        public int historyLimit() { return historyLimit; }
+
+        private void trimHistory() {
+            if (historyLimit > 0) {
+                while (messages.size() > historyLimit) {
+                    messages.remove(0);
+                }
             }
         }
 

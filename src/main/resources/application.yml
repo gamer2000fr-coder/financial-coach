@@ -37,12 +37,22 @@ app:
   # Nom du client (facultatif : le fichier bancaire ne contient qu'une référence).
   customer:
     name: ${CUSTOMER_NAME:}
+  # Page coach (chat).
+  chat:
+    # Nombre de messages d'historique transmis à l'IA à CHAQUE appel : 0 = TOUT l'historique (défaut),
+    # ce qui permet au Coach de savoir tout ce qui a déjà été échangé avec le client.
+    # Une valeur > 0 borne volontairement le contexte (coût / taille de requête).
+    history-limit: ${CHAT_HISTORY_LIMIT:0}
   # Dossier de suivi de fin de conversation.
   suivi:
     # Format de la pièce jointe (brouillon d'email client) : txt | html | eml.
     attachment-format: ${SUIVI_ATTACHMENT_FORMAT:eml}
     # Lien de prise de rendez-vous inséré dans le brouillon client (facultatif ; vide = aucun lien).
     advisor-appointment-url: ${ADVISOR_APPOINTMENT_URL:https://particuliers.sg.fr/vos-rendez-vous}
+    # Lien « Ouvrir le dossier du client » ajouté au MAIL CONSEILLER (facultatif ; vide = aucun lien).
+    # Ajouté par le BACKEND (jamais par l'IA) : pour la démo, le site Société Générale ; en production,
+    # l'URL de l'outil conseiller (espace de gestion).
+    dossier-url: ${SUIVI_DOSSIER_URL:https://particuliers.sg.fr}
     # Email conseiller envoyé en HTML (liens cliquables) ; false = texte brut.
     advisor-mail-html: ${SUIVI_ADVISOR_MAIL_HTML:true}
   # --- Module Marketing Intelligence (POC, AUCUNE base de données : fichiers JSONL/JSON) ---

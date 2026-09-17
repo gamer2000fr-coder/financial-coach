@@ -739,7 +739,9 @@ export default function PromptLab() {
             <p className="plab-hint">
               <Type size={13} /> Appels IA : {campaign.aiCalls} · Caractères envoyés : {campaign.totalPromptChars.toLocaleString('fr-FR')} · Durée IA : {(campaign.totalDurationMs / 1000).toFixed(1)} s
             </p>
-            {campaign.error && <p className="plab-error">Étape {campaign.errorStep || '—'} : {campaign.error}</p>}
+            {campaign.error && (campaign.errorStep
+              ? <p className="plab-error">Étape {campaign.errorStep} : {campaign.error}</p>
+              : <p className="plab-hint">⏸ {campaign.error}</p>)}
 
             {/* Nombre d'itérations ajoutées à la reprise : visible DÈS que la campagne ne tourne plus
                 (une seule occurrence à l'écran, utilisée par « Ajouter mon avis et continuer » ET
@@ -870,6 +872,15 @@ export default function PromptLab() {
 
             {openPrompt?.iteration === null && promptPanel(openPrompt)}
             {openDiff?.iteration === null && diffPanel(openDiff)}
+
+            {detail.versions.length === 1 && (
+              <p className="plab-hint">
+                Aucune nouvelle version pour l'instant : <b>{campaign.basePromptVersion}</b> est le prompt de
+                production et l'Agent A n'a proposé aucun changement. Le numéro de version n'avance QUE quand la
+                zone est réellement réécrite — les itérations « sans modification » réutilisent donc la même
+                version (d'où « Voir le prompt utilisé (V0) » sur plusieurs itérations).
+              </p>
+            )}
           </section>
 
           {/* 6) Comparaison initial / final */}
@@ -913,7 +924,12 @@ export default function PromptLab() {
                   <b>ITÉRATION {iteration.iterationNumber}</b>
                   <span>Prompt {iteration.promptVersion} → {iteration.resultingVersion}</span>
                   <span>{new Date(iteration.completedAt || iteration.startedAt).toLocaleTimeString('fr-FR')}</span>
-                  {iteration.noChange && <span className="plab-tag">sans modification</span>}
+                  {iteration.noChange && (
+                    <span className="plab-tag"
+                          title="L'Agent A n'a proposé aucun changement : cette itération ne produit donc aucune nouvelle version (le prompt utilisé reste la version courante).">
+                      sans modification → aucune nouvelle version
+                    </span>
+                  )}
                   {iteration.humanFeedbackApplied && <span className="plab-tag ok">avis humain appliqué</span>}
                   {(iteration.contextAddedData?.length ?? 0) > 0 && (
                     <span
@@ -956,6 +972,12 @@ export default function PromptLab() {
                     <button type="button" onClick={() => setPromotionVersion({ version: iteration.resultingVersion, iteration: iteration.iterationNumber })} disabled={busy}>
                       <ThumbsUp size={14} /> Promouvoir {iteration.resultingVersion}
                     </button>
+                  )}
+                  {!producedNewVersion(iteration) && (
+                    <span className="plab-hint">
+                      Aucune version produite : le prompt n'a pas été modifié, il n'y a donc ni
+                      « prompt produit » ni diff à afficher pour cette itération.
+                    </span>
                   )}
                 </div>
                 {/* Détails affichés SOUS cette itération (comme l'analyse Agent B) : pas de remontée en haut de page. */}

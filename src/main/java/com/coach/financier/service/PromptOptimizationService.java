@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -364,17 +365,51 @@ public class PromptOptimizationService {
         // thread, l'arrêt §11 doit rester gracieux et ne jamais être écrasé par l'itération en cours).
         PromptOptimizationModels.Campaign latest = store.require(campaignId);
         String campaignStatus = nextCampaignStatus(latest, status, number);
+        // PLATEAU : si l'éditeur ne propose plus rien depuis plusieurs itérations, on ARRÊTE le cycle au lieu
+        // de brûler les itérations restantes. Signal DÉTERMINISTE (aucun « tag » demandé au modèle) : une
+        // itération sans nouvelle version est une itération où `resultingVersion == promptVersion`.
+        String plateauMessage = "";
+        if (PromptOptimizationModels.CAMPAIGN_RUNNING.equals(campaignStatus)) {
+            int withoutChange = consecutiveIterationsWithoutChange(campaignId);
+            if (withoutChange >= PromptOptimizationModels.MAX_CONSECUTIVE_NO_CHANGE) {
+                campaignStatus = PromptOptimizationModels.CAMPAIGN_PAUSED;
+                plateauMessage = PromptOptimizationModels.plateauMessage(withoutChange,
+                        Math.max(0, latest.requestedIterations() - number));
+                log.info("Campagne {} mise en pause (plateau) : {} itérations consécutives sans modification",
+                        campaignId, withoutChange);
+            }
+        }
         boolean paused = PromptOptimizationModels.CAMPAIGN_PAUSED.equals(campaignStatus);
         boolean failed = PromptOptimizationModels.CAMPAIGN_ERROR.equals(campaignStatus);
         store.saveCampaignAndReturn(update(latest, campaignStatus, number, resultingVersion,
                 latest.aiCalls() + aiCalls, promptChars, duration,
-                failed ? error : "", failed ? step : "",
+                failed ? error : plateauMessage, failed ? step : "",
                 PromptOptimizationModels.CAMPAIGN_STOP_REQUESTED.equals(campaignStatus) ? Instant.now().toString()
                         : latest.stopRequestedAt(),
                 paused ? Instant.now().toString() : latest.pausedAt(), null));
 
         logIteration(campaign, snapshot, iteration, composedPrompt);
         return iteration;
+    }
+
+    /**
+     * Nombre d'itérations CONSÉCUTIVES, en fin de campagne, sans AUCUNE nouvelle version (l'éditeur n'a plus
+     * rien proposé). Le comptage s'arrête dès qu'une itération a produit une version (ou s'est soldée par une
+     * erreur, cas déjà traité par le statut ERROR).
+     */
+    private int consecutiveIterationsWithoutChange(String campaignId) {
+        List<PromptOptimizationModels.Iteration> iterations = new ArrayList<>(store.iterations(campaignId).values());
+        iterations.sort(Comparator.comparingInt(PromptOptimizationModels.Iteration::iterationNumber));
+        int count = 0;
+        for (int i = iterations.size() - 1; i >= 0; i--) {
+            PromptOptimizationModels.Iteration iteration = iterations.get(i);
+            if (PromptOptimizationModels.ITERATION_ERROR.equals(iteration.status())
+                    || !iteration.resultingVersion().equals(iteration.promptVersion())) {
+                break;
+            }
+            count++;
+        }
+        return count;
     }
 
     /** Statut de campagne attendu après une itération (STOP gracieux, fin de cycle, erreur). */

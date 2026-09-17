@@ -215,6 +215,7 @@ Tous les fichiers sont lus **depuis le système de fichiers `./data`** (racine d
 ```yaml
 server.port: ${SERVER_PORT:9797}
 app.data.dir: ${DATA_DIR:./data}
+app.chat.history-limit: ${CHAT_HISTORY_LIMIT:0}    # 0 = TOUT l'historique transmis au Coach à chaque appel
 app.data.banking-file: ${BANKING_FILE:./data/banking_demo_normalized.json}
 app.ai.openai.model: ${OPENAI_MODEL:gpt-4o-mini}
 app.ai.openai.max-tokens: ${OPENAI_MAX_TOKENS:16384}   # plafond de sortie (maximum du modèle)
@@ -230,6 +231,8 @@ app.advisor.email: ${ADVISOR_EMAIL:<MAIL_USERNAME>}   # SEUL destinataire automa
 app.customer.name: ${CUSTOMER_NAME:}
 app.suivi.attachment-format: ${SUIVI_ATTACHMENT_FORMAT:eml}      # txt | html | eml
 app.suivi.advisor-appointment-url: ${ADVISOR_APPOINTMENT_URL:…}  # lien de RDV du brouillon client
+app.suivi.dossier-url: ${SUIVI_DOSSIER_URL:https://particuliers.sg.fr}  # lien « dossier client » du mail conseiller
+#   (démo = site Société Générale ; en production = outil conseiller. Vide ⇒ aucun lien)
 app.suivi.advisor-mail-html: ${SUIVI_ADVISOR_MAIL_HTML:true}
 app.mail.enabled: ${MAIL_ENABLED:true}
 app.mail.from: ${MAIL_FROM:${MAIL_USERNAME:}}
@@ -405,7 +408,21 @@ sequenceDiagram
   - `agent` / `agentLibelle` : agent actif (pour le prompt système et les logs) ;
 - `conversationHistory`.
 
+> **Historique transmis à l'IA** : à CHAQUE appel, le payload contient l'historique de la session — **tout**
+> l'historique par défaut (`app.chat.history-limit = 0`), afin que le Coach sache ce qui a déjà été échangé avec le
+> client. `Conversation` conserve de toute façon un **transcript complet jamais tronqué** (utilisé par le dossier de
+> suivi) ; `app.chat.history-limit > 0` borne volontairement le contexte envoyé au modèle (coût / taille de requête).
+> Le champ `historyCount` de la page Logs permet de vérifier le nombre de messages réellement transmis.
+
 > Le **prompt système** utilisé est celui de l'agent actif (gabarit générique + principal + spécialisé), choisi par `ChatController` (`selectAgentTheme`) puis chargé par `AgentFiles.systemPromptFor(theme)` — et non plus un prompt unique fixe.
+
+> **Routage de l'agent (règles durcies)** : le thème peut basculer en cours de conversation, et le sous-type
+d'**assurance** est choisi par un SCORE sur les mots-clés du message + de `projectObject` (jamais par le premier mot
+trouvé) : une mention INCIDENTE ne doit pas l'emporter (« assurer mon appartement … avec un crédit immobilier »
+= assurance **habitation**, pas emprunteur). Les mots-clés courts sont comparés en **MOT ENTIER** : « auto » ne
+déclenche pas l'assurance auto dans « prélèvement **auto**matique », et « placer » ne confond pas « **remplacer** »
+mon assurance avec une demande d'épargne. Si aucun sous-type n'est identifiable, le routage se rabat sur le projet
+courant, sinon sur l'agent **générique** (aucun sous-type inventé).
 
 ### 6.3 Boucle NEED_DATA
 - L'IA répond `ANSWER`, ou `NEED_DATA` + `dataRequest.paths` (chemins EXACTS du catalogue).
@@ -606,7 +623,13 @@ contrôleur, éditeur) :
   ouvertes, et à défaut **abandonne le dernier membre incomplet** (le texte d'origine est renvoyé si rien n'est
   réparable, donc aucune erreur n'est masquée) — le type de sortie attendu reste alors inchangé ;
 - un plafond de sortie explicite par fournisseur (`app.ai.*.max-tokens`) : le laisser implicite faisait tomber
-  DeepSeek sur son défaut de 4096.
+  DeepSeek sur son défaut de 4096 ;
+- `READ_UNKNOWN_ENUM_VALUES_AS_NULL` : une valeur d'ÉNUMÉRATION hors liste devient `null` puis la valeur par défaut
+  du bean (`OTHER` / `UNKNOWN` / `LOW`) au lieu de faire échouer TOUT l'appel. Défaut réel observé : le modèle
+  renvoyait `intent = "DEBT_RESTRUCTURING"` (valeur de `projectType` !) → HTTP 500 « Réponse classification
+  invalide » sur « je voudrais racheter mon crédit immobilier ». Les deux listes (`intent` / `projectType`) sont
+  désormais explicitement distinguées dans `agent/classifieur.txt`, avec des exemples de désambiguïsation
+  assurance / crédit / épargne (et la règle « assurance-vie = placement »).
 
 La troncature reste **TRACÉE** : `finish_reason` et la longueur reçue sont journalisés (`[IA] … réponse JSON
 incomplète RÉPARÉE …`), et le message d'erreur du Coach cite désormais la **fin de la réponse reçue**.
@@ -703,7 +726,7 @@ Voir §10 : une trace par clôture contient `mailStatus`, `mailSent`, `mailTarge
 
 ### 15.7 Configuration
 
-`app.advisor.{name,email}`, `app.customer.name`, `app.suivi.{attachment-format, advisor-appointment-url, advisor-mail-html}`, `spring.mail.*` (`MAIL_USERNAME`, mot de passe d'application `CLE_GOOGLE_COACH_FINANCIER`), `app.mail.{enabled,from,from-name}`. Le fournisseur IA n'a **pas** de valeur par défaut en configuration : il est transmis par l'IHM à chaque appel (`AIServiceFactory.FALLBACK_PROVIDER = MOCK` uniquement en repli technique).
+`app.advisor.{name,email}`, `app.customer.name`, `app.suivi.{attachment-format, advisor-appointment-url, dossier-url, advisor-mail-html}`, `spring.mail.*` (`MAIL_USERNAME`, mot de passe d'application `CLE_GOOGLE_COACH_FINANCIER`), `app.mail.{enabled,from,from-name}`. Le fournisseur IA n'a **pas** de valeur par défaut en configuration : il est transmis par l'IHM à chaque appel (`AIServiceFactory.FALLBACK_PROVIDER = MOCK` uniquement en repli technique).
 
 ### 15.8 Limites assumées
 
@@ -973,7 +996,8 @@ curl "http://localhost:9797/api/advisor-feedback/export/summary.csv?period=7d"
 Clôture de conversation
   → ConversationClosureService : validation du dossier (URLs, produits, refus)
   → AdvisorDossierService.persist(...)        : dossier évaluable écrit en JSONL
-  → withFeedbackLink(...)                     : bloc « Évaluer le suivi du Coach » ajouté au mail APRÈS validation
+  → withAdvisorLinks(...)                     : liens SYSTÈME ajoutés au mail APRÈS validation
+                                              (Dossier client + Évaluer le suivi du Coach)
   → MailService : envoi au SEUL conseiller (le brouillon client n'a jamais le lien)
   → clic conseiller → #/advisor-feedback/session/<sessionId> → dossier + formulaire → feedback (versionné)
 ```
@@ -990,7 +1014,10 @@ Clôture de conversation
 
 ### 19.3 Tests
 
-- Lien présent, format `[URL|Évaluer le suivi du Coach|…/session/<id>]`, **aucune donnée personnelle** dans l'URL, lien absent du brouillon client (`ConversationClosureServiceTest`).
+- Liens présents et **fabriqués par le backend** (jamais par l'IA, donc insensibles au contrôle
+d'anti-invention d'URL) : « Dossier client » (URL de configuration `app.suivi.dossier-url`, démo = site
+Société Générale) et « Évaluer le suivi du Coach » au format `[URL|nom|…/session/<id>]`, **aucune donnée
+personnelle** dans l'URL, liens absents du brouillon client (`ConversationClosureServiceTest`).
 - Dossier inconnu → **404** (vérifié sur l'instance) ; dossier connu → 200 avec `feedbackStatus` `PENDING` puis `COMPLETED` après envoi du feedback (vérifié sur l'instance).
 
 ---
@@ -1112,6 +1139,10 @@ Un `STOP` arrivé **pendant** les appels IA n'est jamais perdu : l'itération en
 - **REPRENDRE** accepte `PAUSED`, `STOP_REQUESTED` et **`COMPLETED`** et peut **prolonger** le cycle (`additionalIterations`, **borné au reste disponible** : `maxIterations − requestedIterations`) : les itérations réalisées sont conservées. Le champ *Itérations supplémentaires à ajouter au cycle* (défaut 3) est visible **dès que la campagne ne tourne plus** (PAUSED / COMPLETED / ERROR), avec le plafond cumulé affiché (`déjà demandées : X, encore possible : Y`) ; il alimente les deux boutons de reprise (`Ajouter mon avis et continuer (+n)` et **`CONTINUER SANS AVIS (+n)`**).
 - Prolonger un cycle **déjà terminé** ne demande donc PAS d'avis : `CONTINUER SANS AVIS (+n)` appelle directement `resume(additionalIterations)` ; `AJOUTER MON AVIS ET CONTINUER` ouvre le formulaire pour donner un avis en plus.
 - Le bouton de reprise transmet un avis **déjà saisi mais non enregistré** (`POST /feedback`) avant de reprendre : le texte de l'utilisateur n'est jamais perdu.
+- **Arrêt automatique sur plateau** : 3 itérations consécutives sans nouvelle version (`resultingVersion ==
+  promptVersion`) ⇒ la campagne passe en `PAUSED` avec un message explicite, sans consommer les itérations
+  restantes (`PromptOptimizationModels.MAX_CONSECUTIVE_NO_CHANGE`). Aucun « tag » n'est demandé à l'Agent B : le
+  signal est calculé par le backend. L'IHM affiche ce message en **information** (et non comme une erreur d'étape).
 - Le bouton **« Enregistrer et reprendre (+n) »** ENREGISTRE d'abord l'avis (`POST /feedback`) **puis** reprend : l'ordre est essentiel, sinon le texte saisi serait perdu.
 - Toutes les versions restent **consultables** avec leur prompt complet ; la seule décision sur une version est la **promotion** (les repères intermédiaires ont été retirés : rien ne doit suggérer un effet sur la production).
 
@@ -1145,7 +1176,12 @@ sans ces champs retombe sur le fournisseur du coach (constructeurs compacts de `
 - Versions : « Voir le prompt » (la **zone modifiable** est affichée directement ; le **prompt complet** — parties protégées + zone surlignée — est **replié par défaut** derrière un bouton *Afficher / Masquer le prompt complet*), « Changements » (**diff LCS maison**, seules les lignes modifiées et 2 lignes de contexte), « Promouvoir » (confirmation explicite).
 - Les boutons suivent l'**état réel** : la version de production n'est ni modifiable ni promouvable (sans effet) ;
   « Changements Vn → Vn+1 » (et « Voir le prompt produit ») n'apparaît que si l'Agent A a réellement produit une
-  nouvelle version — une itération « sans modification » ne propose donc jamais un diff `Vn → Vn`.
+  nouvelle version — une itération « sans modification » ne propose donc jamais un diff `Vn → Vn`, et elle affiche
+  à la place un repère explicite *sans modification → aucune nouvelle version* plus une phrase rappelant que le
+  prompt n'a pas changé (sans quoi l'absence des boutons passait pour une anomalie).
+- Tant qu'aucune version n'est produite, le tableau des versions ne contient que `V0` et les itérations affichent
+  toutes « Voir le prompt utilisé (V0) » : un rappel l'explique sous le tableau (le numéro n'avance QUE lorsque
+  l'Agent A réécrit réellement la zone).
 - Itérations (plus récentes d'abord) : réponse du Coach, résumé Agent B, analyse complète dépliable (points à améliorer avec sévérité et **origine**, à préserver, recommandation, points non résolus), avis humains distincts.
 - Les panneaux de détail (prompt d'une version, changements, confirmation de promotion) s'affichent **là où ils ont
   été demandés** : sous le bloc d'itération concerné, ou sous le tableau des versions si l'action vient du tableau

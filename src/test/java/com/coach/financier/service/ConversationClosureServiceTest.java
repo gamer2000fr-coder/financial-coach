@@ -166,6 +166,12 @@ class ConversationClosureServiceTest {
         // Le brouillon client, lui, ne contient jamais le lien d'évaluation.
         assertFalse(response.preparedCustomerEmail().body().contains("advisor-feedback"),
                 "Le brouillon client ne doit pas contenir le lien interne d'évaluation");
+        // Lien « dossier client » : URL fournie par la CONFIGURATION (démo = site Société Générale) et
+        // ajoutée par le backend au mail conseiller, jamais par l'IA.
+        assertTrue(body.contains("Dossier client : [URL|Ouvrir le dossier du client|https://particuliers.sg.fr]"),
+                "Le mail conseiller contient le lien de retrouvaille du dossier client");
+        assertFalse(response.preparedCustomerEmail().body().contains("Ouvrir le dossier du client"),
+                "Le brouillon client ne doit pas contenir le lien interne du conseiller");
     }
 
     @Test
@@ -290,7 +296,8 @@ class ConversationClosureServiceTest {
                 financialAnalysisService, aiLogService, testObjectMapper(), marketingProperties(),
                 mock(MarketingEventStore.class), mock(MarketingExtractionService.class),
                 qualityChecks(), advisorDossiers(),
-                "Conseiller SG", ADVISOR, "Jean Martin", "txt", "https://particuliers.sg.fr/vos-rendez-vous", true);
+                "Conseiller SG", ADVISOR, "Jean Martin", "txt", "https://particuliers.sg.fr/vos-rendez-vous",
+                "https://particuliers.sg.fr", true);
     }
 
     /**

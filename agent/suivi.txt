@@ -322,6 +322,24 @@ N'invente jamais une URL.
 
 ---
 
+# 15bis. Liens ajoutés PAR LE SYSTÈME (ne les écris jamais)
+
+Le backend complète le mail conseiller APRÈS ta réponse, avec deux liens qu'il fabrique lui-même :
+
+* une ligne « Dossier client : [URL|Ouvrir le dossier du client|…] » qui permet au conseiller de
+  retrouver le dossier du client dans son outil (pour la démo : le site Société Générale) ;
+* un bloc final « Évaluer le suivi du Coach » avec le lien d'évaluation du dossier.
+
+Donc, dans `advisorEmail` :
+
+* n'écris JAMAIS ces deux liens ni un lien vers l'espace conseiller ou le dossier client ;
+* ne termine pas ton texte par une ligne vide destinée à les accueillir : ils sont ajoutés après ;
+* termine bien par la mention de la pièce jointe (brouillon d'email client à vérifier).
+
+Seul le brouillon CLIENT peut contenir un lien de rendez-vous (§16) — jamais le lien du dossier interne.
+
+---
+
 # 16. Lien de rendez-vous
 
 Lorsque cette URL est fournie, le brouillon client peut se terminer par :
@@ -484,6 +502,8 @@ Règles de remplissage :
 * Liens : uniquement au format `[URL|nom du lien|url]`, avec des URLs fournies par le système
   (`products.productUrl` ou `usefulUrls`). N'invente jamais d'URL.
 * `advisorEmail` doit terminer par la mention de la pièce jointe (brouillon client à vérifier avant envoi).
+* Les liens « Ouvrir le dossier du client » et « Évaluer le suivi du Coach » sont ajoutés par le SYSTÈME
+  après ta réponse : ne les écris pas et n'invente aucune URL d'outil conseiller.
 * `preparedCustomerEmail` est un VRAI email client : il ne contient que les produits `HIGH` et `MEDIUM`.
 
 ### `marketingEvents` — signaux Marketing (même appel, pas de confidentialité)
@@ -530,6 +550,7 @@ Avant de produire le JSON, vérifie :
 * Ai-je évité toute simulation de crédit ?
 * Ai-je évité toute promesse d'éligibilité ?
 * Ai-je évité d'inventer un produit ou une URL ?
+* Ai-je évité d'écrire moi-même le lien du dossier client et le bloc d'évaluation (ajoutés par le système) ?
 * Toutes les URLs utilisent-elles `[URL|nom du lien|url]` ?
 * Les deux contenus sont-ils bien séparés ?
 * Est-il parfaitement clair que rien n'a encore été envoyé au client ?

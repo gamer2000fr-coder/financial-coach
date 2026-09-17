@@ -87,10 +87,14 @@ public class IntentClassification {
         return switch (projectType) {
             case SAVINGS -> AIModels.RequestCategory.SAVINGS;
             case BUDGET -> AIModels.RequestCategory.BUDGET;
-            case INVESTMENT -> financing ? AIModels.RequestCategory.CREDIT : AIModels.RequestCategory.SAVINGS;
+            // Un placement (PEA, assurance-vie, PER) reste une question d'ÉPARGNE : l'intention
+            // PRODUCT_INFORMATION ne doit pas le faire passer pour un crédit.
+            case INVESTMENT -> AIModels.RequestCategory.SAVINGS;
             case INSURANCE -> AIModels.RequestCategory.BANK_PRODUCT;
-            case DEBT_RESTRUCTURING, CASH_NEED ->
-                    financing ? AIModels.RequestCategory.CREDIT : AIModels.RequestCategory.CASHFLOW;
+            // Un rachat/regroupement de crédits est une opération de CRÉDIT, même si l'intention a été
+            // dégradée (intent hors liste → OTHER) : la catégorie legacy suit donc le projet.
+            case DEBT_RESTRUCTURING -> AIModels.RequestCategory.CREDIT;
+            case CASH_NEED -> financing ? AIModels.RequestCategory.CREDIT : AIModels.RequestCategory.CASHFLOW;
             case VEHICLE, REAL_ESTATE_PURCHASE, HOME_WORK, ELECTRONICS, FURNITURE, TRAVEL,
                  EDUCATION, WEDDING, HEALTH_EXPENSE ->
                     financing ? AIModels.RequestCategory.CREDIT : AIModels.RequestCategory.PURCHASE_PROJECT;

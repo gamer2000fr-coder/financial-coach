@@ -29,6 +29,12 @@ public class JacksonConfig {
         mapper.registerModule(new JavaTimeModule());
         // Tolère les champs inconnus (réponses LLM / catalogues évolutifs).
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        // Tolère aussi une valeur d'ÉNUMÉRATION inconnue : un modèle confond régulièrement deux listes
+        // proches (« intent » et « projectType » contiennent tous deux DEBT_RESTRUCTURING par exemple) et
+        // une seule valeur hors liste faisait échouer TOUT l'appel (HTTP 500 « Réponse classification
+        // invalide »). La valeur devient null et les setters défensifs des beans la ramènent à une valeur
+        // par défaut (OTHER / UNKNOWN / LOW).
+        mapper.configure(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL, true);
         // Évite d'écrire les dates sous forme de tableau [2026, 9, 5]
         mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         return mapper;

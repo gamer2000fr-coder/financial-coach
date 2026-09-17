@@ -308,7 +308,7 @@ Ce que l'humain voit dans la page :
 - **Snapshot de référence** : la liste de ce qui est **figé** (question, données financières, classification d'intention, projet, prompt hors zone) — c'est ce qui rend la comparaison honnête ;
 - **Production vs candidat** : le prompt **actuellement en production** reste distingué de toutes les versions de la campagne ; aucune version candidate n'est utilisée par les conversations tant qu'un humain ne l'a pas promue ;
 - **Progression** : état, itération _n / N_, réalisées / restantes, appels IA, caractères envoyés, durée ;
-- **Par itération** : la réponse du Coach, l'analyse de l'Agent B (points à améliorer, sévérité, origine), les changements demandés à l'Agent A, le prompt de la version, et un **diff de la seule zone éditable** ;
+- **Par itération** : la réponse du Coach, l'analyse de l'Agent B (points à améliorer, sévérité, origine), les changements demandés à l'Agent A, le prompt de la version, et un **diff de la seule zone éditable** — les boutons « Voir le prompt produit / Changements » n'apparaissent que si l'Agent A a réellement modifié la zone (sinon un repère « sans modification → aucune nouvelle version » l'explique) ;
 - **Actions** : `GO`, `STOP` (arrêt gracieux), `REPRENDRE`, « Ajouter mon avis », « Ajouter mon avis et continuer (+n) », **« Continuer sans avis (+n) »** (prolonger un cycle terminé sans écrire d'avis), `COMPARER`, « Promouvoir » (avec confirmation explicite), « Refuser la campagne » ;
 - **Avis humains** : visuellement distincts du diagnostic automatique, avec leur statut (appliqué / en attente).
 

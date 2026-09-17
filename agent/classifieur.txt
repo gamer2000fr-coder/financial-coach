@@ -35,6 +35,25 @@ Si le type ne peut pas être déterminé de manière suffisamment fiable : proje
 Quand le contexte indique clairement le type (ex. CURRENT_PROJECT "type = VEHICLE" et message
 "Quel crédit pour mon cas ?"), renvoie ce même type.
 
+ATTENTION : « intent » et « projectType » sont DEUX listes DIFFÉRENTES.
+Une valeur comme DEBT_RESTRUCTURING, SAVINGS, INSURANCE, VEHICLE ou EDUCATION appartient à projectType et
+JAMAIS à intent. Pour un rachat de crédit : projectType = DEBT_RESTRUCTURING (REAL_ESTATE_PURCHASE s'il
+s'agit d'un crédit immobilier) et intent = FINANCING_REQUEST.
+
+DISTINGUER LES GRANDS THÈMES (erreur fréquente)
+- ASSURANCE (projectType = INSURANCE) : le client veut couvrir un RISQUE (auto, habitation, emprunteur,
+santé, prévoyance). Le besoin porte sur un contrat, pas sur un financement. Mets le sous-type dans
+projectObject ("assurance auto", "assurance habitation", "assurance emprunteur").
+  ⚠️ « assurance-vie » et « PER » sont des PLACEMENTS : projectType = INVESTMENT, jamais INSURANCE.
+- CRÉDIT : le client veut EMPRUNTER ou mieux financer (conso, immo, rachat) → intent = FINANCING_REQUEST
+(CREDIT_INFORMATION s'il pose une question sur un crédit existant) et projectType = VEHICLE,
+REAL_ESTATE_PURCHASE, CASH_NEED, DEBT_RESTRUCTURING…
+- ÉPARGNE : le client veut METTRE DE CÔTÉ ou FAIRE FRUCTIFIER (livrets, PEA, assurance-vie, PER) →
+projectType = SAVINGS (épargne de précaution ou objectif) ou INVESTMENT (placement).
+Un message peut contenir plusieurs thèmes : garde celui de la DEMANDE PRINCIPALE, pas la mention secondaire.
+Exemple : « je voudrais assurer mon appartement que je viens d'acheter avec un crédit immobilier » →
+INSURANCE (assurance habitation), PAS un crédit.
+
 Exemples :
 {"inScope":true,"intent":"PURCHASE","projectType":"VEHICLE","projectObject":"Clio 5","amount":8700,
  "currency":"EUR","refersToCurrentProject":false,"projectChanged":true,"confidence":"HIGH",
@@ -43,3 +62,16 @@ Exemples :
 {"inScope":true,"intent":"FINANCING_REQUEST","projectType":"VEHICLE","projectObject":null,"amount":null,
  "currency":"EUR","refersToCurrentProject":true,"projectChanged":false,"confidence":"HIGH",
  "reason":"Le client demande un crédit pour le projet courant (véhicule)."}
+
+{"inScope":true,"intent":"PRODUCT_INFORMATION","projectType":"INSURANCE","projectObject":"assurance habitation",
+ "amount":null,"currency":"EUR","refersToCurrentProject":false,"projectChanged":true,"confidence":"HIGH",
+ "reason":"Le client veut assurer son logement ; la mention du crédit immobilier est secondaire."}
+
+{"inScope":true,"intent":"FINANCING_REQUEST","projectType":"DEBT_RESTRUCTURING",
+ "projectObject":"rachat de crédit immobilier","amount":null,"currency":"EUR",
+ "refersToCurrentProject":false,"projectChanged":true,"confidence":"HIGH",
+ "reason":"Le client veut racheter son crédit (DEBT_RESTRUCTURING est un projectType, pas un intent)."}
+
+{"inScope":true,"intent":"PRODUCT_INFORMATION","projectType":"INVESTMENT","projectObject":"assurance-vie",
+ "amount":null,"currency":"EUR","refersToCurrentProject":false,"projectChanged":true,"confidence":"HIGH",
+ "reason":"L'assurance-vie est un placement (épargne), pas une assurance de dommages."}

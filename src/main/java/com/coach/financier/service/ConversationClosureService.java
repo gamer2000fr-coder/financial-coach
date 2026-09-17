@@ -76,6 +76,7 @@ public class ConversationClosureService {
     private final String configuredCustomerName;
     private final String defaultAttachmentFormat;
     private final String appointmentUrl;
+    private final String dossierUrl;
     private final boolean advisorMailHtml;
 
     public ConversationClosureService(ConversationService conversationService,
@@ -98,6 +99,7 @@ public class ConversationClosureService {
                                       @Value("${app.customer.name:}") String configuredCustomerName,
                                       @Value("${app.suivi.attachment-format:txt}") String defaultAttachmentFormat,
                                       @Value("${app.suivi.advisor-appointment-url:}") String appointmentUrl,
+                                      @Value("${app.suivi.dossier-url:}") String dossierUrl,
                                       @Value("${app.suivi.advisor-mail-html:true}") boolean advisorMailHtml) {
         this.conversationService = conversationService;
         this.aiServiceFactory = aiServiceFactory;
@@ -119,6 +121,7 @@ public class ConversationClosureService {
         this.configuredCustomerName = configuredCustomerName;
         this.defaultAttachmentFormat = defaultAttachmentFormat;
         this.appointmentUrl = appointmentUrl;
+        this.dossierUrl = dossierUrl == null ? "" : dossierUrl.trim();
         this.advisorMailHtml = advisorMailHtml;
     }
 
@@ -214,7 +217,7 @@ public class ConversationClosureService {
         //          peut donc pas être neutralisé par le contrôle anti-invention). L'URL ne contient que
         //          le sessionId : aucune donnée personnelle (§45).
         advisorDossierService.persist(sessionId, result);
-        validated = withFeedbackLink(validated, sessionId);
+        validated = withAdvisorLinks(validated, sessionId);
 
         // 6) Pièce jointe générée à partir du brouillon client : destinataire = mail du client
         //    (fiche customer.mail), expéditeur = mail du conseiller (évite « unknown sender »).
@@ -281,19 +284,27 @@ public class ConversationClosureService {
     ) {}
 
     /**
-     * Ajoute le bloc « Évaluer le suivi du Coach » (lien direct vers le dossier) à la fin du mail
-     * conseiller. Le lien ne contient que le sessionId et n'est JAMAIS fabriqué par l'IA : il est
-     * donc insensible au contrôle d'invention d'URL.
+     * Ajoute au mail conseiller les liens fournis par le SYSTÈME (jamais fabriqués par l'IA, donc
+     * insensibles au contrôle d'invention d'URL, appliqué plus haut) :
+     * <ul>
+     *   <li>« Ouvrir le dossier du client » — URL de configuration ({@code app.suivi.dossier-url}) :
+     *       pour la démo, le site Société Générale ; en production, l'outil conseiller ;</li>
+     *   <li>« Évaluer le suivi du Coach » — lien direct vers le dossier évaluable, qui ne contient que
+     *       le sessionId (aucune donnée personnelle).</li>
+     * </ul>
      */
-    private Validated withFeedbackLink(Validated validated, String sessionId) {
+    private Validated withAdvisorLinks(Validated validated, String sessionId) {
         SuiviModels.EmailContent advisor = validated.advisorEmail();
         if (advisor == null) {
             return validated;
         }
-        String body = (advisor.body() == null ? "" : advisor.body().stripTrailing())
-                + "\n\n" + advisorDossierService.feedbackBlock(sessionId);
+        StringBuilder body = new StringBuilder(advisor.body() == null ? "" : advisor.body().stripTrailing());
+        if (!dossierUrl.isBlank()) {
+            body.append("\n\nDossier client : [URL|Ouvrir le dossier du client|").append(dossierUrl).append(']');
+        }
+        body.append("\n\n").append(advisorDossierService.feedbackBlock(sessionId));
         return new Validated(validated.summary(), validated.products(), validated.rejectedProducts(),
-                new SuiviModels.EmailContent(advisor.subject(), body), validated.preparedCustomerEmail());
+                new SuiviModels.EmailContent(advisor.subject(), body.toString()), validated.preparedCustomerEmail());
     }
 
     /**

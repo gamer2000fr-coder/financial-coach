@@ -169,6 +169,7 @@ stateDiagram-v2
     CREATED --> RUNNING: snapshot figé
     RUNNING --> RUNNING: itération
     RUNNING --> PAUSED: STOP (fin de l'appel en cours)
+    RUNNING --> PAUSED: PLATEAU (3 itérations sans nouvelle version)
     RUNNING --> COMPLETED: cycle demandé atteint
     RUNNING --> ERROR: échec d'itération (étape tracée)
     PAUSED --> RUNNING: REPRENDRE
@@ -185,6 +186,13 @@ Statuts : `CREATED`, `RUNNING`, `STOP_REQUESTED`, `PAUSED`, `COMPLETED`, `ACCEPT
 
 Un `STOP` arrivé **pendant** les appels IA n'est jamais écrasé : l'itération est enregistrée puis l'état de la
 campagne est **relu** avant écriture du statut final.
+
+**Arrêt automatique sur PLATEAU** : si **3 itérations consécutives** ne produisent aucune nouvelle version (l'Agent A
+ne propose plus rien), la campagne passe d'elle-même en `PAUSED` avec un message explicite, **sans consommer** les
+itérations restantes du cycle (`MAX_CONSECUTIVE_NO_CHANGE = 3`). Le signal est **déterministe** — une itération sans
+nouvelle version est une itération où `resultingVersion == promptVersion` : aucun « tag » n'est demandé au modèle,
+donc rien d'aléatoire. La reprise (avec ou sans avis) reste possible : le compteur repart de la dernière version
+réellement produite.
 
 ---
 

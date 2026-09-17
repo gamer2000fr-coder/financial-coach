@@ -127,8 +127,65 @@ class CoachContextBuilderTest {
         assertNotNull(CoachContextBuilder.CLARIFICATION_MESSAGE);
     }
 
-    /** Le contexte expose exactement les clés attendues, dans l'ordre attendu par le payload du Coach. */
+    /**
+     * Assurance : le SOUS-TYPE vient du besoin RÉEL, pas de la première mention trouvée.
+     * <p>
+     * Cas réel signalé : « assurer mon appartement que je viens d'acheter avec un crédit immobilier » était
+     * routé vers l'agent ASSURANCE EMPRUNTEUR (à cause des mots « crédit immobilier ») alors que le client
+     * veut assurer son LOGEMENT.
+     */
     @Test
+    void homeInsuranceBeatsAnIncidentalMortgageMention() {
+        IntentClassification c = classification(FinancialIntent.PRODUCT_INFORMATION, ProjectType.INSURANCE, null);
+        c.setProjectObject("assurance habitation");
+
+        CoachContext ctx = builder.build(
+                "Je voudrais assurer mon appartement que je viens d'acheter avec un crédit immobilier.",
+                c, null, List.of());
+
+        assertEquals("assurance_habitation", ctx.agentTheme(),
+                "le besoin réel (logement) prime sur la mention incidente du crédit");
+        assertTrue(ctx.debug().contains("theme=assurance_habitation"));
+    }
+
+    /** « prélèvement automatique » ne doit PAS déclencher l'assurance auto (mot entier, pas sous-chaîne). */
+    @Test
+    void automaticIsNotAVehicleKeyword() {
+        IntentClassification c = classification(FinancialIntent.PRODUCT_INFORMATION, ProjectType.INSURANCE, null);
+
+        CoachContext ctx = builder.build(
+                "Mon prélèvement automatique d'assurance a augmenté, que faire ?", c, null, List.of());
+
+        assertEquals("generic", ctx.agentTheme(),
+                "aucun sous-type identifiable : agent générique plutôt qu'une assurance auto inventée");
+    }
+
+    /** « remplacer » ne doit pas être pris pour « placer » (sinon bascule parasite vers l'épargne). */
+    @Test
+    void replacingAnInsuranceIsNotASavingsRequest() {
+        IntentClassification c = classification(FinancialIntent.PRODUCT_INFORMATION, ProjectType.INSURANCE, null);
+
+        CoachContext ctx = builder.build("Je veux remplacer mon assurance habitation", c, null, List.of());
+
+        assertEquals("assurance_habitation", ctx.agentTheme());
+    }
+
+    /** Les sous-types explicites restent correctement routés (non-régression). */
+    @Test
+    void insuranceSubTypesAreRoutedToTheirAgent() {
+        assertEquals("assurance_emprunteur", themeFor("Quelle assurance pour mon prêt immobilier ?"));
+        assertEquals("assurance_auto", themeFor("Combien coûte l'assurance de ma voiture ?"));
+        assertEquals("assurance_habitation", themeFor("Je cherche une assurance pour ma maison."));
+        assertEquals("epargne", themeFor("Je veux placer mon épargne sur un PEA."));
+        assertEquals("epargne", themeFor("Je veux ouvrir une assurance-vie pour préparer ma retraite."));
+    }
+
+    private String themeFor(String message) {
+        IntentClassification c = classification(FinancialIntent.PRODUCT_INFORMATION, ProjectType.INSURANCE, null);
+        return builder.build(message, c, null, List.of()).agentTheme();
+    }
+
+    /** Le contexte expose exactement les clés attendues, dans l'ordre attendu par le payload du Coach. */    @Test
     void additionalDataExposesTheFrozenContextInOrder() {
         IntentClassification c = classification(FinancialIntent.FINANCING_REQUEST, ProjectType.VEHICLE,
                 new BigDecimal("15000"));

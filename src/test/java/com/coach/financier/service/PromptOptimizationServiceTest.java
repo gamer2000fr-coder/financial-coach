@@ -191,6 +191,35 @@ class PromptOptimizationServiceTest {
     }
 
     @Test
+    void threeConsecutiveIterationsWithoutChangePauseTheCampaign() {
+        // L'éditeur ne propose plus rien : le cycle doit s'arrêter AVANT d'avoir consommé toutes les itérations.
+        ai.edition = new PromptOptimizationModels.EditorResult(PromptOptimizationModels.EDITOR_NO_CHANGE, "ZONE V0",
+                List.of(), List.of(), List.of(), List.of(), false);
+        var campaign = service.start(new StartRequest("credit_conso", QUESTION, 5, null, AIModels.AIProvider.DEEPSEEK));
+        String campaignId = campaign.campaignId();
+
+        service.iterate(campaignId);
+        assertEquals(PromptOptimizationModels.CAMPAIGN_RUNNING, service.campaign(campaignId).status(),
+                "2 itérations sans progrès ne suffisent pas à arrêter la campagne");
+        service.iterate(campaignId);
+        assertEquals(PromptOptimizationModels.CAMPAIGN_RUNNING, service.campaign(campaignId).status());
+
+        service.iterate(campaignId);
+
+        var stopped = service.campaign(campaignId);
+        assertEquals(PromptOptimizationModels.CAMPAIGN_PAUSED, stopped.status(),
+                "3 itérations consécutives sans nouvelle version ⇒ mise en pause automatique");
+        assertTrue(stopped.error().contains("Plateau"), stopped.error());
+        assertEquals(3, service.iterations(campaignId).size(),
+                "les itérations restantes du cycle ne sont PAS consommées");
+        assertTrue(service.versions(campaignId).size() == 1, "aucune nouvelle version n'a été produite");
+
+        // La reprise reste possible : la campagne n'est ni perdue, ni décidée.
+        var resumed = service.resume(campaignId, 0);
+        assertEquals(PromptOptimizationModels.CAMPAIGN_RUNNING, resumed.status());
+    }
+
+    @Test
     void theNextIterationUsesTheVersionProducedByAgentA() {
         var campaign = service.start(new StartRequest("credit_conso", QUESTION, 2, null, AIModels.AIProvider.DEEPSEEK));
         String campaignId = campaign.campaignId();
