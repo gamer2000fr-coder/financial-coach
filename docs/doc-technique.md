@@ -318,6 +318,8 @@ app.prompt-optimization.hash-salt: ${PROMPT_OPT_HASH_SALT:…}
 | GET | `/api/prompt-optimization/campaigns/{id}/versions` \| `/compare` \| `/usage` | Versions, comparaison initiale ↔ courante, compteurs (itérations, appels IA, caractères, durée) |
 | GET | `/api/prompt-optimization/threads` \| `/threads/{threadId}` | **Fils de conversation** de l'atelier (mémoire des cycles : tours validés par promotion + campagnes associées) |
 | PUT | `/api/prompt-optimization/threads/{threadId}/turns/{index}` | Corrige le contenu d'un tour `{content}` (réponse rejouée au cycle suivant) |
+| POST | `/api/prompt-optimization/client/question` | **Agent C (client simulé)** : `{threadId, brief, turnNumber, depth, provider}` → la question suivante du client (le fil fournit la conversation déjà échangée ; brief vide ou fournisseur MOCK refusés) |
+| GET | `/api/prompt-optimization/threads/{threadId}/comparison` | **Bilan d'une conversation** : prompt du PREMIER cycle face au prompt en vigueur à la fin (dernière version promue) — zones, prompts complets, cycles/itérations/promotions, `identical`, phrase `summary` |
 | GET | `/api/health` | Healthcheck (expose le fournisseur par défaut) |
 
 ### Exemple — POST /api/chat
@@ -531,8 +533,9 @@ chose : la zone éditable.
 | `marketing` | `marketing.txt` | `MarketingReportService` | Agrégats **déjà calculés** → `MarketingReport` (interprétation rédactionnelle) |
 | `qualite` | `qualite_coach_client.txt` | `QualityReportService` | Agrégats de satisfaction **et** de conformité + commentaires anonymisés → `QualityReport` |
 | `feedback_conseiller` | `feedback_conseiller.txt` | `AdvisorFeedbackReportService` | KPI de pertinence (évaluations, zones, produits, intérêts, emails) + commentaires anonymisés → `AdvisorFeedbackReport` |
-| `prompt_controller` | `prompt_controller.txt` | `PromptOptimizationService` (Agent B) | Réponse du Coach **du seul échange courant** + contexte figé + `conversationHistory` (**lu, jamais jugé**) + `providedData` → **diagnostic** (`status`, `issues[]`, `mustPreserve[]`, recommandation) — **ne réécrit jamais** un prompt |
+| `prompt_controller` | `prompt_controller.txt` | `PromptOptimizationService` (Agent B) | Réponse du Coach **du seul échange courant** + **`coachPrompt` = le prompt système EXACT envoyé au Coach** (vérification du respect du prompt) + `classification` figée + `availableData` + `conversationHistory` (**lu, jamais jugé**) + `providedData` → **diagnostic** (`status`, `issues[]`, `mustPreserve[]`, recommandation) — **ne réécrit jamais** un prompt |
 | `prompt_editor` | `prompt_editor.txt` | `PromptOptimizationService` (Agent A) | Zone éditable + diagnostic Agent B + avis humain → **nouvelle zone éditable** uniquement |
+| `prompt_client` | `prompt_client.txt` | `PromptOptimizationService` (Agent C) | Brief du client + **trois chiffres du dossier** (compte courant, épargne, mensualité de crédit) + `turnNumber` / `depth` + `previousExchanges` (conversation déjà échangée) → `{question, endConversation, reason}` : l'IA **joue le client**, elle ne conseille jamais et n'invente aucun chiffre |
 
 Ils ne figurent **pas** dans `agents.json` (donc jamais sélectionnables comme agent de coach) mais apparaissent dans `AgentPromptStore.entries()` après « Agent principal » (`SUIVI_KEY`, `MARKETING_KEY`, `QUALITY_KEY`), et sont éditables dans la page **Agents**.
 
@@ -1081,12 +1084,13 @@ sequenceDiagram
 - Le prompt réellement envoyé au LLM est recomposé **côté Java** : `composeSystemPrompt(gabarit, agent principal, préfixe + zone + suffixe)` — l'IA ne peut pas toucher au reste.
 - Les parties hors zone sont **identiques dans toutes les versions** : la comparaison porte uniquement sur la zone.
 
-### 20.3 Les deux agents de l'atelier
+### 20.3 Les trois agents de l'atelier (B, A et C)
 
 | Agent | Fichier | Contrat de sortie | Interdits |
 |---|---|---|---|
 | **B — contrôleur** | `agent/prompt_controller.txt` | `status` (GOOD / NEEDS_IMPROVEMENT / BAD), `summary`, `positivePoints[]`, `issues[]{type, severity, source, observation, expectedBehavior}`, `mustPreserve[]`, `recommendationForPromptEditor`, `requiresHumanOrBusinessReview` | Ne réécrit rien, ne modifie aucune règle, ne juge pas la réponse **métier** (seulement la qualité du prompt) |
 | **A — éditeur** | `agent/prompt_editor.txt` | `status` (UPDATED / NO_CHANGE_REQUIRED / HUMAN_OR_BUSINESS_REVIEW_REQUIRED), `editableSection`, `changeSummary[]`, `feedbackAddressed[]`, `preservedBehaviors[]`, `unresolvedPoints[]`, `humanFeedbackApplied` | Ne renvoie **que** la zone, jamais les délimiteurs, ne modifie jamais les parties protégées |
+| **C — client simulé** | `agent/prompt_client.txt` | `question`, `endConversation`, `reason` | Ne donne **jamais** de conseil, ne cite **aucun** chiffre absent de `clientFigures` (trois chiffres seulement : compte courant, épargne, mensualité de crédit), ne révèle jamais qu'il est une IA, n'avoue jamais une donnée qu'il n'a pas |
 
 **Mémoire du fil de conversation** : quand la question testée est un suivi, le fil de l'atelier fournit
 `conversationHistory` (les échanges **déjà acceptés** par une promotion) au Coach, à l'Agent B et à l'Agent A.
@@ -1123,6 +1127,7 @@ la campagne compare donc des prompts sur un contexte identique à celui de la co
 - Diagnostics tolérants : statuts, sévérités, **origines** (`PROMPT`, `DATA`, `BACKEND_RULE`, `MODEL_VARIABILITY`, `UNKNOWN`) et 19 types d'anomalies normalisés avec repli prudent (jamais d'exception sur une réponse IA imparfaite).
 - `PromptVersion(version, editableSection, promptHash, iterationNumber)`, `Iteration` (réponse, diagnostic, édition, résultat, statut, erreur, durée), `HumanFeedback`, `Snapshot` (tout ce qui est figé + hashes), `Campaign` (état, compteurs, promotion).
 - `MAX_ITERATIONS = 50` (plafond dur) ; le nombre demandé est **cumulatif** (une reprise l'augmente, elle ne le remplace pas).
+- `ConversationComparison` (bilan de conversation) : versions + **cycle d'origine** de chaque prompt, zones éditables, prompts complets, compteurs (cycles / itérations / promotions), `identical` et `summary`. Les noms de version étant **locaux au cycle**, la phrase parle de la **zone** (tailles), jamais de « V0 → V0 ».
 
 ### 20.6 Persistance (`PromptOptimizationStore`) et historique
 
@@ -1188,7 +1193,7 @@ l'enchaînement de la conversation. Un test compare le prompt de production **av
 
 ### 20.11 Mode MOCK et fournisseurs réels
 
-`MockAIService.reviewCoachAnswer` / `editPromptSection` lèvent `IllegalStateException(NO_REAL_PROVIDER_MESSAGE)` : l'atelier
+`MockAIService.reviewCoachAnswer` / `editPromptSection` / `clientTurn` lèvent `IllegalStateException(NO_REAL_PROVIDER_MESSAGE)` : l'atelier
 **exige un fournisseur réel** (GPT ou DeepSeek) et le dit clairement — les autres modules continuent de fonctionner en mode démo.
 
 **Un fournisseur par étape** : `StartRequest` porte trois fournisseurs (`provider` = coach, `controllerProvider` = Agent B,
@@ -1200,7 +1205,8 @@ sans ces champs retombe sur le fournisseur du coach (constructeurs compacts de `
 
 ### 20.12 Frontend (`PromptLab.tsx`, route `#/prompt-lab`)
 
-- Configuration : agent, zone optimisée, question, nombre d'itérations, **trois fournisseurs** (coach, Agent B, Agent A — le mode MOCK n'est pas proposé).
+- Configuration : agent, **zone optimisée FIGÉE** au prompt de l'agent spécialisé (champ en lecture seule ; la zone transverse « agent principal » n'est plus proposée par l'IHM, l'API la connaît toujours), question, nombre d'itérations, **trois fournisseurs** (coach, Agent B, Agent A — le mode MOCK n'est pas proposé).
+  L'agent **Générique** est volontairement absent du sélecteur : il ne possède pas de zone propre.
   L'agent **Générique** est volontairement absent du sélecteur : il ne possède pas de zone propre (seule la zone
   transverse « agent principal » le concerne).
 - Snapshot de référence : liste des éléments figés + détail dépliable.
@@ -1227,6 +1233,28 @@ sans ces champs retombe sur le fournisseur du coach (constructeurs compacts de `
   été demandés** : sous le bloc d'itération concerné, ou sous le tableau des versions si l'action vient du tableau
   (`OpenPanel = {version, iteration}` ; `iteration === null` ⇒ tableau). Évite tout défilement vers le haut de page.
 - La boucle est **pilotée par l'IHM** : une requête = une itération (le `STOP` est vérifié entre deux itérations).
+- **Mode Agent C (client simulé)** : une case à cocher (décochée par défaut) remplace la « question de test » par un
+  **brief client** et laisse l'IA jouer le client. Quand elle est cochée : sélecteur de **fournisseur de l'Agent C**
+  et champ **Profondeur** (nombre maximum de questions, 1–20 ; l'Agent C reçoit `turnNumber` / `depth`), puis
+  **case « Promotion automatique »** qui conserve les deux modes (« qui promeut ? » : décochée = vous validez chaque
+  cycle ; cochée = la dernière version du cycle est promue et le client enchaîne).
+  La question posée par le client s'affiche **dans le bloc de conversation** (« Question du client (Agent C) —
+  n°X / profondeur Y ») et reste **corrigeable** avant le cycle (« GO — poser cette question ») ; le bandeau du bloc
+  porte les boutons **STOP** (arrêt gracieux : la campagne en cours se termine puis la boucle s'arrête) et
+  **CONTINUER — question suivante du client**. En mode automatique, l'IHM enchaîne seule : question → cycle →
+  promotion → réponse dans le fil → question suivante, jusqu'à la profondeur (ou l'arrêt par STOP, ou la clôture
+  décidée par le client : `endConversation`). Le brief est **obligatoire** (le bouton GO reste inactif sans lui) et
+  rien d'autre n'est persisté : ni fiche d'évaluation, ni question intermédiaire — seuls le **fil** et le **prompt
+  promu** sont écrits.
+- **Bilan de conversation** (bouton **« COMPARER LE PROMPT INITIAL ET LE PROMPT FINAL »**, présent dans les deux
+  barres du bloc de conversation, désactivé tant qu'aucun échange n'est validé) : panneau `Comparaison de la
+  conversation — début ↔ fin` = phrase du backend, deux zones éditables avec le **cycle d'origine**, **diff**
+  compact de la zone, **prompts complets** dépliables et compteurs (cycles, itérations, promotions). Le bilan est
+  **oublié** dès qu'un cycle démarre ou qu'une nouvelle conversation commence.
+- **Bulle de réponse** : le texte de l'IA est mis en forme par `frontend/src/messageFormat.tsx` — **module partagé
+  avec la page coach** (`renderMessageContent` : `**gras**`, `*italique*`, `` `code` ``, liens `[URL|nom|url]`
+  cliquables en http(s), retours à la ligne conservés ; aucun HTML brut ⇒ pas d'injection). Les questions du fil
+  (humain ou Agent C) utilisent le même rendu, comme dans le chat.
 
 ### 20.13 Tests
 
@@ -1234,9 +1262,9 @@ sans ces champs retombe sur le fournisseur du coach (constructeurs compacts de `
 |---|---|
 | `PromptZoneServiceTest` (16) | Zone unique, non vide, marqueurs inversés/multiples, sortie de zone refusée, recomposition idempotente, empreinte, **tous les prompts métier marqués** et `generic.txt` non optimisable |
 | `AgentFilesPromptTest` (8) | Composition pure du prompt système, `[agent_principal]` / `[agent]`, retrait des marqueurs, repli sans fichier |
-| `PromptOptimizationModelsTest` (13) | Normalisation tolérante des diagnostics et des statuts + **fil de conversation** (échanges complets, remplacement en place, rôle illisible, correction bornée, aller-retour JSON) |
+| `PromptOptimizationModelsTest` (15) | Normalisation tolérante des diagnostics et des statuts + **fil de conversation** (échanges complets, remplacement en place, rôle illisible, correction bornée, aller-retour JSON) + **agent C** (JSON documenté, tour vide = scénario terminé, clôture explicite) |
 | `PromptOptimizationStoreTest` (16) | Écriture atomique, append-only, ids invalides refusés, redémarrage, verrou concurrent, `promotion` refusée si état illisible, **fils de conversation** |
-| `PromptOptimizationServiceTest` (44) | Snapshot figé, déroulé d'une itération, **repli quand un diagnostic est manquant**, proposition hors zone rejetée (version conservée), STOP pendant l'appel + reprise, avis humain appliqué, refus de promotion, fins de ligne préservées, `zones()`, **un fournisseur par étape**, **fil de conversation** (historique rejoué, fil étranger refusé, correction d'un tour), **acceptation sans changement** (prompt comparé avant/après), **réponse de la version acceptée** (réutilisée sans appel IA, ou régénérée et comptée), **demande de données insatisfiable** (itération dégradée, jamais d'échec) |
+| `PromptOptimizationServiceTest` (49) | Snapshot figé, déroulé d'une itération, **repli quand un diagnostic est manquant**, proposition hors zone rejetée (version conservée), STOP pendant l'appel + reprise, avis humain appliqué, refus de promotion, fins de ligne préservées, `zones()`, **un fournisseur par étape**, **fil de conversation** (historique rejoué, fil étranger refusé, correction d'un tour), **acceptation sans changement** (prompt comparé avant/après), **réponse de la version acceptée** (réutilisée sans appel IA, ou régénérée et comptée), **demande de données insatisfiable** (itération dégradée, jamais d'échec), **parité Agent B** (`coachPrompt` = prompt réellement envoyé), **agent C** (brief + trois chiffres + conversation transmis ; brief vide, fournisseur MOCK et fil inconnu refusés), **bilan de conversation** (identique sans promotion, puis début = 1er cycle et fin = dernière version promue) |
 | `AgentPromptHistoryStoreTest` (5) | Sauvegarde + relecture, index chronologique, `latestFor` non périmé |
 | `RemoteAIServicePromptResolutionTest` (4) | Le prompt **figé** gagne sur le disque ; repli sur le prompt d'agent sinon |
 | `MockAIServiceAtelierTest` (2) | Refus explicite de l'atelier en mode MOCK |

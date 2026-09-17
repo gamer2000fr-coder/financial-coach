@@ -40,6 +40,9 @@ import type {
   PromptOptimizationAgents,
   PromotionResult,
   StartCampaignInput,
+  ClientQuestionInput,
+  ClientTurnView,
+  ConversationComparison,
 } from './types.promptopt'
 
 function resolveApiBaseUrl(): string {
@@ -549,6 +552,14 @@ export async function fetchPromptThread(threadId: string): Promise<PromptThread>
   return apiFetch(`/prompt-optimization/threads/${encodeURIComponent(threadId)}`)
 }
 
+/**
+ * BILAN début ↔ fin d'une conversation : le prompt du premier cycle face au prompt en vigueur à la fin
+ * (dernière version promue). C'est le « comparer le prompt initial et le prompt final » du scénario.
+ */
+export async function fetchPromptThreadComparison(threadId: string): Promise<ConversationComparison> {
+  return apiFetch(`/prompt-optimization/threads/${encodeURIComponent(threadId)}/comparison`)
+}
+
 /** Corrige le contenu d'un tour : l'humain garde la main sur la réponse rejouée au cycle suivant. */
 export async function updatePromptTurn(
   threadId: string,
@@ -558,6 +569,17 @@ export async function updatePromptTurn(
   return apiFetch(`/prompt-optimization/threads/${encodeURIComponent(threadId)}/turns/${turnIndex}`, {
     method: 'PUT',
     body: JSON.stringify({ content }),
+  })
+}
+
+/**
+ * Demande au CLIENT simulé (Agent C) la question suivante : il reçoit le brief, les trois chiffres du
+ * dossier et la conversation déjà échangée ; il ne conseille jamais et n'invente aucun chiffre.
+ */
+export async function fetchClientQuestion(input: ClientQuestionInput): Promise<ClientTurnView> {
+  return apiFetch('/prompt-optimization/client/question', {
+    method: 'POST',
+    body: JSON.stringify(input),
   })
 }
 

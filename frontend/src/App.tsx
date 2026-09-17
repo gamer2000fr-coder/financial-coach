@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   ArrowUpRight,
   BadgeCheck,
@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import { API_BASE_URL, closeConversation, fetchFinancialSummary, sendChat, sendConversationFeedback } from './api'
 import FeedbackPopup from './FeedbackPopup'
+import { renderMessageContent, stripMarkdown } from './messageFormat'
 import type { QualityFeedbackRequest } from './types.quality'
 import type { AIProvider, ChatMessage, FinancialSummary } from './types'
 
@@ -82,58 +83,6 @@ function newMessageId(): string {
   }
   // Contexte non sécurisé (HTTP via IP publique) : crypto.randomUUID indisponible.
   return `msg-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
-}
-
-function renderInline(text: string, key: string, depth = 0): ReactNode[] {
-  // Découpe **gras**, *italique*, `code` et [URL|nom|url] en segments React (aucun HTML brut => pas de XSS).
-  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\[URL\|[^|\]]+\|[^\]]+\])/gi)
-  return parts.map((part, index) => {
-    const k = `${key}-${index}`
-    // Lien au format imposé par le prompt : [URL|nom du lien|https://...]
-    const link = /^\[URL\|([^|\]]+)\|([^\]]+)\]$/i.exec(part)
-    if (link) {
-      const label = link[1].trim()
-      const url = link[2].trim()
-      // Sécurité : on n'accepte que http(s) — sinon on n'affiche que le libellé.
-      if (/^https?:\/\//i.test(url)) {
-        return (
-          <a key={k} href={url} target="_blank" rel="noopener noreferrer">{label}</a>
-        )
-      }
-      return label
-    }
-    // Rendu récursif pour que les liens restent cliquables même dans du gras/italique.
-    if (depth < 3 && part.startsWith('**') && part.endsWith('**') && part.length > 4) {
-      return <strong key={k}>{renderInline(part.slice(2, -2), k, depth + 1)}</strong>
-    }
-    if (depth < 3 && part.startsWith('`') && part.endsWith('`') && part.length > 2) {
-      return <code key={k}>{part.slice(1, -1)}</code>
-    }
-    if (depth < 3 && part.startsWith('*') && part.endsWith('*') && part.length > 2) {
-      return <em key={k}>{renderInline(part.slice(1, -1), k, depth + 1)}</em>
-    }
-    return part
-  })
-}
-
-function renderMessageContent(id: string, content: string): ReactNode[] {
-  const lines = content.split('\n')
-  return lines.map((line, index) => (
-    <span key={`${id}-${index}`}>
-      {renderInline(line, `${id}-${index}`)}
-      {index < lines.length - 1 && <br />}
-    </span>
-  ))
-}
-
-function stripMarkdown(text: string): string {
-  return text
-    .replace(/\[URL\|([^|\]]+)\|[^\]]+\]/gi, '$1') // lien [URL|nom|url] -> nom (pour la synthèse vocale)
-    .replace(/\*\*/g, '')
-    .replace(/\*/g, '')
-    .replace(/`/g, '')
-    .replace(/^[#]+\s*/gm, '')
-    .trim()
 }
 
 // --- Détection du mot-clé de réveil (insensible à la casse et aux accents) ---

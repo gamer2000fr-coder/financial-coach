@@ -47,7 +47,7 @@ Empêcher structurellement l'IA de recommander ou de mentionner un produit banca
 | F18 | Pop-in de satisfaction | À la fin d'une conversation : note 1 à 5, motifs si note ≤ 3, commentaire facultatif, bouton **Passer** — avis toujours facultatif |
 | F19 | Qualité & Satisfaction du Coach | Indicateurs de satisfaction client **et** contrôles de conformité du Coach, croisement des deux, rapport IA quotidien |
 | F20 | Feedback Conseiller | Le conseiller évalue en quelques secondes la pertinence du travail du Coach (résumé, besoin, produits, intérêts, suivi, email) ; KPI, pertinence produit, qualité des emails, analyse IA |
-| F21 | Atelier d'optimisation des prompts | Boucle contrôlée **Agent A (éditeur) / Agent B (contrôleur)** qui améliore **une seule zone** du prompt d'un agent métier, sur une question **figée** : snapshot de référence, avis humain prioritaire, STOP/reprise, historique complet et **promotion en production par un humain uniquement** ; les cycles **s'enchaînent dans une conversation** (la réponse de chaque version promue devient la mémoire du cycle suivant, que l'Agent B **lit sans la juger**) |
+| F21 | Atelier d'optimisation des prompts | Boucle contrôlée **Agent A (éditeur) / Agent B (contrôleur)** qui améliore **une seule zone** du prompt d'un agent métier, sur une question **figée** : snapshot de référence, avis humain prioritaire, STOP/reprise, historique complet et **promotion en production par un humain uniquement** ; les cycles **s'enchaînent dans une conversation** (la réponse de chaque version promue devient la mémoire du cycle suivant, que l'Agent B **lit sans la juger**) ; un **Agent C (client simulé)** peut mener la conversation à la place de l'humain, avec le brief du client, **trois chiffres** seulement, une **profondeur** limitée et **STOP / CONTINUER** ; à la fin de la conversation, un **bilan** compare le **prompt initial** et le **prompt final** |
 
 ### 2.1 Pages / écrans (frontend React, routage par hash, pas de react-router)
 
@@ -60,7 +60,7 @@ Empêcher structurellement l'IA de recommander ou de mentionner un produit banca
 | `#/quality` | **Qualité & Satisfaction** | Note moyenne, taux de participation, avis positifs/négatifs, distribution des notes, motifs d'insatisfaction, contrôles du Coach, croisement satisfaction × conformité, analyse IA, export CSV |
 | `#/advisor-feedback` | **Feedback Conseillers** | Saisie rapide d'un avis conseiller par dossier, KPI de pertinence, zones corrigées, pertinence produit, corrections d'intérêt, qualité des emails préparés, analyse IA, export CSV |
 | `#/advisor-feedback/session/<sessionId>` | **Évaluation d'un dossier** | Vue ciblée ouverte par le **lien du mail conseiller** : projet, synthèse du Coach, produits et niveaux d'intérêt, suivi conseillé, email préparé, puis formulaire d'évaluation |
-| `#/prompt-lab` | **Atelier d'optimisation des prompts** | Choix de l'agent (et de sa zone optimisée), question de test, nombre d'itérations, fournisseur IA, puis : progression, arrêt/reprise, avis humain, comparaison des versions, diff de la zone, promotion explicite en production |
+| `#/prompt-lab` | **Atelier d'optimisation des prompts** | Choix de l'agent (zone optimisée **figée** au prompt de l'agent spécialisé), question de test, nombre d'itérations, fournisseur IA, puis : progression, arrêt/reprise, avis humain, comparaison des versions, diff de la zone, promotion explicite en production |
 
 ---
 
@@ -324,18 +324,54 @@ conserve donc un **fil de conversation** :
   est rechargé à l'ouverture de la page (le rechargement du navigateur ne fait plus perdre l'échange en cours).
 
 Ce que l'humain voit dans la page :
-
-- **Configuration** : agent à optimiser (l'agent **Générique** n'est pas proposé : il n'a pas de zone propre, seule la zone transverse « agent principal » le concerne), **zone optimisée** (prompt de l'agent spécialisé, ou agent principal **transverse**), question de test, nombre d'itérations, **trois fournisseurs IA indépendants** — IA coach (celui qui répond au client), Agent B (celui qui contrôle), Agent A (celui qui réécrit la zone) ;
+- **Configuration** : agent à optimiser (l'agent **Générique** n'est pas proposé : il n'a pas de zone propre), **zone optimisée FIGÉE** au prompt de l'agent spécialisé (la zone transverse « agent principal » n'est plus proposée : impossible de réécrire les règles communes par inadvertance), question de test, nombre d'itérations, **trois fournisseurs IA indépendants** — IA coach (celui qui répond au client), Agent B (celui qui contrôle), Agent A (celui qui réécrit la zone) ;
 - **Snapshot de référence** : la liste de ce qui est **figé** (question, données financières, classification d'intention, projet, prompt hors zone) — c'est ce qui rend la comparaison honnête ;
 - **Production vs candidat** : le prompt **actuellement en production** reste distingué de toutes les versions de la campagne ; aucune version candidate n'est utilisée par les conversations tant qu'un humain ne l'a pas promue ;
 - **Progression** : état, itération _n / N_, réalisées / restantes, appels IA, caractères envoyés, durée ;
 - **Par itération** : la réponse du Coach, l'analyse de l'Agent B (points à améliorer, sévérité, origine), les changements demandés à l'Agent A, le prompt de la version, un **diff de la seule zone éditable** — les boutons « Voir le prompt produit / Changements » n'apparaissent que si l'Agent A a réellement modifié la zone (sinon un repère « sans modification → aucune nouvelle version » l'explique) — et un bouton **`Promouvoir`** qui valide **le prompt dont la réponse vient d'être lue** (la version proposée, jamais utilisée, se promeut depuis le tableau des versions : sa réponse est alors générée) ;
 - **Actions** : `GO`, `STOP` (arrêt gracieux), `REPRENDRE`, « Ajouter mon avis », « Ajouter mon avis et continuer (+n) », **« Continuer sans avis (+n) »** (prolonger un cycle terminé sans écrire d'avis), `COMPARER`, « Promouvoir » (avec confirmation explicite), **« ACCEPTER SANS CHANGEMENT »** (visible quand l'Agent A n'a rien proposé : action **directe**, sans confirmation, qui accepte la campagne **sans réécrire le prompt** et fait entrer la réponse de l'IA dans la conversation), « Refuser la campagne » ;
 - **Avis humains** : visuellement distincts du diagnostic automatique, avec leur statut (appliqué / en attente) ;
+- **Bilan de la conversation** : à la fin de la conversation, le bouton **« COMPARER LE PROMPT INITIAL ET LE
+  PROMPT FINAL »** montre ce que **tout le scénario** a changé au prompt — le prompt du **premier** échange face à
+  celui **en vigueur à la fin** (dernière version promue), les deux zones avec leur cycle d'origine, le **diff** de
+  la zone, les deux prompts complets, et le rappel des cycles / itérations / promotions. Quand aucune version n'a
+  été promue, le bilan est un prompt **identique** — l'IHM le dit explicitement au lieu de laisser croire à un
+  échec ; c'est le complément de **`COMPARER`**, qui ne montre qu'une campagne (une question).
 - **Conversation de l'atelier** : les échanges déjà validés (comme dans la page coach), la question en cours
   (« en attente de promotion »), la réponse de l'IA de chaque version promue (corrigeable) et un champ
   « question suivante » qui relance un cycle **avec tout l'historique** — plus « Nouvelle conversation » pour
   repartir sans mémoire.
+
+#### Agent C — le client simulé (laisser l'IA mener la conversation)
+
+Écrire soi-même chaque question biaise l'exercice : on n'interroge le prompt que sur ce qu'on a en tête. En cochant
+**« Agent C — client simulé »**, on décrit **un client** (son profil, son projet, ce qu'il veut savoir) et l'IA
+**joue son rôle** : elle pose la première question, lit la réponse du Coach, puis pose la question suivante — comme
+un vrai client qui poursuit l'échange.
+
+- **Brief du client** : le champ « question de test » devient le brief (ex. « tu as un projet de rénovation de la
+  cuisine, les travaux coûtent environ 15 000 €, tu as besoin de savoir si ta situation financière le permet et
+  quelle solution est la plus adaptée »). Il est **figé** pour tout le scénario : le client ne sort jamais de son
+  cadre.
+- **Trois chiffres, pas un de plus** : l'Agent C ne connaît que le **solde du compte courant**, l'**épargne
+  disponible** et la **mensualité de crédit en cours**. Il ne donne **jamais** de conseil, ne cite aucun autre
+  chiffre et, si le Coach lui réclame une donnée qu'il n'a pas (revenus, charges, apport…), il répond simplement
+  qu'il ne l'a pas — il n'invente rien.
+- **Profondeur** : le nombre **maximum** de questions que le client posera (ex. 10). La borne est tenue par
+  l'interface : le scénario ne la dépasse jamais, et le client peut décider lui-même de conclure (il affiche alors
+  sa phrase de clôture).
+- **Qui promeut ?** Les **deux** possibilités restent disponibles, au choix par **case à cocher** : **décochée**
+  (défaut) = vous validez chaque cycle (promouvoir une version, ou « accepter sans changement ») puis vous cliquez
+  **CONTINUER** ; **cochée** = la dernière version du cycle est **promue automatiquement** et le client enchaîne
+  seul sa question suivante.
+- **Modèle dédié** : une liste déroulante propre à l'Agent C (DeepSeek / OpenAI) — le client peut être joué par un
+  autre modèle que le Coach.
+- **STOP / CONTINUER** : `STOP` arrête le scénario **sans rien perdre** (le cycle en cours se termine, la campagne
+  passe en pause) ; `CONTINUER` demande la question suivante du client.
+- La question du client **apparaît dans la conversation** (« Question du client (Agent C) — n°2 / profondeur 10 »)
+  et reste **corrigeable** avant de lancer le cycle : l'humain garde la main sur ce qui sera testé.
+- **Rien de plus n'est enregistré** : ni fiche d'évaluation, ni question intermédiaire — seuls la **conversation**
+  (les échanges validés par une promotion) et le **prompt promu** sont écrits.
 
 Règles fonctionnelles fortes :
 
@@ -343,7 +379,7 @@ Règles fonctionnelles fortes :
 2. L'Agent A **ne peut pas** sortir de la zone et ne peut pas modifier les parties protégées : le backend rejette et **conserve** la version précédente ;
 3. Un agent **sans zone** (prompt non marqué) n'est **pas** optimisable : l'atelier ne devine jamais la zone ;
 4. `STOP` n'interrompt **jamais** brutalement un appel IA : la réponse en cours est enregistrée, puis la campagne passe en pause ;
-5. **Aucune promotion automatique** : le passage en production est une action humaine, confirmée, et le prompt précédent est sauvegardé (retour arrière possible) ;
+5. **Aucune promotion automatique par défaut** : le passage en production est une action humaine, confirmée, et le prompt précédent est sauvegardé (retour arrière possible). Seul le mode **Agent C** peut la rendre automatique — par une case à cocher **explicite** (« Promotion automatique », décochée par défaut) qui conserve les **deux** possibilités ;
 6. **On n'est jamais bloqué** : si l'Agent A n'a proposé **aucune** modification, aucune version nouvelle n'existe — « **ACCEPTER SANS CHANGEMENT** » accepte alors la campagne **sans réécrire le prompt** (le backend vérifie que le contenu est identique : ni sauvegarde, ni écriture) et **sans demander de confirmation** (il n'y a rien à écraser) : la réponse de l'IA entre dans la conversation et l'échange peut continuer ;
 7. Aucun code ni règle métier n'est modifié par l'atelier : il ne change **qu'un texte de prompt**.
 

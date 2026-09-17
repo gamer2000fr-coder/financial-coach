@@ -586,6 +586,29 @@ public final class PromptOptimizationModels {
     public static final String ROLE_ASSISTANT = "assistant";
 
     /**
+     * Ce que le CLIENT simulé (« Agent C ») décide de dire au Coach pour un tour de conversation : UNE seule
+     * question, ou la fin du scénario. Le client ne donne jamais de conseil et n'invente aucun chiffre.
+     */
+    public record ClientTurn(String question, Boolean endConversation, String reason) {
+
+        public ClientTurn {
+            question = question == null ? "" : question.strip();
+            reason = reason == null ? "" : reason.strip();
+            endConversation = endConversation != null && endConversation;
+        }
+
+        /** Aucune question exploitable (réponse vide du modèle) : le scénario s'arrête proprement. */
+        public static ClientTurn empty() {
+            return new ClientTurn("", true, "");
+        }
+
+        /** Le client n'a plus rien à demander : la conversation du scénario est terminée. */
+        public boolean finished() {
+            return endConversation || question.isBlank();
+        }
+    }
+
+    /**
      * Un TOUR de la conversation de l'atelier : la question de test (rôle {@code user}) ou la réponse du
      * Coach (rôle {@code assistant}).
      * <p>
@@ -737,6 +760,55 @@ public final class PromptOptimizationModels {
             List<String> next = new ArrayList<>(campaignIds);
             next.add(campaignId);
             return next;
+        }
+    }
+
+    /**
+     * BILAN d'une conversation de l'atelier : le prompt AU DÉBUT de la conversation face au prompt EN VIGUEUR
+     * à la fin (dernière version réellement promue).
+     * <p>
+     * La comparaison d'une CAMPAGNE ne montre qu'un cycle (une question) ; celle-ci montre tout le chemin
+     * parcouru, cycle après cycle : c'est le seul moyen de lire ce que la conversation a réellement changé au
+     * prompt. Quand aucune version n'a été promue, les deux prompts sont <b>identiques</b> ({@code identical}).
+     */
+    public record ConversationComparison(String threadId, String agentId, String agentLibelle,
+                                         String zoneKey, String zoneFile,
+                                         String baseVersion, String currentVersion,
+                                         String baseCampaignId, String currentCampaignId,
+                                         String baseEditableSection, String currentEditableSection,
+                                         String basePrompt, String currentPrompt,
+                                         int cycleCount, int iterationCount, int promotionCount,
+                                         boolean identical, String summary) {
+
+        public ConversationComparison {
+            threadId = threadId == null ? "" : threadId;
+            agentId = agentId == null ? "" : agentId;
+            agentLibelle = agentLibelle == null ? "" : agentLibelle;
+            zoneKey = ZONE_PRINCIPAL.equals(zoneKey) ? ZONE_PRINCIPAL : ZONE_AGENT;
+            zoneFile = zoneFile == null ? "" : zoneFile;
+            baseVersion = baseVersion == null ? "" : baseVersion;
+            currentVersion = currentVersion == null ? "" : currentVersion;
+            baseCampaignId = baseCampaignId == null ? "" : baseCampaignId;
+            currentCampaignId = currentCampaignId == null ? "" : currentCampaignId;
+            baseEditableSection = baseEditableSection == null ? "" : baseEditableSection;
+            currentEditableSection = currentEditableSection == null ? "" : currentEditableSection;
+            basePrompt = basePrompt == null ? "" : basePrompt;
+            currentPrompt = currentPrompt == null ? "" : currentPrompt;
+            cycleCount = Math.max(0, cycleCount);
+            iterationCount = Math.max(0, iterationCount);
+            promotionCount = Math.max(0, promotionCount);
+            // Phrase d'explication calculée ICI : un seul endroit décrit le bilan. Les noms de version sont
+            // LOCAUX à chaque cycle : le bilan parle donc de la ZONE (tailles), jamais de « V0 → V0 » qui
+            // laisserait croire que rien n'a changé.
+            summary = identical
+                    ? "Le prompt est identique au début et à la fin de la conversation"
+                      + (promotionCount == 0
+                            ? " : aucune version n'a été promue pendant ce scénario."
+                            : " : les versions promues n'ont pas modifié la zone éditable.")
+                    : "Conversation en " + cycleCount + " cycle(s) et " + iterationCount + " itération(s) — "
+                      + promotionCount + " promotion(s) : la zone éditable a été modifiée pendant la conversation ("
+                      + baseEditableSection.length() + " → " + currentEditableSection.length()
+                      + " caractères).";
         }
     }
 

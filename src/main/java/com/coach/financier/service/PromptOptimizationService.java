@@ -9,6 +9,7 @@ import com.coach.financier.model.AIModels;
 import com.coach.financier.model.AgentDefinition;
 import com.coach.financier.model.ConversationModels;
 import com.coach.financier.model.CurrentProject;
+import com.coach.financier.model.FinancialSummary;
 import com.coach.financier.model.IntentClassification;
 import com.coach.financier.model.ProjectType;
 import com.coach.financier.model.PromptOptimizationModels;
@@ -89,13 +90,15 @@ public class PromptOptimizationService {
     private final AgentPromptStore agentPromptStore;
     private final AgentPromptHistoryStore historyStore;
     private final DataRequestService dataRequestService;
+    private final FinancialAnalysisService financialAnalysis;
     private final ObjectMapper objectMapper;
 
     public PromptOptimizationService(PromptOptimizationProperties properties, PromptOptimizationStore store,
                                      PromptZoneService zoneService, CoachContextBuilder contextBuilder,
                                      AIServiceFactory aiServiceFactory, AILogService aiLogService,
                                      AgentPromptStore agentPromptStore, AgentPromptHistoryStore historyStore,
-                                     DataRequestService dataRequestService, ObjectMapper objectMapper) {
+                                     DataRequestService dataRequestService, FinancialAnalysisService financialAnalysis,
+                                     ObjectMapper objectMapper) {
         this.properties = properties;
         this.store = store;
         this.zoneService = zoneService;
@@ -105,7 +108,71 @@ public class PromptOptimizationService {
         this.agentPromptStore = agentPromptStore;
         this.historyStore = historyStore;
         this.dataRequestService = dataRequestService;
+        this.financialAnalysis = financialAnalysis;
         this.objectMapper = objectMapper;
+    }
+
+    /**
+     * Question posée au CLIENT simulé (« Agent C ») : l'appelant fournit le brief écrit par l'humain, le
+     * numéro de la question et le fil de conversation (mémoire des échanges déjà validés). L'agent joue le
+     * client — il ne conseille jamais et n'invente aucun chiffre : il ne reçoit que le brief et les
+     * <b>trois chiffres du dossier</b> (solde du compte courant, épargne, mensualité de crédit en cours).
+     */
+    public PromptOptimizationModels.ClientTurn clientTurn(String threadId, String brief, int turnNumber, int depth,
+                                                          AIModels.AIProvider provider) {
+        if (!properties.isEnabled()) {
+            throw new IllegalStateException("L'atelier d'optimisation des prompts est désactivé.");
+        }
+        String context = brief == null ? "" : brief.trim();
+        if (context.isEmpty()) {
+            throw new IllegalArgumentException("Le contexte du client (brief) est obligatoire pour l'agent C.");
+        }
+        AIModels.AIProvider agentProvider = requireRealProvider(provider, "Agent C (client simulé)");
+        PromptOptimizationModels.ConversationThread thread = threadId == null || threadId.isBlank()
+                ? null : thread(threadId.trim());
+        FinancialSummary summary = financialAnalysis.analyze();
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("clientBrief", context);
+        payload.put("clientFigures", clientFigures(summary));
+        payload.put("turnNumber", Math.max(1, turnNumber));
+        payload.put("previousExchanges", thread == null ? List.of() : thread.history());
+        payload.put("depth", Math.max(1, depth)); // nombre maximum de questions du client (réglé dans l'IHM)
+        PromptOptimizationModels.ClientTurn turn = aiServiceFactory.get(agentProvider)
+                .clientTurn(payload, agentProvider);
+        log.info("Agent C (client simulé) : question {} « {} » (fil {}, {} échange(s) déjà validé(s))",
+                turnNumber, abbreviate(turn.question()), thread == null ? "nouveau" : thread.threadId(),
+                thread == null ? 0 : thread.exchanges());
+        return turn;
+    }
+
+    /**
+     * Les TROIS chiffres que le client connaît (demande explicite) : solde du compte courant, épargne totale et
+     * mensualité de crédit en cours. Aucune autre donnée du dossier n'est transmise à l'agent C.
+     */
+    private static Map<String, Object> clientFigures(FinancialSummary summary) {
+        Map<String, Object> figures = new LinkedHashMap<>();
+        figures.put("compteCourant", Map.of(
+                "libelle", "Solde du compte courant",
+                "montant", summary.currentAccountBalance(),
+                "devise", "EUR"));
+        figures.put("epargne", Map.of(
+                "libelle", "Épargne disponible",
+                "montant", summary.savingsBalance(),
+                "devise", "EUR"));
+        figures.put("creditEnCours", Map.of(
+                "libelle", "Mensualité de crédit en cours",
+                "montant", summary.monthlyLoanPayments(),
+                "devise", "EUR"));
+        return figures;
+    }
+
+    private static String abbreviate(String text) {
+        if (text == null) {
+            return "";
+        }
+        String clean = text.replace('\n', ' ').strip();
+        return clean.length() <= 80 ? clean : clean.substring(0, 80) + "…";
     }
 
     /**
@@ -624,10 +691,6 @@ public class PromptOptimizationService {
     /**
      * PROMOTION (§17) : action HUMAINE explicite. Le prompt ACTUEL est sauvegardé avant remplacement
      * (retour arrière possible), puis le fichier de la zone est réécrit en ne changeant QUE la zone.
-     */
-    /**
-     * PROMOTION (§17) : action HUMAINE explicite. Le prompt ACTUEL est sauvegardé avant remplacement
-     * (retour arrière possible), puis le fichier de la zone est réécrit en ne changeant QUE la zone.
      * <p>
      * Cas particulier INDISPENSABLE : quand l'Agent A n'a proposé aucune modification, la version promue est
      * identique au prompt en production. La campagne est alors simplement ACCEPTÉE, <b>sans aucune écriture</b>
@@ -817,6 +880,54 @@ public class PromptOptimizationService {
         PromptOptimizationModels.ConversationThread updated = thread.withTurnContent(index, text);
         store.saveThread(updated);
         return updated;
+    }
+
+    /**
+     * BILAN début ↔ fin d'une conversation : le prompt du PREMIER cycle face au prompt en vigueur à la fin
+     * (dernière version réellement PROMUE).
+     * <p>
+     * La comparaison d'une campagne ne montre qu'un cycle (une question) : celle-ci montre l'effet cumulé de
+     * toute la conversation — c'est le bouton « comparer le prompt initial et le prompt final » de l'IHM.
+     * Quand aucune version n'a été promue, les deux prompts sont identiques (rien n'a changé) : c'est une
+     * information, pas une erreur.
+     */
+    public PromptOptimizationModels.ConversationComparison comparisonOfThread(String threadId) {
+        PromptOptimizationModels.ConversationThread thread = thread(threadId);
+        if (thread.campaignIds().isEmpty()) {
+            throw new IllegalStateException("Aucun cycle n'a encore été mené dans cette conversation : "
+                    + "il n'y a rien à comparer.");
+        }
+        List<PromptOptimizationModels.Campaign> cycles = new ArrayList<>();
+        for (String campaignId : thread.campaignIds()) {
+            cycles.add(campaign(campaignId));
+        }
+        PromptOptimizationModels.Campaign first = cycles.get(0);
+        PromptOptimizationModels.Campaign lastAccepted = null;
+        int promotions = 0;
+        int iterations = 0;
+        for (PromptOptimizationModels.Campaign cycle : cycles) {
+            iterations += cycle.completedIterations();
+            if (!cycle.promotedVersion().isBlank()) {
+                promotions++;
+                lastAccepted = cycle;
+            }
+        }
+        // Début = version de référence du PREMIER cycle ; fin = dernière version PROMUE (sinon rien n'a bougé).
+        String baseCampaign = first.campaignId();
+        String baseVersion = first.basePromptVersion();
+        String finalCampaign = lastAccepted == null ? baseCampaign : lastAccepted.campaignId();
+        String finalVersion = lastAccepted == null ? baseVersion : lastAccepted.promotedVersion();
+        String zoneFile = first.zoneFile().isBlank()
+                ? cycles.get(cycles.size() - 1).zoneFile() : first.zoneFile();
+
+        String baseSection = store.editableSectionOf(baseCampaign, baseVersion).orElse("");
+        String finalSection = store.editableSectionOf(finalCampaign, finalVersion).orElse("");
+        String basePrompt = promptFor(baseCampaign, baseVersion);
+        String finalPrompt = promptFor(finalCampaign, finalVersion);
+        return new PromptOptimizationModels.ConversationComparison(thread.threadId(), thread.agentId(),
+                thread.agentLibelle(), thread.zoneKey(), zoneFile, baseVersion, finalVersion, baseCampaign,
+                finalCampaign, baseSection, finalSection, basePrompt, finalPrompt, cycles.size(), iterations,
+                promotions, basePrompt.equals(finalPrompt), "");
     }
 
     /** Prompt système COMPLET d'une version (parties figées + zone de cette version) — IHM « Voir le prompt ». */
@@ -1044,7 +1155,8 @@ public class PromptOptimizationService {
     }
 
     /** Refuse une campagne supplémentaire sur le MÊME agent tant qu'une autre est en cours (§36). */
-    private void ensureNoOtherActiveCampaign(String campaignId, String agentTheme) {        for (PromptOptimizationModels.Campaign other : store.list()) {
+    private void ensureNoOtherActiveCampaign(String campaignId, String agentTheme) {
+        for (PromptOptimizationModels.Campaign other : store.list()) {
             if (other.campaignId().equals(campaignId) || !other.agentId().equalsIgnoreCase(agentTheme)) {
                 continue;
             }
@@ -1125,7 +1237,14 @@ public class PromptOptimizationService {
         }
     }
 
-    /** Contexte transmis au CONTRÔLEUR : tout le nécessaire pour juger, sans dupliquer les données jointes. */
+    /**
+     * Contexte transmis au CONTRÔLEUR : tout le nécessaire pour juger, sans dupliquer les données jointes.
+     * <p>
+     * PARITÉ AVEC LE COACH : il juge le RESPECT DU PROMPT, il reçoit donc <b>exactement</b> ce que le Coach a
+     * reçu — le prompt système tel qu'il a été envoyé ({@code coachPrompt}, même chaîne, marqueurs de zone
+     * exclus), la classification FIGÉE et la liste des données disponibles ({@code availableData}) — en plus du
+     * contenu des données réellement fournies.
+     */
     private Map<String, Object> controllerContext(PromptOptimizationModels.Snapshot snapshot,
                                                  PromptOptimizationModels.Campaign campaign, int number,
                                                  String section, String coachResponse, String composedPrompt,
@@ -1135,6 +1254,8 @@ public class PromptOptimizationService {
         context.put("agentLibelle", campaign.agentLibelle());
         context.put("iterationNumber", number);
         context.put("question", snapshot.question());
+        context.put("classification", snapshot.classification());
+        context.put("availableData", snapshot.catalog() == null ? List.of() : snapshot.catalog());
         // MÉMOIRE DE L'ATELIER : l'historique COMPLET est fourni pour COMPRENDRE le contexte. Le jugement,
         // lui, porte sur le SEUL échange courant (`question` + `coachResponse`) : les réponses déjà validées
         // ne sont jamais réévaluées (contrat du prompt de l'Agent B).

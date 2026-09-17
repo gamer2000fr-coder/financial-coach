@@ -274,7 +274,7 @@ Règles structurantes :
 
 ---
 
-## 8. Atelier d'amélioration itérative des prompts (Agent A / Agent B)
+## 8. Atelier d'amélioration itérative des prompts (Agents A, B et C)
 
 ### 8.1 Principe : rendre l'amélioration d'un prompt **prouvable**
 
@@ -305,6 +305,20 @@ figée, elle n'est jamais rejouée), elle est **gelée dans le snapshot** de cha
 Coach, à l'Agent B et à l'Agent A. Contrat de jugement : l'Agent B **lit tout l'historique** mais **ne juge que
 le dernier échange** (les réponses déjà validées ne sont jamais réévaluées).
 
+**Agent C — le client simulé** : au lieu d'écrire chaque question, on décrit un **client** (brief) et l'IA **mène
+la conversation** : elle pose la question, lit la réponse de la version promue (avec tout l'historique) et pose la
+suivante — jusqu'à la **profondeur** choisie. Elle ne reçoit que le brief et **trois chiffres** (compte courant,
+épargne, mensualité de crédit en cours) : elle ne conseille jamais et n'invente aucun chiffre. La boucle reste
+celle du schéma ci-dessus, simplement **pilotée par le client** : `STOP` (arrêt gracieux du cycle en cours puis du
+scénario) et `CONTINUER` (question suivante) restent à portée de main, et la **promotion** peut être **automatique
+sur demande explicite** (case à cocher, décochée par défaut) — sinon c'est l'humain qui valide, comme ci-dessus.
+
+**Bilan de conversation** : à la fin du scénario, le bouton *comparer le prompt initial et le prompt final* relit
+les campagnes du fil — la version de référence du **premier** cycle face à la **dernière version promue** — et
+renvoie un `ConversationComparison` (zones, prompts complets, diff, cycles/itérations/promotions). Comme les noms de
+version sont **locaux au cycle**, le bilan décrit la **zone** (tailles) plutôt qu'un « V0 → V0 » trompeur ; lecture
+pure, il n'écrit jamais rien.
+
 ### 8.2 Qui décide quoi
 
 | Acteur | Fait | Ne fait pas |
@@ -312,11 +326,12 @@ le dernier échange** (les réponses déjà validées ne sont jamais réévalué
 | **Backend Java** | Fige le contexte, compose le prompt (`préfixe + zone + suffixe`), valide chaque proposition, persiste tout, applique la promotion | N'invente aucune amélioration |
 | **Agent B** (contrôleur) | Diagnostique la réponse du Coach **du dernier échange** : points à améliorer, sévérité, **origine** (prompt / données / règle backend / variabilité du modèle), comportements à préserver — en lisant tout l'historique pour comprendre le contexte | Ne réécrit rien, ne juge pas le métier, ne réévalue jamais une réponse déjà validée |
 | **Agent A** (éditeur) | Réécrit **la seule zone éditable** en suivant un ordre d'autorité (règles → parties protégées → décision humaine → avis humain → Agent B → lui-même) | Ne touche ni au reste du prompt, ni aux règles, ni au code |
-| **Humain** | Donne un avis prioritaire, arrête/reprend, retient une version, **promouvoit** et enchaîne les questions (la conversation de l'atelier) | — |
+| **Agent C** (client simulé) | Joue le client : pose la question suivante à partir du brief, des **trois chiffres** du dossier et de la conversation ; peut clore le scénario | Ne conseille jamais, ne cite aucun chiffre hors des trois, ne révèle jamais qu'il est une IA, ne dépasse jamais la profondeur (borne tenue par l'IHM) |
+| **Humain** | Donne un avis prioritaire, arrête/reprend, retient une version, **promouvoit** et enchaîne les questions (la conversation de l'atelier) — ou laisse l'**Agent C** mener la conversation, avec promotion automatique s'il le demande | — |
 
 ### 8.3 Les trois garanties
 
 1. **Reproductibilité** : toutes les itérations utilisent la même question, les mêmes données, la même classification d'intention et le même projet ; seule la zone éditable change. `STOP` n'interrompt jamais un appel en cours : la réponse est enregistrée puis la campagne passe en pause, et une reprise continue le cycle.
 2. **Sécurité du prompt** : la zone est délimitée (`[[[` … `]]]`) et **jamais** envoyée telle quelle au LLM ; toute proposition qui sort de la zone, contient un délimiteur, est vide ou trop longue est **rejetée** et la version précédente est conservée. Les deux agents de l'atelier eux-mêmes **ne sont pas** optimisables.
-3. **Souveraineté humaine** : aucune promotion automatique, même quand l'Agent B est satisfait. Le passage en production est confirmé dans l'IHM et le prompt précédent est **sauvegardé** (retour arrière). L'atelier ne modifie **qu'un texte de prompt** — ni règle métier, ni seuil, ni catalogue, ni code.
+3. **Souveraineté humaine** : le passage en production est **confirmé dans l'IHM** par défaut et le prompt précédent est **sauvegardé** (retour arrière). La **promotion automatique** n'existe que si l'utilisateur la demande **explicitement** (case à cocher du mode Agent C, décochée par défaut) : c'est toujours lui qui décide qui promeut. L'atelier ne modifie **qu'un texte de prompt** — ni règle métier, ni seuil, ni catalogue, ni code.
 

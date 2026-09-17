@@ -36,6 +36,8 @@ public final class AgentFiles {
     public static final String PROMPT_CONTROLLER_PROMPT_FILE = "prompt_controller.txt";
     /** Fichier du prompt de l'AGENT ÉDITEUR DE PROMPTS de l'atelier d'optimisation (« Agent A »). */
     public static final String PROMPT_EDITOR_PROMPT_FILE = "prompt_editor.txt";
+    /** Fichier du prompt du CLIENT SIMULÉ de l'atelier d'optimisation (« Agent C »). */
+    public static final String PROMPT_CLIENT_PROMPT_FILE = "prompt_client.txt";
     /** Marqueur d'OUVERTURE de la zone éditable (atelier d'optimisation des prompts). */
     public static final String ZONE_START = "[[[";
     /** Marqueur de FERMETURE de la zone éditable (atelier d'optimisation des prompts). */
@@ -213,6 +215,23 @@ public final class AgentFiles {
     public static String promptEditorSystemPrompt() {
         return readPromptOrDefault(PROMPT_EDITOR_PROMPT_FILE, FALLBACK_PROMPT_EDITOR_PROMPT);
     }
+
+    /**
+     * Prompt système du CLIENT SIMULÉ de l'atelier d'optimisation (« Agent C »,
+     * {@code ./agent/prompt_client.txt} puis classpath) : il JOUE LE CLIENT qui parle au Coach (une seule
+     * question par tour, aucune donnée inventée, aucune posture de conseiller) et peut clore la conversation.
+     */
+    public static String promptClientSystemPrompt() {
+        return readPromptOrDefault(PROMPT_CLIENT_PROMPT_FILE, FALLBACK_PROMPT_CLIENT_PROMPT);
+    }
+
+    /** Filet de sécurité MINIMAL si {@code prompt_client.txt} est absent (le vrai prompt vit dans ./agent). */
+    private static final String FALLBACK_PROMPT_CLIENT_PROMPT =
+            "Tu joues le CLIENT d'un conseiller bancaire : c'est toi qui poses les questions. Tu ne donnes "
+            + "jamais de conseil, tu ne proposes aucun produit et tu n'inventes aucun chiffre. Utilise "
+            + "uniquement clientBrief et clientFigures, une seule question courte par tour, en tenant compte "
+            + "de previousExchanges (ne répète jamais une question déjà posée). Réponds UNIQUEMENT en JSON : "
+            + "{question, endConversation, reason}.";
 
     /** Filet de sécurité MINIMAL si {@code prompt_controller.txt} est absent (le vrai prompt vit dans ./agent). */
     private static final String FALLBACK_PROMPT_CONTROLLER_PROMPT =

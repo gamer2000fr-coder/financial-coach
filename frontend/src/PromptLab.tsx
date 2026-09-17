@@ -8,20 +8,25 @@ import {
   History as HistoryIcon,
   MessageSquare,
   Pencil,
+  Play,
   Plus,
   RefreshCw,
   Send,
   Sparkles,
+  Square,
   ThumbsDown,
   ThumbsUp,
   Type,
+  Users,
   Wand2,
   X,
 } from 'lucide-react'
 import {
   fetchPromptCampaign,
+  fetchClientQuestion,
   fetchPromptComparison,
   fetchPromptOptimizationAgents,
+  fetchPromptThreadComparison,
   fetchPromptThreads,
   iteratePromptCampaign,
   promotePromptVersion,
@@ -33,8 +38,10 @@ import {
   updatePromptTurn,
 } from './api'
 import type { AIProvider } from './types'
+import { renderMessageContent } from './messageFormat'
 import type {
   CampaignStatus,
+  ConversationComparison,
   PromptCampaign,
   PromptCampaignDetail,
   PromptComparison,
@@ -151,6 +158,13 @@ function compactDiff(lines: DiffLine[]): DiffLine[] {
  */
 const NO_DEDICATED_ZONE_AGENTS = ['generic']
 
+/**
+ * Zone optimisée par l'atelier : FIGÉE au prompt de l'agent SPÉCIALISÉ (demande explicite — le sélecteur a
+ * été retiré). La zone transverse « agent principal » reste connue de l'API (tests, appel direct), mais
+ * l'IHM ne la propose plus : un seul choix, donc plus d'ambiguïté sur ce qui est réécrit.
+ */
+const ZONE_KEY: PromptZoneKey = 'agent'
+
 /** Agents réellement sélectionnables pour une campagne. */
 function selectableZones(agents: PromptOptimizationAgents | null): PromptZoneInfo[] {
   return (agents?.zones ?? []).filter((zone) => !NO_DEDICATED_ZONE_AGENTS.includes(zone.agentId))
@@ -177,8 +191,9 @@ export default function PromptLab() {
   const [agents, setAgents] = useState<PromptOptimizationAgents | null>(null)
   const [detail, setDetail] = useState<PromptCampaignDetail | null>(null)
   const [comparison, setComparison] = useState<PromptComparison | null>(null)
+  /** BILAN début ↔ fin de la conversation (bouton « comparer le prompt initial et le prompt final »). */
+  const [threadComparison, setThreadComparison] = useState<ConversationComparison | null>(null)
   const [agentId, setAgentId] = useState('')
-  const [zoneKey, setZoneKey] = useState<PromptZoneKey | ''>('')
   const [question, setQuestion] = useState('')
   const [iterations, setIterations] = useState(3)
   const [provider, setProvider] = useState<AIProvider>('DEEPSEEK')
@@ -205,8 +220,25 @@ export default function PromptLab() {
   const [nextQuestion, setNextQuestion] = useState('')
   /** Tour en cours de correction (un seul à la fois). */
   const [editingTurn, setEditingTurn] = useState<{ index: number; content: string } | null>(null)
+  /** AGENT C — client simulé : mode activé par une case à cocher (désactivé par défaut). */
+  const [clientMode, setClientMode] = useState(false)
+  /** Brief du client : ce qu'il est et ce qu'il veut (remplace la question de test quand le mode est actif). */
+  const [clientBrief, setClientBrief] = useState('')
+  /** PROFONDEUR : nombre maximum de questions que le client simulé posera au cours du scénario. */
+  const [clientDepth, setClientDepth] = useState(3)
+  const [clientProvider, setClientProvider] = useState<AIProvider>('DEEPSEEK')
+  /**
+   * Qui promeut ? Décoché (défaut) : c'est VOUS qui validez chaque cycle. Coché : la dernière version du
+   * cycle est promue automatiquement et le client enchaîne tout seul sa question suivante.
+   */
+  const [autoPromote, setAutoPromote] = useState(false)
+  /** Question du client EN ATTENTE : affichée dans la conversation, corrigeable avant de lancer le cycle. */
+  const [clientQuestion, setClientQuestion] = useState<string | null>(null)
+  const [clientRunning, setClientRunning] = useState(false)
   const stopRef = useRef(false)
   const runningRef = useRef(false)
+  /** Arrêt du scénario Agent C (la boucle s'arrête après le cycle en cours, rien n'est perdu). */
+  const clientStopRef = useRef(false)
   /** Agents dont la conversation a déjà été restaurée : « Nouvelle conversation » reste respecté. */
   const restoredAgentsRef = useRef<string[]>([])
   const threadScrollRef = useRef<HTMLDivElement | null>(null)
@@ -249,7 +281,6 @@ export default function PromptLab() {
         const first = selectable.find((zone) => zone.optimizable) ?? selectable[0]
         if (first) {
           setAgentId(first.agentId)
-          setZoneKey(first.zoneKey)
         }
       })
       .catch((err) => {
@@ -275,7 +306,6 @@ export default function PromptLab() {
         const mine = threads.find((item) => item.agentId === agentId && item.turns.length > 0)
         if (mine) {
           setThread(mine)
-          setZoneKey(mine.zoneKey)
         }
       })
       .catch(() => {
@@ -415,13 +445,149 @@ export default function PromptLab() {
   const campaignInThread = Boolean(campaign && thread?.turns.some((turn) => turn.campaignId === campaign.campaignId))
   const canContinue = Boolean(threadActive && nextQuestion.trim() && !busy && campaignDecided)
 
+  // --- Agent C : le CLIENT simulé conduit la conversation ----------------------------------------------
+
+  /** Nombre de questions du client DÉJÀ traitées (une réponse de l'IA par question). */
+  const clientAsked = threadExchanges
+  const clientDepthReached = clientAsked >= clientDepth
+  /** Numéro de la question que le client va poser (1 = la première). */
+  const clientTurnNumber = clientAsked + (clientQuestion !== null ? 1 : 0) + 1
+
+  /** Question suivante du client : il reçoit le brief, les TROIS chiffres du dossier et la conversation. */
+  async function askClient(turnNumber: number, threadId: string | null): Promise<string | null> {
+    const turn = await fetchClientQuestion({
+      threadId,
+      brief: clientBrief.trim(),
+      turnNumber,
+      depth: clientDepth,
+      provider: clientProvider,
+    })
+    const texte = turn.question.trim()
+    if (turn.endConversation || !texte) {
+      setNotice(texte
+        ? `Le client met fin au scénario : « ${texte} »`
+        : `Le client n'a plus de question — scénario terminé${turn.reason ? ` (${turn.reason})` : ''}.`)
+      return null
+    }
+    return texte
+  }
+
+  /**
+   * UN cycle d'optimisation sur la question du client. Le fil est transmis pour que le cycle reparte avec TOUT
+   * l'historique ; le prompt testé est celui en production (celui qui vient d'être promu), comme dans le chat.
+   */
+  async function startCycle(questionText: string, threadId: string | null) {
+    const started = await startPromptCampaign({
+      agentId,
+      question: questionText,
+      iterations,
+      zoneKey: ZONE_KEY,
+      provider,
+      controllerProvider,
+      editorProvider,
+      threadId,
+    })
+    setThread(started.thread)
+    setEditingTurn(null)
+    return {
+      campaignId: started.campaign.campaignId,
+      threadId: started.thread?.threadId ?? threadId,
+    }
+  }
+
+  /**
+   * PROMOTION AUTOMATIQUE : la dernière version du cycle part en production, sa réponse entre dans la
+   * conversation (c'est elle que le client lira pour poser sa question suivante). S'il n'y a aucune
+   * modification à promouvoir, la version de référence est acceptée telle quelle (aucune écriture).
+   */
+  async function promoteCycle(campaignId: string) {
+    const current = await fetchPromptCampaign(campaignId)
+    setDetail(current)
+    const state = current.campaign
+    if (state.promotedVersion || state.status === 'REJECTED' || state.status === 'CANCELLED') return
+    const version = state.currentCandidateVersion || state.basePromptVersion
+    const result = await promotePromptVersion(campaignId, version)
+    setNotice(`Promotion automatique : ${result.message}`)
+    await refresh(campaignId)
+  }
+
+  /**
+   * SCÉNARIO DU CLIENT (Agent C) : le client pose une question → un cycle l'optimise → la version est promue
+   * (par vous, ou automatiquement) → sa réponse entre dans la conversation → le client lit cette réponse et
+   * pose la question suivante… et ainsi de suite jusqu'à la PROFONDEUR choisie (ou l'arrêt par STOP).
+   */
+  async function clientStep(pending?: string) {
+    let question = pending?.trim() ?? ''
+    let asked = clientAsked
+    let currentThreadId = thread?.threadId ?? null
+    for (;;) {
+      if (clientStopRef.current) break
+      if (!question) {
+        if (asked >= clientDepth) {
+          setNotice(`Profondeur atteinte : ${asked} question(s) du client — scénario terminé.`)
+          break
+        }
+        setClientQuestion('le client rédige sa question…')
+        const posee = await askClient(asked + 1, currentThreadId)
+        if (!posee) {
+          setClientQuestion(null)
+          break
+        }
+        setClientQuestion(posee)
+        if (!autoPromote) break
+        question = posee
+      }
+      setClientQuestion(null)
+      const started = await startCycle(question, currentThreadId)
+      question = ''
+      if (!started) break
+      currentThreadId = started.threadId
+      setNotice(`Cycle ${started.campaignId} : ${iterations} itération(s) sur la question du client.`)
+      await drive(started.campaignId)
+      asked += 1
+      if (!autoPromote) {
+        setNotice(`Question ${asked}/${clientDepth} traitée. Validez une version (promouvoir, ou « accepter sans changement »), puis « QUESTION SUIVANTE ».`)
+        break
+      }
+      if (clientStopRef.current) break
+      await promoteCycle(started.campaignId)
+    }
+  }
+
+  /** Entrée du scénario Agent C (GO, « poser cette question », QUESTION SUIVANTE) : une seule exécution. */
+  async function startClientScenario(pending?: string) {
+    if (clientRunning || busy) return
+    if (!clientBrief.trim()) {
+      setError('Décrivez le client (son profil et son projet) avant de lancer le scénario.')
+      return
+    }
+    clientStopRef.current = false
+    setClientRunning(true)
+    setError(null)
+    try {
+      await clientStep(pending)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Scénario interrompu.')
+    } finally {
+      setClientRunning(false)
+    }
+  }
+
+  /** STOP du scénario : le cycle en cours se termine proprement (campagne en pause), puis la boucle s'arrête. */
+  function handleClientStop() {
+    clientStopRef.current = true
+    setNotice("Arrêt demandé : l'itération en cours se termine, sa réponse est sauvegardée, puis le scénario s'arrête.")
+    if (campaign && (campaign.status === 'RUNNING' || campaign.status === 'CREATED')) handleStop()
+  }
+
   async function handleStart() {
     await guard(async () => {
+      setThreadComparison(null)
       const started = await startPromptCampaign({
         agentId,
         question: question.trim(),
         iterations,
-        zoneKey: zoneKey || null,
+        zoneKey: ZONE_KEY,
         provider,
         controllerProvider,
         editorProvider,
@@ -445,7 +611,7 @@ export default function PromptLab() {
         agentId,
         question: text,
         iterations,
-        zoneKey: thread.zoneKey,
+        zoneKey: ZONE_KEY,
         provider,
         controllerProvider,
         editorProvider,
@@ -454,6 +620,7 @@ export default function PromptLab() {
       setThread(started.thread)
       setNextQuestion('')
       setEditingTurn(null)
+      setThreadComparison(null)
       setNotice(`Nouveau cycle ${started.campaign.campaignId} démarré avec ${threadExchanges} échange(s) d'historique.`)
       await drive(started.campaign.campaignId)
     })
@@ -464,6 +631,7 @@ export default function PromptLab() {
     setThread(null)
     setNextQuestion('')
     setEditingTurn(null)
+    setThreadComparison(null)
     setNotice("Nouvelle conversation : le prochain cycle démarrera sans historique (aucune mémoire).")
   }
 
@@ -595,6 +763,35 @@ export default function PromptLab() {
   }
 
   /**
+   * BILAN de la CONVERSATION : le prompt du premier cycle face au prompt en vigueur à la fin (dernière version
+   * promue). La comparaison d'une campagne ne montre qu'une question ; celle-ci montre tout le scénario — c'est
+   * la lecture « qu'est-ce que cette conversation a changé au prompt ? » demandée à la fin de la conversation.
+   */
+  async function handleThreadCompare() {
+    const current = thread
+    if (!current) return
+    await guard(async () => {
+      setThreadComparison(await fetchPromptThreadComparison(current.threadId))
+    })
+  }
+
+  /** Bouton unique du bilan de conversation (mode manuel et mode Agent C). */
+  function threadCompareButton() {
+    return (
+      <button
+        type="button"
+        onClick={handleThreadCompare}
+        disabled={busy || !thread || threadExchanges === 0}
+        title={threadExchanges === 0
+          ? 'Aucun échange validé : il n\'y a rien à comparer pour le moment.'
+          : 'Compare le prompt du début de la conversation avec celui en vigueur à la fin.'}
+      >
+        <Braces size={15} /> COMPARER LE PROMPT INITIAL ET LE PROMPT FINAL
+      </button>
+    )
+  }
+
+  /**
    * Revient à la configuration pour démarrer une NOUVELLE campagne (l'IHM ne conserve pas d'historique de
    * CAMPAGNES : les fichiers de la campagne précédente restent sur disque, mais ne sont plus proposés).
    * La CONVERSATION, elle, n'est pas perdue : c'est elle qui porte la mémoire des cycles suivants.
@@ -612,6 +809,7 @@ export default function PromptLab() {
     setFeedbackText('')
     setPromotionVersion(null)
     setEditingTurn(null)
+    setThreadComparison(null)
     setNotice(null)
     setError(null)
   }
@@ -730,18 +928,28 @@ export default function PromptLab() {
       {/* 1) Configuration : agent, zone, question, itérations */}
       <section className="mkt-card">
         <h2><Bot size={16} /> Campagne d'optimisation</h2>
+        <label className="plab-switch">
+          <input
+            type="checkbox"
+            checked={clientMode}
+            disabled={busy || clientRunning}
+            onChange={(event) => {
+              setClientMode(event.target.checked)
+              setClientQuestion(null)
+            }}
+          />
+          <span>
+            <b>Agent C — client simulé</b> <Users size={13} /> : l'IA joue le client, pose ses questions et
+            conduit la conversation (vous gardez la main sur chaque cycle)
+          </span>
+        </label>
         <div className="plab-config">
           <label className="plab-field">
             <span>Agent à optimiser</span>
             <select
               value={agentId}
               disabled={busy || Boolean(campaign)}
-              onChange={(event) => {
-                const next = event.target.value
-                setAgentId(next)
-                const zone = zonesShown.find((item) => item.agentId === next)
-                if (zone) setZoneKey(zone.zoneKey)
-              }}
+              onChange={(event) => setAgentId(event.target.value)}
             >
               {zonesShown.map((zone) => (
                 <option key={zone.agentId} value={zone.agentId}>
@@ -752,14 +960,11 @@ export default function PromptLab() {
           </label>
           <label className="plab-field">
             <span>Zone optimisée</span>
-            <select
-              value={zoneKey}
-              disabled={busy || Boolean(campaign)}
-              onChange={(event) => setZoneKey(event.target.value as PromptZoneKey)}
-            >
-              <option value="agent">Prompt de l'agent spécialisé</option>
-              <option value="principal">Agent principal (transverse à tous les agents)</option>
-            </select>
+            <div className="plab-static">
+              Prompt de l'agent spécialisé
+              {selectedZone && selectedZone.zoneFile && <> — <code>agent/{selectedZone.zoneFile}</code></>}
+            </div>
+            <small>Zone FIGÉE : la zone transverse « agent principal » n'est plus proposée par l'atelier.</small>
           </label>
           <label className="plab-field">
             <span>Fournisseur — IA coach</span>
@@ -797,17 +1002,72 @@ export default function PromptLab() {
             />
             <small>Plafond : {agents?.maxIterations ?? 10} itération(s) cumulée(s) (limite technique {agents?.hardMaxIterations ?? 50})</small>
           </label>
+          {clientMode && (
+            <>
+              <label className="plab-field">
+                <span>Fournisseur — Agent C (client simulé)</span>
+                <select
+                  value={clientProvider}
+                  disabled={busy || clientRunning}
+                  onChange={(event) => setClientProvider(event.target.value as AIProvider)}
+                >
+                  <option value="DEEPSEEK">DeepSeek</option>
+                  <option value="GPT">OpenAI</option>
+                </select>
+                <small>Modèle qui joue le client (il ne conseille jamais)</small>
+              </label>
+              <label className="plab-field">
+                <span>Profondeur du scénario</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={clientDepth}
+                  disabled={busy || clientRunning}
+                  onChange={(event) => setClientDepth(Math.max(1, Math.min(20, Number(event.target.value) || 1)))}
+                />
+                <small>Nombre maximum de questions posées par le client (ex. 10)</small>
+              </label>
+            </>
+          )}
         </div>
+        {clientMode && (
+          <label className="plab-switch">
+            <input
+              type="checkbox"
+              checked={autoPromote}
+              disabled={busy || clientRunning}
+              onChange={(event) => setAutoPromote(event.target.checked)}
+            />
+            <span>
+              <b>Promotion automatique</b> — décoché : <b>vous</b> validez chaque cycle. Coché : la dernière
+              version du cycle est promue automatiquement et le client enchaîne sa question suivante.
+            </span>
+          </label>
+        )}
         <label className="plab-field">
-          <span>Question de test (figée pour toute la campagne)</span>
+          <span>
+            {clientMode
+              ? 'Brief du client (qui il est, son projet — figé pour tout le scénario)'
+              : 'Question de test (figée pour toute la campagne)'}
+          </span>
           <textarea
             rows={3}
-            value={question}
-            disabled={busy || Boolean(campaign)}
-            placeholder="Je souhaite financer une voiture d'occasion à 15 000 €. Quelles solutions pourraient être adaptées à ma situation ?"
-            onChange={(event) => setQuestion(event.target.value)}
+            value={clientMode ? clientBrief : question}
+            disabled={busy || clientRunning || (!clientMode && Boolean(campaign))}
+            placeholder={clientMode
+              ? "Tu as un projet de rénovation de la cuisine : les travaux coûtent environ 15 000 €. Tu veux savoir si ta situation financière le permet et quelle solution est la plus adaptée."
+              : "Je souhaite financer une voiture d'occasion à 15 000 €. Quelles solutions pourraient être adaptées à ma situation ?"}
+            onChange={(event) => (clientMode ? setClientBrief(event.target.value) : setQuestion(event.target.value))}
           />
         </label>
+        {clientMode && (
+          <p className="plab-hint">
+            Le client ne reçoit que <b>trois chiffres</b> (solde du compte courant, solde de l'épargne, crédit en
+            cours à rembourser), ce <b>brief</b> et la <b>conversation</b> : il pose une question à la fois, ne
+            donne jamais de conseil et n'invente aucun chiffre. Il s'arrête de lui-même quand il a tout compris.
+          </p>
+        )}
         {selectedZone && (
           <>
             <p className="plab-hint">
@@ -823,8 +1083,8 @@ export default function PromptLab() {
                 (ceux-ci ne sont <b>jamais</b> envoyés au modèle).
               </p>
               <ul className="plab-locks">
-                <li><b>Prompt de l'agent spécialisé</b> — la zone du fichier de l'agent choisi (ex. <code>credit-conso.txt</code>)</li>
-                <li><b>Agent principal</b> — la zone de <code>principal.txt</code>, <b>transverse</b> : elle s'applique à tous les agents</li>
+                <li><b>Prompt de l'agent spécialisé</b> — LA zone optimisée : le fichier de l'agent choisi (ex. <code>credit-conso.txt</code>)</li>
+                <li>La zone de <code>principal.txt</code> (transverse à tous les agents) n'est <b>plus proposée</b> par l'atelier : il n'y a donc aucun risque de réécrire les règles communes</li>
               </ul>
               <p className="plab-hint">
                 Tout ce qui est <b>hors</b> de la zone est figé : le backend recompose lui-même le prompt
@@ -834,7 +1094,7 @@ export default function PromptLab() {
             </details>
           </>
         )}
-        {threadActive && (
+        {threadActive && !clientMode && (
           <p className="plab-hint">
             Une <b>conversation</b> est ouverte avec cet agent : enchaînez la question suivante depuis le bloc
             <b> « Conversation de l'atelier »</b> ci-dessous (tout l'historique sera transmis au Coach), ou
@@ -845,11 +1105,13 @@ export default function PromptLab() {
           <button
             type="button"
             className="plab-primary"
-            disabled={!canStart || busy || threadActive}
-            onClick={handleStart}
-            title={threadActive ? "Une conversation est en cours : utilisez « Conversation de l'atelier »." : undefined}
+            disabled={clientMode
+              ? busy || clientRunning || !clientBrief.trim() || !agents?.enabled
+              : !canStart || busy || threadActive}
+            onClick={clientMode ? () => startClientScenario() : handleStart}
+            title={!clientMode && threadActive ? "Une conversation est en cours : utilisez « Conversation de l'atelier »." : undefined}
           >
-            <Wand2 size={16} /> GO — démarrer l'optimisation
+            <Wand2 size={16} /> GO — {clientMode ? 'le client démarre le scénario' : "démarrer l'optimisation"}
           </button>
           {campaign && (
             <button type="button" onClick={newCampaign} disabled={busy}>
@@ -861,7 +1123,7 @@ export default function PromptLab() {
 
       {/* 1bis) Conversation de l'atelier : la MÉMOIRE de l'atelier. Une version promue fait entrer la réponse
           de l'IA dans la conversation ; la question suivante repart avec tout l'historique. */}
-      {(thread || campaign) && (
+      {(thread || campaign || clientQuestion !== null) && (
         <section className="mkt-card plab-thread">
           <h2>
             <MessageSquare size={16} /> Conversation de l'atelier
@@ -871,6 +1133,7 @@ export default function PromptLab() {
             Comme dans la page coach : chaque cycle d'itérations porte sur <b>une question</b>. Dès qu'une version
             est promue, la <b>réponse de l'IA pour cette version</b> entre dans la conversation, et la question
             suivante repart avec <b>tout l'historique</b> — comme un client qui poursuit l'échange.
+            {clientMode && <> Ici, c'est le <b>client simulé (Agent C)</b> qui lit cette réponse et pose lui-même la question suivante.</>}
           </p>
 
           {!thread && (
@@ -880,15 +1143,19 @@ export default function PromptLab() {
             </p>
           )}
 
-          {thread && (
+          {(thread || clientQuestion !== null) && (
             <>
               <div className="plab-thread-scroll" ref={threadScrollRef}>
-                {thread.turns.map((turn: PromptTurn, index: number) => (
+                {thread?.turns.map((turn: PromptTurn, index: number) => (
                   turn.role === 'user' ? (
                     <div key={`${turn.campaignId}-${index}`} className="message-row user">
                       <div className="message-bubble user">
-                        <div className="message-meta"><span>Question de test</span></div>
-                        <div className="message-text">{turn.content}</div>
+                        <div className="message-meta">
+                          <span>{clientMode ? 'Question du client (Agent C)' : 'Question de test'}</span>
+                        </div>
+                        <div className="message-text">
+                          {renderMessageContent(`plab-q-${turn.campaignId}-${index}`, turn.content)}
+                        </div>
                       </div>
                       <div className="avatar user-avatar">V</div>
                     </div>
@@ -921,7 +1188,11 @@ export default function PromptLab() {
                           </>
                         ) : (
                           <>
-                            <div className="message-text">{turn.content || '(réponse vide)'}</div>
+                            <div className="message-text">
+                              {turn.content
+                                ? renderMessageContent(`plab-a-${turn.campaignId}-${index}`, turn.content)
+                                : '(réponse vide)'}
+                            </div>
                             <div className="plab-thread-meta">
                               <span className="plab-tag ok">★ {turn.version || 'version'} promue</span>
                               <span className="plab-mono">cycle {turn.campaignId}</span>
@@ -941,11 +1212,46 @@ export default function PromptLab() {
                   )
                 ))}
 
+                {clientQuestion !== null && (
+                  <div className="message-row user">
+                    <div className="message-bubble user pending">
+                      <div className="message-meta">
+                        <span>
+                          Question du client (Agent C) — n°{clientTurnNumber} / profondeur {clientDepth}
+                          {clientRunning ? ' · cycle en cours…' : ' · en attente de votre validation'}
+                        </span>
+                      </div>
+                      <textarea
+                        className="plab-thread-edit"
+                        rows={3}
+                        value={clientQuestion}
+                        disabled={clientRunning}
+                        onChange={(event) => setClientQuestion(event.target.value)}
+                      />
+                      <div className="plab-actions">
+                        <button
+                          type="button"
+                          className="plab-primary"
+                          disabled={clientRunning || busy || !clientQuestion.trim()}
+                          onClick={() => startClientScenario(clientQuestion)}
+                        >
+                          <Play size={14} /> GO — poser cette question
+                        </button>
+                      </div>
+                    </div>
+                    <div className="avatar user-avatar"><Users size={15} /></div>
+                  </div>
+                )}
+
                 {campaign && !campaignInThread && (
                   <div className="message-row user">
                     <div className="message-bubble user pending">
-                      <div className="message-meta"><span>Question de test — en cours</span></div>
-                      <div className="message-text">{campaign.question}</div>
+                      <div className="message-meta">
+                        <span>{clientMode ? 'Question du client (Agent C) — en cours' : 'Question de test — en cours'}</span>
+                      </div>
+                      <div className="message-text">
+                        {renderMessageContent(`plab-pending-${campaign.campaignId}`, campaign.question)}
+                      </div>
                     </div>
                     <div className="avatar user-avatar">V</div>
                   </div>
@@ -962,35 +1268,142 @@ export default function PromptLab() {
                 </p>
               )}
 
-              <div className="plab-thread-composer">
-                <label className="plab-field">
-                  <span>Question suivante — le cycle repart avec l'historique complet</span>
-                  <textarea
-                    rows={3}
-                    value={nextQuestion}
-                    disabled={busy}
-                    onChange={(event) => setNextQuestion(event.target.value)}
-                    placeholder="Et si j'allongeais la durée à 60 mois ? Qu'est-ce que cela change pour ma mensualité ?"
-                  />
-                </label>
-                <div className="plab-actions">
-                  <button type="button" className="plab-primary" disabled={!canContinue} onClick={handleContinue}>
-                    <Send size={16} /> GO — enchaîner ({threadExchanges} échange(s) de mémoire)
-                  </button>
-                  <button type="button" onClick={handleNewConversation} disabled={busy}>
-                    <Plus size={15} /> Nouvelle conversation
-                  </button>
+              {!clientMode && (
+                <div className="plab-thread-composer">
+                  <label className="plab-field">
+                    <span>Question suivante — le cycle repart avec l'historique complet</span>
+                    <textarea
+                      rows={3}
+                      value={nextQuestion}
+                      disabled={busy}
+                      onChange={(event) => setNextQuestion(event.target.value)}
+                      placeholder="Et si j'allongeais la durée à 60 mois ? Qu'est-ce que cela change pour ma mensualité ?"
+                    />
+                  </label>
+                  <div className="plab-actions">
+                    <button type="button" className="plab-primary" disabled={!canContinue} onClick={handleContinue}>
+                      <Send size={16} /> GO — enchaîner ({threadExchanges} échange(s) de mémoire)
+                    </button>
+                    {threadCompareButton()}
+                    <button type="button" onClick={handleNewConversation} disabled={busy}>
+                      <Plus size={15} /> Nouvelle conversation
+                    </button>
+                  </div>
+                  {!campaignDecided && (
+                    <p className="plab-hint">
+                      Pour enchaîner : <b>promouvoir une version</b>, <b>accepter la campagne sans changement</b> (si
+                      l'éditeur n'a rien proposé) ou refuser la campagne — la réponse de l'IA doit d'abord être figée
+                      dans la conversation.
+                    </p>
+                  )}
                 </div>
-                {!campaignDecided && (
+              )}
+
+              {clientMode && (
+                <div className="plab-thread-composer plab-client-bar">
+                  <div className="plab-client-head">
+                    <span className="plab-tag ok"><Users size={13} /> Agent C — client simulé</span>
+                    <span className="plab-hint">
+                      Question {Math.min(clientAsked + 1, clientDepth)} / profondeur {clientDepth} ·
+                      {' '}{autoPromote ? 'promotion automatique' : 'promotion par vous'} ·
+                      {' '}fournisseur {clientProvider === 'DEEPSEEK' ? 'DeepSeek' : 'OpenAI'}
+                    </span>
+                  </div>
+                  <div className="plab-actions">
+                    <button
+                      type="button"
+                      onClick={handleClientStop}
+                      disabled={!clientRunning}
+                      title="Le cycle en cours se termine proprement, puis le scénario s'arrête."
+                    >
+                      <Square size={14} /> STOP
+                    </button>
+                    <button
+                      type="button"
+                      className="plab-primary"
+                      disabled={clientRunning || busy || !campaignDecided || clientDepthReached || clientQuestion !== null}
+                      onClick={() => startClientScenario()}
+                      title={clientDepthReached ? 'Profondeur atteinte : relancez le scénario avec une profondeur plus grande.' : undefined}
+                    >
+                      <Play size={14} /> CONTINUER — question suivante du client
+                    </button>
+                    {threadCompareButton()}
+                    <button type="button" onClick={handleNewConversation} disabled={busy || clientRunning}>
+                      <Plus size={15} /> Nouvelle conversation
+                    </button>
+                  </div>
                   <p className="plab-hint">
-                    Pour enchaîner : <b>promouvoir une version</b>, <b>accepter la campagne sans changement</b> (si
-                    l'éditeur n'a rien proposé) ou refuser la campagne — la réponse de l'IA doit d'abord être figée
-                    dans la conversation.
+                    {clientRunning
+                      ? 'Scénario en cours : le client pose une question, le cycle l\'optimise, la version est promue et la réponse entre dans la conversation.'
+                      : clientDepthReached
+                        ? `Profondeur atteinte (${clientDepth} question(s)) : augmentez la profondeur pour continuer.`
+                        : !campaignDecided
+                          ? "Le cycle en cours doit d'abord être validé (promouvoir une version, ou « accepter sans changement »)."
+                          : 'CONTINUER : le client lit la dernière réponse et pose sa question suivante (tout l\'historique est rejoué).'}
                   </p>
-                )}
+                </div>
+              )}
+            </>
+          )}
+        </section>
+      )}
+
+      {/* 1ter) BILAN de la conversation : le prompt du DÉBUT face au prompt EN VIGUEUR à la fin. La comparaison
+          d'une campagne ne montre qu'une question ; celle-ci montre tout le scénario, cycle après cycle. */}
+      {threadComparison && (
+        <section className="mkt-card">
+          <h2><Braces size={16} /> Comparaison de la conversation — début ↔ fin</h2>
+          <p className="plab-hint">
+            Prompt <b>initial {threadComparison.baseVersion}</b> (au premier échange) → prompt{' '}
+            <b>final {threadComparison.currentVersion}</b> (version en vigueur à la fin). {threadComparison.summary}
+          </p>
+          <p className="plab-hint">
+            Agent <b>{threadComparison.agentLibelle}</b> ·{' '}
+            {threadComparison.zoneKey === 'principal'
+              ? <>zone transverse <code>agent/principal.txt</code></>
+              : <>zone de l'agent <code>agent/{threadComparison.zoneFile}</code></>}
+            {' · '}{threadComparison.cycleCount} cycle(s) · {threadComparison.iterationCount} itération(s) ·
+            {' '}{threadComparison.promotionCount} promotion(s)
+          </p>
+          <div className="plab-two">
+            <div className="plab-box">
+              <strong>VERSION INITIALE {threadComparison.baseVersion} — début de la conversation</strong>
+              <p className="plab-hint">Cycle <span className="plab-mono">{threadComparison.baseCampaignId}</span></p>
+              <pre className="plab-pre">{threadComparison.baseEditableSection || '(zone vide)'}</pre>
+            </div>
+            <div className="plab-box">
+              <strong>VERSION FINALE {threadComparison.currentVersion} — version en vigueur</strong>
+              <p className="plab-hint">Cycle <span className="plab-mono">{threadComparison.currentCampaignId}</span></p>
+              <pre className="plab-pre">{threadComparison.currentEditableSection || '(zone vide)'}</pre>
+            </div>
+          </div>
+          {threadComparison.baseEditableSection === threadComparison.currentEditableSection ? (
+            <p className="plab-hint">
+              Aucune ligne de la zone n'a changé pendant cette conversation : le bilan est donc un prompt identique.
+            </p>
+          ) : (
+            <>
+              <h3>Changements de la zone {threadComparison.baseVersion} → {threadComparison.currentVersion}</h3>
+              <div className="plab-diff">
+                {compactDiff(diffLines(threadComparison.baseEditableSection, threadComparison.currentEditableSection))
+                  .map((line, index) => (
+                    <div key={index} className={`plab-diff-line ${line.type}`}>
+                      <span className="plab-diff-sign">
+                        {line.type === 'add' ? '+' : line.type === 'remove' ? '−' : ' '}
+                      </span>
+                      <span>{line.text}</span>
+                    </div>
+                  ))}
               </div>
             </>
           )}
+          <details className="plab-help">
+            <summary>Voir les prompts complets (parties protégées incluses)</summary>
+            <strong>PROMPT INITIAL {threadComparison.baseVersion}</strong>
+            <pre className="plab-pre">{threadComparison.basePrompt}</pre>
+            <strong>PROMPT FINAL {threadComparison.currentVersion}</strong>
+            <pre className="plab-pre">{threadComparison.currentPrompt}</pre>
+          </details>
         </section>
       )}
 

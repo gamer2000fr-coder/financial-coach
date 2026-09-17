@@ -207,6 +207,16 @@ public class MockAIService implements AIService {
     }
 
     /**
+     * CLIENT simulé de l'atelier (« Agent C ») : en mode démo, ce rôle n'a pas de sens (il faudrait un
+     * modèle réel pour tenir une conversation crédible) — refus explicite, comme les deux autres agents.
+     */
+    @Override
+    public com.coach.financier.model.PromptOptimizationModels.ClientTurn clientTurn(
+            Map<String, Object> context, AIModels.AIProvider provider) {
+        throw new IllegalStateException(NO_REAL_PROVIDER_MESSAGE);
+    }
+
+    /**
      * Mode démo (aucun appel LLM) : synthèse DÉTERMINISTE construite uniquement à partir du
      * contexte fourni. Elle respecte les mêmes règles que l'agent réel : pas d'invention,
      * produits refusés exclus, brouillon client jamais présenté comme déjà envoyé.

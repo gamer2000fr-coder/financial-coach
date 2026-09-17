@@ -101,4 +101,12 @@ public interface AIService {
      */
     PromptOptimizationModels.EditorResult editPromptSection(Map<String, Object> context,
                                                            AIModels.AIProvider provider);
+
+    /**
+     * Appel IA du CLIENT SIMULÉ de l'atelier (« Agent C », {@code agent/prompt_client.txt}) : il JOUE LE CLIENT
+     * qui parle au Coach et renvoie <b>une seule</b> question (ou la fin du scénario). Il ne donne jamais de
+     * conseil et n'invente aucun chiffre : l'appelant lui fournit le brief client, les quelques chiffres du
+     * dossier et la conversation déjà échangée.
+     */
+    PromptOptimizationModels.ClientTurn clientTurn(Map<String, Object> context, AIModels.AIProvider provider);
 }

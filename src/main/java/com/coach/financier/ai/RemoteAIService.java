@@ -583,6 +583,25 @@ public abstract class RemoteAIService implements AIService {
         return result;
     }
 
+    /**
+     * CLIENT SIMULÉ de l'atelier (« Agent C ») : il joue le client qui parle au Coach et renvoie UNE question
+     * (ou la fin du scénario). Le contexte (brief client, chiffres du dossier, conversation déjà échangée,
+     * numéro de question, profondeur) est construit par l'appelant ; cette couche l'envoie et parse la sortie.
+     */
+    @Override
+    public PromptOptimizationModels.ClientTurn clientTurn(Map<String, Object> context, AIModels.AIProvider provider) {
+        requireApiKey();
+        String content = call(AgentFiles.promptClientSystemPrompt(),
+                serialize(context, "Contexte client non sérialisable"));
+        PromptOptimizationModels.ClientTurn turn;
+        try {
+            turn = objectMapper.readValue(content, PromptOptimizationModels.ClientTurn.class);
+        } catch (Exception e) {
+            throw new IllegalStateException("Question du client invalide: " + content, e);
+        }
+        return turn == null ? PromptOptimizationModels.ClientTurn.empty() : turn;
+    }
+
     /** Sérialise le contexte transmis à un agent interne de l'atelier d'optimisation des prompts. */
     private String serialize(Map<String, Object> context, String errorMessage) {
         try {

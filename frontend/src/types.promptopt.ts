@@ -94,6 +94,25 @@ export interface PromptCampaignStart {
   thread: PromptThread | null
 }
 
+/**
+ * Tour du CLIENT simulé (Agent C) : la question qu'il pose au Coach, ou la fin du scénario. Le client ne
+ * conseille jamais et n'invente aucun chiffre (brief + trois chiffres du dossier uniquement).
+ */
+export interface ClientTurnView {
+  question: string
+  endConversation: boolean
+  reason: string
+}
+
+/** Demande de question au client simulé : brief écrit par l'humain, numéro de question, profondeur, fil. */
+export interface ClientQuestionInput {
+  threadId?: string | null
+  brief: string
+  turnNumber: number
+  depth: number
+  provider: AIProvider
+}
+
 /** Problème relevé par le contrôleur (Agent B). */
 export interface ControllerIssue {
   type: string
@@ -245,9 +264,40 @@ export interface PromptComparison {
   currentEditableSection: string
   basePrompt: string
   currentPrompt: string
-  baseResponse: string
-  currentResponse: string
+  /** Réponses comparées (absentes d'un bilan de conversation, où les questions diffèrent d'un cycle à l'autre). */
+  baseResponse?: string
+  currentResponse?: string
   iterationCount: number
+}
+
+/**
+ * BILAN d'une conversation entière : le prompt AU DÉBUT face au prompt EN VIGUEUR à la fin de la conversation
+ * (dernière version promue). La comparaison d'une campagne ne montre qu'un cycle ; celle-ci montre le chemin
+ * parcouru pendant tout le scénario.
+ */
+export interface ConversationComparison {
+  threadId: string
+  agentId: string
+  agentLibelle: string
+  zoneKey: PromptZoneKey
+  zoneFile: string
+  baseVersion: string
+  currentVersion: string
+  /** Cycle dont vient chaque prompt : les noms de version sont LOCAUX au cycle (`V0` n'est pas global). */
+  baseCampaignId: string
+  currentCampaignId: string
+  baseEditableSection: string
+  currentEditableSection: string
+  basePrompt: string
+  currentPrompt: string
+  /** Nombre de cycles (une question = un cycle), d'itérations cumulées et de promotions. */
+  cycleCount: number
+  iterationCount: number
+  promotionCount: number
+  /** Aucune promotion n'a modifié la zone : le prompt est inchangé. */
+  identical: boolean
+  /** Phrase d'explication fournie par le backend (aucun code technique à l'écran). */
+  summary: string
 }
 
 export interface PromotionResult {

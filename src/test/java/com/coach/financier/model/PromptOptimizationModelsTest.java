@@ -238,6 +238,34 @@ class PromptOptimizationModelsTest {
         assertEquals("user", turn.asMessage().role(), "l'historique est au format attendu par le chat");
     }
 
+    // --- Agent C : le CLIENT simulé (il mène la conversation) ---------------------------------------
+
+    @Test
+    void parsesTheDocumentedClientJson() throws Exception {
+        var turn = MAPPER.readValue("""
+                {"question":"Bonjour, je voudrais rénover ma cuisine. Est-ce possible ?",
+                 "endConversation":false,"reason":"ouverture du scénario"}
+                """, PromptOptimizationModels.ClientTurn.class);
+
+        assertEquals("Bonjour, je voudrais rénover ma cuisine. Est-ce possible ?", turn.question());
+        assertFalse(turn.endConversation());
+        assertFalse(turn.finished(), "le client continue la conversation");
+    }
+
+    @Test
+    void aClientTurnWithoutQuestionEndsTheScenario() {
+        // Champ absent ou vide : on ne fabrique JAMAIS une question (le scénario s'arrête proprement).
+        var empty = new PromptOptimizationModels.ClientTurn("   ", null, null);
+        assertEquals("", empty.question());
+        assertFalse(empty.endConversation());
+        assertTrue(empty.finished());
+        assertTrue(PromptOptimizationModels.ClientTurn.empty().finished());
+        // Clôture explicite demandée par le client.
+        var closing = new PromptOptimizationModels.ClientTurn("Merci, j'ai tout ce qu'il me faut.", true, "");
+        assertTrue(closing.finished());
+        assertEquals("Merci, j'ai tout ce qu'il me faut.", closing.question());
+    }
+
     @Test
     void aThreadSurvivesAJsonRoundTrip() throws Exception {
         var thread = emptyThread().withExchange("po-1", "Question 1", "Réponse promue V2", "V2");

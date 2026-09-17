@@ -66,6 +66,7 @@ class PromptOptimizationServiceTest {
     private PromptOptimizationService service;
     private PromptOptimizationStore store;
     private DataRequestService dataRequests;
+    private FinancialAnalysisService financialAnalysis;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -80,14 +81,15 @@ class PromptOptimizationServiceTest {
                 new BankingDataRepository(mapper, DATA_DIR + "/banking_demo_normalized.json");
         dataRequests = new DataRequestService(mapper, DATA_DIR, true);
         CoachContextBuilder contextBuilder = new CoachContextBuilder(
-                new FinancialAnalysisService(banking),
+                financialAnalysis = new FinancialAnalysisService(banking),
                 dataRequests,
                 new FinancialSynthesisStore(mapper, DATA_DIR + "/synthese_financier.json"),
                 new ProductCatalogueService(mapper, mapping, DATA_DIR),
                 mapping, banking, mapper);
         service = new PromptOptimizationService(properties, store, new PromptZoneService(), contextBuilder,
                 factory, new AILogService(), new AgentPromptStore(),
-                new AgentPromptHistoryStore(properties, new PromptZoneService(), mapper), dataRequests, mapper);
+                new AgentPromptHistoryStore(properties, new PromptZoneService(), mapper), dataRequests,
+                financialAnalysis, mapper);
     }
 
     // --- Démarrage ---------------------------------------------------------------------------------
@@ -895,6 +897,86 @@ class PromptOptimizationServiceTest {
         assertThrows(IllegalArgumentException.class, () -> service.thread(""));
     }
 
+    /**
+     * BILAN début ↔ fin d'une conversation : le prompt du PREMIER cycle face au prompt en vigueur à la fin
+     * (dernière version réellement PROMUE). La comparaison d'une CAMPAGNE ne montre qu'une question ; celle-ci
+     * montre tout le scénario — c'est le bouton « comparer le prompt initial et le prompt final » de l'IHM.
+     * <p>
+     * La promotion est simulée DANS le store (une promotion réelle réécrirait {@code ./agent/credit-conso.txt},
+     * ce qu'aucun test ne doit faire) : le bilan ne lit que des versions, il n'écrit rien.
+     */
+    @Test
+    void theConversationComparisonShowsThePromptAtTheBeginningAndAtTheEnd() {
+        var first = service.start(new StartRequest("credit_conso", QUESTION, 1, null, AIModels.AIProvider.DEEPSEEK));
+        service.iterate(first.campaignId());
+        String threadId = seedExchange(first, "Réponse de la première question.", first.basePromptVersion());
+
+        // Conversation terminée sans qu'une version ait changé la zone : le bilan est un prompt IDENTIQUE
+        // (information pour l'utilisateur, jamais une erreur).
+        var unchanged = service.comparisonOfThread(threadId);
+        assertEquals(threadId, unchanged.threadId());
+        assertEquals("credit_conso", unchanged.agentId());
+        assertEquals("credit-conso.txt", unchanged.zoneFile());
+        assertEquals(first.basePromptVersion(), unchanged.baseVersion());
+        assertEquals(unchanged.baseVersion(), unchanged.currentVersion());
+        assertTrue(unchanged.identical(), "aucune promotion : le prompt n'a pas bougé");
+        assertEquals(0, unchanged.promotionCount());
+        assertEquals(1, unchanged.cycleCount());
+        assertEquals(1, unchanged.iterationCount());
+        assertEquals(unchanged.basePrompt(), unchanged.currentPrompt());
+        assertEquals(unchanged.baseEditableSection(), unchanged.currentEditableSection());
+        assertFalse(unchanged.summary().isBlank(), "l'IHM affiche une phrase d'explication");
+
+        // La conversation CONTINUE (2e question, même fil) et sa zone est PROMUE : le bilan doit montrer
+        // le début de la conversation (V0) face à la version en vigueur à la fin (V1).
+        var second = service.start(new StartRequest("credit_conso", QUESTION, 1, null,
+                AIModels.AIProvider.DEEPSEEK, threadId));
+        String newZone = "Nouvelle zone obtenue par la conversation.";
+        store.appendEdition(second.campaignId(),
+                new PromptOptimizationModels.PromptVersion("V1", newZone, "hash-v1", 1));
+        seedPromotion(second, "V1");
+
+        var changed = service.comparisonOfThread(threadId);
+        assertEquals(first.basePromptVersion(), changed.baseVersion(), "début de la conversation = 1er cycle");
+        assertEquals("V1", changed.currentVersion(), "fin = dernière version réellement promue");
+        assertFalse(changed.identical());
+        assertEquals(1, changed.promotionCount());
+        assertEquals(2, changed.cycleCount());
+        assertEquals(newZone, changed.currentEditableSection());
+        assertTrue(changed.currentPrompt().contains(newZone), "le prompt final contient la zone promue");
+        assertFalse(changed.basePrompt().contains(newZone), "le prompt initial ne la contient pas");
+        assertNotEquals(changed.baseCampaignId(), changed.currentCampaignId(),
+                "le bilan relie bien le PREMIER et le DERNIER cycle de la conversation");
+        assertTrue(changed.summary().contains("modifiée"), changed.summary());
+        assertFalse(changed.summary().contains("V0 à V0"),
+                "les noms de version sont locaux au cycle : le bilan ne peut pas parler de « V0 → V0 »");
+    }
+
+    @Test
+    void theConversationComparisonRefusesAnEmptyOrUnknownConversation() {
+        assertThrows(IllegalArgumentException.class, () -> service.comparisonOfThread("th-inexistant"));
+
+        var campaign = service.start(new StartRequest("credit_conso", QUESTION, 1, null, AIModels.AIProvider.DEEPSEEK));
+        String threadId = store.threadOf(campaign.campaignId()).orElseThrow().threadId();
+        store.saveThread(new PromptOptimizationModels.ConversationThread(threadId, "credit_conso",
+                "Crédit à la consommation", PromptOptimizationModels.ZONE_AGENT, List.of(), List.of(),
+                "2026-09-17T08:00:00Z", "2026-09-17T08:00:00Z"));
+        assertThrows(IllegalStateException.class, () -> service.comparisonOfThread(threadId));
+    }
+
+    /** Simule une promotion DANS le store : les tests ne réécrivent jamais un prompt de production. */
+    private void seedPromotion(PromptOptimizationModels.Campaign campaign, String version) {
+        store.saveCampaignAndReturn(new PromptOptimizationModels.Campaign(
+                campaign.campaignId(), campaign.agentId(), campaign.agentLibelle(), campaign.zoneKey(),
+                campaign.zoneFile(), PromptOptimizationModels.CAMPAIGN_ACCEPTED, campaign.question(),
+                campaign.requestedIterations(), campaign.completedIterations(), campaign.maxIterations(),
+                campaign.snapshotId(), campaign.basePromptVersion(), version, version, campaign.provider(),
+                campaign.controllerProvider(), campaign.editorProvider(), campaign.model(), campaign.aiCalls(),
+                campaign.totalPromptChars(), campaign.totalDurationMs(), campaign.stopRequestedAt(),
+                campaign.pausedAt(), campaign.error(), campaign.errorStep(), campaign.createdAt(),
+                java.time.Instant.now().toString()));
+    }
+
     @Test
     void aNewCycleWithoutThreadStartsWithoutMemory() {
         var first = service.start(new StartRequest("credit_conso", QUESTION, 1, null, AIModels.AIProvider.DEEPSEEK));
@@ -1011,6 +1093,78 @@ class PromptOptimizationServiceTest {
         assertEquals(aiCallsBeforePromotion + 1, result.campaign().aiCalls(),
                 "l'appel de rejeu est compté dans la campagne");
         assertTrue(result.message().contains("générée"), result.message());
+    }
+
+    /**
+     * Agent B juge le RESPECT DU PROMPT : il doit donc recevoir le prompt système <b>exactement</b> tel qu'il a
+     * été envoyé au Coach — même chaîne, marqueurs de zone exclus —, ainsi que la classification figée et la
+     * liste des données disponibles (tout ce que le payload du Coach contenait).
+     */
+    @Test
+    void agentBReceivesTheExactPromptSentToTheCoach() {
+        var campaign = service.start(new StartRequest("credit_conso", QUESTION, 1, null, AIModels.AIProvider.DEEPSEEK));
+
+        var iteration = service.iterate(campaign.campaignId());
+
+        Map<String, Object> context = ai.lastControllerContext;
+        assertNotNull(context, "Agent B a été appelé");
+        String coachPrompt = String.valueOf(context.get("coachPrompt"));
+        assertEquals(ai.lastSystemPrompt, coachPrompt,
+                "Agent B reçoit EXACTEMENT le prompt système envoyé au Coach");
+        assertEquals(service.promptFor(campaign.campaignId(), iteration.promptVersion()), coachPrompt,
+                "c'est bien le prompt de la version utilisée par cette itération (zone incluse)");
+        assertFalse(coachPrompt.contains("[[["), "les marqueurs de zone ne sont jamais envoyés au LLM");
+        assertNotNull(context.get("classification"), "la classification FIGÉE est transmise à Agent B");
+        assertNotNull(context.get("availableData"), "la liste des données disponibles est transmise à Agent B");
+        assertFalse(String.valueOf(context.get("availableData")).isBlank(),
+                "le Coach pouvait demander ces fichiers : Agent B peut donc juger une demande manquée");
+        assertTrue(coachPrompt.contains("Crédit à la consommation"),
+                "le prompt reçu contient bien la partie métier de l'agent");
+    }
+
+    // --- Agent C : le CLIENT simulé (il mène la conversation) -----------------------------------------
+
+    /**
+     * Le client simulé ne reçoit QUE ce qu'il faut pour jouer son rôle : le brief écrit par l'humain, les
+     * <b>trois chiffres du dossier</b> (compte courant, épargne, mensualité de crédit), son numéro de question,
+     * la profondeur demandée et la conversation déjà validée (mémoire du fil).
+     */
+    @Test
+    void theSimulatedClientReceivesTheBriefTheThreeFiguresAndTheConversation() {
+        var campaign = service.start(new StartRequest("credit_conso", QUESTION, 1, null, AIModels.AIProvider.DEEPSEEK));
+        String threadId = seedExchange(campaign, "Réponse de la version promue.", "V1");
+
+        var turn = service.clientTurn(threadId, "Projet de rénovation de cuisine, ~15 000 €", 2, 5,
+                AIModels.AIProvider.DEEPSEEK);
+
+        assertEquals(ai.scriptedClientTurn.question(), turn.question());
+        assertFalse(turn.finished());
+        Map<String, Object> context = ai.lastClientContext;
+        assertEquals("Projet de rénovation de cuisine, ~15 000 €", context.get("clientBrief"));
+        assertEquals(2, context.get("turnNumber"));
+        assertEquals(5, context.get("depth"), "la profondeur réglée dans l'IHM borne le nombre de questions");
+        assertEquals(2, ((List<?>) context.get("previousExchanges")).size(),
+                "la conversation déjà validée est transmise au client (il ne se répète pas)");
+        Map<?, ?> figures = (Map<?, ?>) context.get("clientFigures");
+        assertEquals(3, figures.size(), "exactement trois chiffres : compte courant, épargne, crédit en cours");
+        assertNotNull(((Map<?, ?>) figures.get("compteCourant")).get("montant"));
+        assertNotNull(((Map<?, ?>) figures.get("epargne")).get("montant"));
+        assertNotNull(((Map<?, ?>) figures.get("creditEnCours")).get("montant"));
+    }
+
+    @Test
+    void theSimulatedClientRequiresABriefARealProviderAndAKnownThread() {
+        assertThrows(IllegalArgumentException.class,
+                () -> service.clientTurn(null, "   ", 1, 3, AIModels.AIProvider.DEEPSEEK));
+        var demo = assertThrows(IllegalArgumentException.class,
+                () -> service.clientTurn(null, "Projet de rénovation", 1, 3, AIModels.AIProvider.MOCK));
+        assertTrue(demo.getMessage().contains("fournisseur IA réel"), demo.getMessage());
+        assertThrows(IllegalArgumentException.class,
+                () -> service.clientTurn("th-inexistant", "Projet de rénovation", 1, 3, AIModels.AIProvider.DEEPSEEK));
+
+        // Sans fil : premier tour du scénario, aucune conversation à transmettre.
+        service.clientTurn(null, "Projet de rénovation", 1, 3, AIModels.AIProvider.DEEPSEEK);
+        assertEquals(List.of(), ai.lastClientContext.get("previousExchanges"));
     }
 
     // --- Doubles de test ------------------------------------------------------------------------------
@@ -1141,6 +1295,17 @@ class PromptOptimizationServiceTest {
             throw new UnsupportedOperationException("Non utilisé par l'atelier");
         }
 
+        /** Question scriptée du CLIENT simulé (« Agent C ») + contexte réellement reçu (assertions). */
+        PromptOptimizationModels.ClientTurn scriptedClientTurn = new PromptOptimizationModels.ClientTurn(
+                "Bonjour, je voudrais rénover ma cuisine : est-ce que ma situation le permet ?", false, "ouverture");
+        Map<String, Object> lastClientContext;
+
+        @Override
+        public PromptOptimizationModels.ClientTurn clientTurn(Map<String, Object> context,
+                                                              AIModels.AIProvider provider) {
+            lastClientContext = context;
+            return scriptedClientTurn;
+        }
         @Override
         public MarketingModels.MarketingReport analyzeMarketing(MarketingModels.MarketingAggregates aggregates,
                                                                 AIModels.AIProvider provider) {

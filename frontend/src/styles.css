@@ -830,6 +830,8 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .plab-field { display: flex; flex-direction: column; gap: 5px; font-size: 13px; margin-bottom: 10px; }
 .plab-field > span { font-weight: 600; color: #444; }
 .plab-field small { color: #777; font-size: 12px; }
+/* Zone optimisée FIGÉE : même gabarit qu'un champ, mais en lecture seule (plus de sélecteur). */
+.plab-static { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 8px 10px; font-size: 13px; color: #333; background: #f4f5f7; border: 1px solid #e3e6ef; border-radius: 6px; }
 .plab-field select, .plab-field input, .plab-field textarea {
   font: inherit; font-size: 13px; padding: 8px 10px; border: 1px solid #d5d5d5; border-radius: 6px; background: #fff; color: #222;
 }
@@ -912,6 +914,15 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   font-family: ui-monospace, Menlo, Consolas, monospace; resize: vertical;
 }
 .plab-thread-composer { margin-top: 14px; }
+/* Agent C — client simulé : case à cocher de mode + barre de pilotage du scénario. */
+.plab-switch {
+  display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: #444;
+  background: #f7f8fb; border: 1px solid #e3e6ef; border-radius: 6px; padding: 9px 11px; margin-bottom: 12px;
+}
+.plab-switch input { margin-top: 2px; }
+.plab-client-bar { border-top: 1px solid #e6e6e6; padding-top: 12px; }
+.plab-client-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+.plab-client-bar .plab-hint { margin: 6px 0 0; }
 
 @media (max-width: 860px) {
   .plab-two { grid-template-columns: 1fr; }

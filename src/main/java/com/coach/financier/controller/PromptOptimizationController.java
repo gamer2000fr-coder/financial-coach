@@ -58,6 +58,11 @@ public class PromptOptimizationController {
                                        AIModels.AIProvider editorProvider, String threadId) {
     }
 
+    /** Corps d'une demande de question au CLIENT simulé (Agent C). */
+    public record ClientQuestionRequest(String threadId, String brief, Integer turnNumber, Integer depth,
+                                        AIModels.AIProvider provider) {
+    }
+
     /** Corps de correction du contenu d'un tour de la conversation. */
     public record TurnRequest(String content) {
     }
@@ -236,6 +241,30 @@ public class PromptOptimizationController {
                                                                  @PathVariable int turnIndex,
                                                                  @RequestBody TurnRequest request) {
         return service.updateTurn(threadId, turnIndex, request == null ? null : request.content());
+    }
+
+    /**
+     * Comparaison DÉBUT ↔ FIN de la conversation : le prompt du premier cycle face au prompt en vigueur à la
+     * fin (dernière version promue). Le bilan de tout le scénario, cycle après cycle — là où la comparaison
+     * d'une campagne ne montre qu'une question.
+     */
+    @GetMapping("/threads/{threadId}/comparison")
+    public PromptOptimizationModels.ConversationComparison threadComparison(@PathVariable String threadId) {
+        return service.comparisonOfThread(threadId);
+    }
+
+    // --- Agent C : le CLIENT simulé (il mène la conversation) ----------------------------------------
+
+    /**
+     * Demande au CLIENT simulé (« Agent C ») la question qu'il pose au Coach : il joue le client à partir du
+     * brief écrit par l'humain, des trois chiffres du dossier (compte courant, épargne, mensualité de crédit)
+     * et de la conversation déjà échangée (mémoire du fil). Il peut aussi clore le scénario.
+     */
+    @PostMapping("/client/question")
+    public PromptOptimizationModels.ClientTurn clientQuestion(@RequestBody ClientQuestionRequest request) {
+        return service.clientTurn(request.threadId(), request.brief(),
+                request.turnNumber() == null ? 1 : request.turnNumber(),
+                request.depth() == null ? 1 : request.depth(), request.provider());
     }
 
     // --- Aides ----------------------------------------------------------------------------------------
