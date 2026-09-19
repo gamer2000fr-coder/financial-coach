@@ -60,6 +60,7 @@ Empêcher structurellement l'IA de recommander ou de mentionner un produit banca
 | `#/quality` | **Qualité & Satisfaction** | Note moyenne, taux de participation, avis positifs/négatifs, distribution des notes, motifs d'insatisfaction, contrôles du Coach, croisement satisfaction × conformité, analyse IA, export CSV |
 | `#/advisor-feedback` | **Feedback Conseillers** | Saisie rapide d'un avis conseiller par dossier, KPI de pertinence, zones corrigées, pertinence produit, corrections d'intérêt, qualité des emails préparés, analyse IA, export CSV |
 | `#/advisor-feedback/session/<sessionId>` | **Évaluation d'un dossier** | Vue ciblée ouverte par le **lien du mail conseiller** : projet, synthèse du Coach, produits et niveaux d'intérêt, suivi conseillé, email préparé, puis formulaire d'évaluation |
+| `#/conversation/<sessionId>` | **Historique d'une conversation** | Vue ciblée **en lecture seule**, ouverte par le lien « Consulter l'historique de la conversation » du mail conseiller : synthèse + relecture des échanges client ↔ Coach, avec accès direct à l'évaluation du dossier. L'URL ne contient que le `sessionId` |
 | `#/prompt-lab` | **Atelier d'optimisation des prompts** | Choix de l'agent (zone optimisée **figée** au prompt de l'agent spécialisé), question de test, nombre d'itérations, fournisseur IA, puis : progression, arrêt/reprise, avis humain, comparaison des versions, diff de la zone, promotion explicite en production |
 
 ---
@@ -194,7 +195,8 @@ flowchart TD
 
 - le **suivi conseillé** = **un seul email automatique**, au **conseiller** ;
 - ce mail contient un **lien direct « Évaluer le suivi du Coach »** vers le dossier de la conversation : le conseiller passe du mail à l'écran d'évaluation en un clic (§41/§42) ;
-- le brouillon destiné au client est **joint** (`.eml`/`.html`/`.txt`), jamais envoyé et ne contient **jamais** le lien interne d'évaluation.
+- il contient aussi un **lien « Consulter l'historique de la conversation »** (`#/conversation/<sessionId>`) pour relire tous les échanges avant de reprendre contact. L'historique vit **en mémoire côté serveur** : après un redémarrage du backend, la vue l'indique honnêtement (« cette conversation n'est plus disponible ») au lieu d'une erreur technique ;
+- le brouillon destiné au client est **joint** (`.eml`/`.html`/`.txt`), jamais envoyé et ne contient **jamais** ces liens internes.
 - Déclenchement **sans attente** (l'IHM n'affiche ni chargement ni bannière de résultat) et **une seule fois par session**.
 - Cas particuliers : suivi désactivé, moins de 2 échanges, ou session inconnue (backend redémarré) → **aucun envoi** ; l'échec d'envoi est tracé dans l'écran **Logs** (bloc `[SUIVI]` : `mailStatus`, `mailSent`, `mailTarget`, `mailError`).
 

@@ -175,6 +175,29 @@ class ConversationClosureServiceTest {
     }
 
     @Test
+    void close_addsTheConversationHistoryLinkToTheAdvisorEmail() {
+        when(aiServiceFactory.defaultProvider()).thenReturn(AIModels.AIProvider.MOCK);
+        when(aiServiceFactory.get(any())).thenReturn(new MockAIService());
+        when(conversationService.find("s1")).thenReturn(conversationWithTousRisques());
+
+        SuiviModels.CloseConversationResponse response = service().close("s1", null);
+
+        String body = response.advisorEmail().body();
+        assertTrue(body.contains(
+                        "[URL|Consulter l'historique de la conversation|http://localhost:9898/#/conversation/s1]"),
+                "Le mail conseiller doit permettre de relire les échanges de la conversation");
+        // Le lien ne porte QUE le sessionId : ni nom, ni email, ni montant du dossier.
+        String link = body.substring(body.indexOf("[URL|Consulter l'historique de la conversation|"));
+        link = link.substring(0, link.indexOf(']'));
+        assertFalse(link.contains("Michel@gmail.com"), "Aucun email client dans le lien");
+        assertFalse(link.contains("Jean Martin"), "Aucun nom dans le lien");
+        assertFalse(link.contains("conseiller@sg.test"), "Aucun email conseiller dans le lien");
+        // Le brouillon client ne reçoit jamais les liens internes du conseiller.
+        assertFalse(response.preparedCustomerEmail().body().contains("#/conversation/"),
+                "Le brouillon client ne doit pas contenir le lien de relecture interne");
+    }
+
+    @Test
     void close_logsTheSuiviAiCall() {
         when(aiServiceFactory.defaultProvider()).thenReturn(AIModels.AIProvider.MOCK);
         when(aiServiceFactory.get(any())).thenReturn(new MockAIService());

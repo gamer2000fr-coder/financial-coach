@@ -296,6 +296,8 @@ public class ConversationClosureService {
      * <ul>
      *   <li>« Ouvrir le dossier du client » — URL de configuration ({@code app.suivi.dossier-url}) :
      *       pour la démo, le site Société Générale ; en production, l'outil conseiller ;</li>
+     *   <li>« Consulter l'historique de la conversation » — lien vers la vue de relecture des échanges,
+     *       qui ne contient que le sessionId (aucune donnée personnelle) ;</li>
      *   <li>« Évaluer le suivi du Coach » — lien direct vers le dossier évaluable, qui ne contient que
      *       le sessionId (aucune donnée personnelle).</li>
      * </ul>
@@ -309,6 +311,7 @@ public class ConversationClosureService {
         if (!dossierUrl.isBlank()) {
             body.append("\n\nDossier client : [URL|Ouvrir le dossier du client|").append(dossierUrl).append(']');
         }
+        body.append("\n\n").append(advisorDossierService.conversationBlock(sessionId));
         body.append("\n\n").append(advisorDossierService.feedbackBlock(sessionId));
         return new Validated(validated.summary(), validated.products(), validated.rejectedProducts(),
                 new SuiviModels.EmailContent(advisorSubject(advisor.subject()), body.toString()),

@@ -578,7 +578,7 @@ Quand l'IA demande un JSON `/data/catalogue/*.json` et que `cascade=true`, `Data
 ### 11.1 Structure
 ```
 frontend/src/
-  main.tsx       # routage par hash : #/logs, #/agents, #/marketing, #/quality, #/prompt-lab, sinon App
+  main.tsx       # routage par hash : #/logs, #/agents, #/marketing, #/quality, #/prompt-lab, #/advisor-feedback(/session/<id>), #/conversation/<id>, sinon App
   App.tsx        # page coach (chat + vue d'ensemble + réglages avancés/audio + bouton de clôture + pop-in)
   FeedbackPopup.tsx # pop-in de satisfaction de fin de conversation (note, motifs, commentaire, Passer)
   Logs.tsx       # page logs (polling, prompt/filtrage/réponse/historique)
@@ -587,6 +587,7 @@ frontend/src/
   Quality.tsx    # page qualité & satisfaction (satisfaction, conformité, croisement, rapport IA, CSV)
   AdvisorFeedback.tsx # page feedback conseillers (KPI, produits, emails, saisie rapide, rapport IA, CSV)
   DossierFeedback.tsx # vue ciblée #/advisor-feedback/session/<id> (ouverte depuis le mail conseiller)
+  ConversationView.tsx # vue ciblée #/conversation/<id> : historique des échanges, lecture seule (mail conseiller)
   PromptLab.tsx  # ATELIER #/prompt-lab (campagne, snapshot, itérations, diff de zone, promotion)
   types.ts       # types partagés (chat, logs, agents, marketing)
   types.quality.ts # types du module Qualité
@@ -1102,9 +1103,10 @@ Clôture de conversation
   → ConversationClosureService : validation du dossier (URLs, produits, refus)
   → AdvisorDossierService.persist(...)        : dossier évaluable écrit en JSONL
   → withAdvisorLinks(...)                     : liens SYSTÈME ajoutés au mail APRÈS validation
-                                              (Dossier client + Évaluer le suivi du Coach)
-  → MailService : envoi au SEUL conseiller (le brouillon client n'a jamais le lien)
+                                              (Dossier client + Consulter l'historique + Évaluer le suivi)
+  → MailService : envoi au SEUL conseiller (le brouillon client n'a jamais ces liens)
   → clic conseiller → #/advisor-feedback/session/<sessionId> → dossier + formulaire → feedback (versionné)
+                    → #/conversation/<sessionId>           → historique des échanges (lecture seule)
 ```
 
 ### 19.2 Choix d'implémentation
@@ -1121,7 +1123,8 @@ Clôture de conversation
 
 - Liens présents et **fabriqués par le backend** (jamais par l'IA, donc insensibles au contrôle
 d'anti-invention d'URL) : « Dossier client » (URL de configuration `app.suivi.dossier-url`, démo = site
-Société Générale) et « Évaluer le suivi du Coach » au format `[URL|nom|…/session/<id>]`, **aucune donnée
+Société Générale), « Consulter l'historique de la conversation » (`/#/conversation/<id>`, lecture seule) et
+« Évaluer le suivi du Coach » au format `[URL|nom|…/session/<id>]`, **aucune donnée
 personnelle** dans l'URL, liens absents du brouillon client (`ConversationClosureServiceTest`).
 - Dossier inconnu → **404** (vérifié sur l'instance) ; dossier connu → 200 avec `feedbackStatus` `PENDING` puis `COMPLETED` après envoi du feedback (vérifié sur l'instance).
 

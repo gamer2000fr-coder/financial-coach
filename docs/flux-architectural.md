@@ -264,7 +264,7 @@ flowchart TD
 Règles structurantes :
 
 - **Un feedback positif ne demande rien d'autre** : l'évaluation globale suffit (quelques secondes).
-- **Le lien d'évaluation est injecté par le backend dans le mail conseiller** (`[URL|Évaluer le suivi du Coach|…/#/advisor-feedback/session/<sessionId>]`), APRÈS la validation anti-invention d'URL ; l'URL ne contient **que** le `sessionId`.
+- **Le lien d'évaluation est injecté par le backend dans le mail conseiller** (`[URL|Évaluer le suivi du Coach|…/#/advisor-feedback/session/<sessionId>]`), APRÈS la validation anti-invention d'URL ; l'URL ne contient **que** le `sessionId`. Un second lien, « Consulter l'historique de la conversation » (`/#/conversation/<sessionId>`), est ajouté au même moment : il ouvre en lecture seule la relecture des échanges (historique gardé en mémoire côté backend).
 - **Idempotence + historique** : un double clic ne crée pas de doublon ; une révision crée une version suivante ; les agrégats ne comptent que la **version courante**.
 - **Valeur IA conservée** : une correction de niveau d'intérêt stocke **les deux** valeurs (IA et conseiller).
 - **Aucun produit inventé** : un produit « oublié » est choisi dans le **catalogue réel**.

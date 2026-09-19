@@ -7,37 +7,49 @@ import Marketing from './Marketing'
 import Quality from './Quality'
 import AdvisorFeedback from './AdvisorFeedback'
 import DossierFeedback from './DossierFeedback'
+import ConversationView from './ConversationView'
 import PromptLab from './PromptLab'
 import './styles.css'
 
-type Page = 'chat' | 'logs' | 'agents' | 'marketing' | 'quality' | 'advisor-feedback' | 'advisor-dossier' | 'prompt-lab'
+type Page = 'chat' | 'logs' | 'agents' | 'marketing' | 'quality' | 'advisor-feedback' | 'advisor-dossier'
+  | 'conversation' | 'prompt-lab'
 
 /** SessionId porté par le lien du mail conseiller : `#/advisor-feedback/session/<sessionId>` (§42). */
-function dossierSessionId(): string | null {
-  const match = window.location.hash.match(/^#\/advisor-feedback\/session\/(.+)$/)
+function dossierSessionId(hash: string): string | null {
+  const match = hash.match(/^#\/advisor-feedback\/session\/(.+)$/)
   return match ? decodeURIComponent(match[1]) : null
 }
 
-function currentPage(): Page {
-  const hash = window.location.hash
+/** SessionId porté par le lien « historique de la conversation » du mail conseiller. */
+function conversationSessionId(hash: string): string | null {
+  const match = hash.match(/^#\/conversation\/(.+)$/)
+  return match ? decodeURIComponent(match[1]) : null
+}
+
+function pageFor(hash: string): Page {
   if (hash.startsWith('#/logs')) return 'logs'
   if (hash.startsWith('#/agents')) return 'agents'
   if (hash.startsWith('#/prompt-lab')) return 'prompt-lab'
   if (hash.startsWith('#/marketing')) return 'marketing'
   if (hash.startsWith('#/quality')) return 'quality'
   if (hash.startsWith('#/advisor-feedback/session/')) return 'advisor-dossier'
+  if (hash.startsWith('#/conversation/')) return 'conversation'
   if (hash.startsWith('#/advisor-feedback')) return 'advisor-feedback'
   return 'chat'
 }
 
 function Router() {
-  const [page, setPage] = useState<Page>(currentPage())
+  // On suit la ROUTE COMPLÈTE (pas seulement le type de page) : passer d'une session à une autre dans la
+  // même route (`#/conversation/<a>` → `#/conversation/<b>`) doit recharger la vue et non garder l'ancienne.
+  const [route, setRoute] = useState(() => window.location.hash)
 
   useEffect(() => {
-    const onHashChange = () => setPage(currentPage())
+    const onHashChange = () => setRoute(window.location.hash)
     window.addEventListener('hashchange', onHashChange)
     return () => window.removeEventListener('hashchange', onHashChange)
   }, [])
+
+  const page = pageFor(route)
 
   if (page === 'logs') return <Logs />
   if (page === 'agents') return <Agents />
@@ -45,8 +57,12 @@ function Router() {
   if (page === 'marketing') return <Marketing />
   if (page === 'quality') return <Quality />
   if (page === 'advisor-dossier') {
-    const sessionId = dossierSessionId()
-    return sessionId ? <DossierFeedback sessionId={sessionId} /> : <AdvisorFeedback />
+    const sessionId = dossierSessionId(route)
+    return sessionId ? <DossierFeedback key={sessionId} sessionId={sessionId} /> : <AdvisorFeedback />
+  }
+  if (page === 'conversation') {
+    const sessionId = conversationSessionId(route)
+    return sessionId ? <ConversationView key={sessionId} sessionId={sessionId} /> : <App />
   }
   if (page === 'advisor-feedback') return <AdvisorFeedback />
   return <App />

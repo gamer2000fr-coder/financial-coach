@@ -76,6 +76,23 @@ public class AdvisorDossierService {
                 + "[URL|Évaluer le suivi du Coach|" + feedbackUrl(sessionId) + "]";
     }
 
+    /** URL de consultation de l'historique d'une conversation : uniquement le sessionId, jamais de donnée personnelle. */
+    public String conversationUrl(String sessionId) {
+        String encoded = URLEncoder.encode(sessionId == null ? "" : sessionId, StandardCharsets.UTF_8);
+        String base = frontendUrl.isBlank() ? "" : stripTrailingSlash(frontendUrl);
+        return base + "/#/conversation/" + encoded;
+    }
+
+    /**
+     * Bloc « relire la conversation » ajouté AU mail conseiller (jamais au brouillon client) : le conseiller
+     * retrouve l'intégralité des échanges client ↔ Coach avant de reprendre contact. Le lien ne contient que
+     * le sessionId (aucune donnée personnelle) et reste relatif si la base IHM n'est pas configurée.
+     */
+    public String conversationBlock(String sessionId) {
+        return "Échanges de la conversation avec le Coach :\n"
+                + "[URL|Consulter l'historique de la conversation|" + conversationUrl(sessionId) + "]";
+    }
+
     /** Persiste le dossier préparé (best effort : un échec ne bloque jamais la clôture). */
     public Optional<AdvisorFeedbackModels.AdvisorDossier> persist(String sessionId, SuiviModels.SuiviResult result) {
         if (!properties.isEnabled() || sessionId == null || sessionId.isBlank() || result == null) {
