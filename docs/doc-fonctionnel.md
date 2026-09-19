@@ -514,8 +514,8 @@ Toutes les données sont **fictives** et servent uniquement la démonstration.
 28. Un double clic, un retry ou un refresh ne créent **qu'un seul** avis par conversation ;
 29. Un échec d'enregistrement de l'avis n'empêche jamais la clôture de la conversation ;
 30. Une **mauvaise note ne crée jamais** d'anomalie de qualité : les deux dimensions restent séparées ;
-31. Un refus de simulation de crédit suivi d'une redirection vers le simulateur officiel est **conforme** ;
-32. Un chiffrage de crédit réellement produit par le Coach est signalé (sévérité HIGH) ;
+31. Une simulation de crédit **adossée à la grille de taux** fournie, annoncée comme indicative et non contractuelle (la souscription fait foi), est **conforme** ; le refus de chiffrer suivi d'une redirection vers le simulateur officiel reste conforme lorsque la grille n'est pas disponible ;
+32. Un chiffrage de crédit produit **sans grille de taux**, ou présenté comme un engagement ferme, est signalé (sévérité HIGH) ;
 33. La page Qualité n'affiche que les contrôles **réellement exécutés** (aucun faux « 0 ») ;
 34. Aucun avis ne contient de donnée personnelle (identifiant pseudonymisé, commentaire nettoyé).
 

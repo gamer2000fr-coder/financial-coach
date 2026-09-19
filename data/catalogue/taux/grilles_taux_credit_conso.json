@@ -1,0 +1,1777 @@
+{
+  "title": "Grilles de taux DEMO alignées sur credit_conso.json",
+  "as_of": "2026-09-19",
+  "status": "DEMO_SYNTHETIC_NOT_OFFICIAL_SG_RATE_SCHEDULE",
+  "warning": "Grilles fictives de démonstration. Identifiants/nom/tags/contraintes tirés de credit_conso.json ; TAEG des règles synthétiques et non tarifs officiels SG/BFM. Ne pas confondre credit_conso.offres[].taux.taeg avec la grille démonstration.",
+  "rates_are": "TAEG annuel (en pourcentage) pour une simulation hors assurance facultative et sous hypothèse de frais de dossier démonstratifs = 0 EUR. Lorsqu’un produit officiel prévoit des frais, appliquer le calcul TAEG correctement avant usage réel.",
+  "calculation": "Pour prêts amortissables sans frais ni différé: taux mensuel = (1+TAEG/100)^(1/12)-1; mensualité = capital * i / (1-(1+i)^(-nombre_mois)); si TAEG 0, capital/nombre_mois. Arrondir et corriger dernière échéance.",
+  "usury_q3_2026": {
+    "up_to_3000_eur": 23.53,
+    "over_3000_up_to_6000_eur": 15.67,
+    "over_6000_eur": 8.56,
+    "source": "https://www.banque-france.fr/en/node/1567189",
+    "valid_from": "2026-07-01",
+    "valid_to": "2026-09-30"
+  },
+  "real_market_benchmarks_not_sg_grids": [
+    {
+      "provider": "Franfinance",
+      "product": "Prêt personnel",
+      "amount_eur": 15000,
+      "duration_months": 48,
+      "taeg_percent": 4.89,
+      "valid_until": "2026-10-04",
+      "source": "https://www.franfinance.fr/solutions-credits/credit-personnel/"
+    },
+    {
+      "provider": "Franfinance",
+      "product": "Crédit auto",
+      "amount_eur": 10000,
+      "duration_months": 12,
+      "taeg_percent": 2.49,
+      "valid_until": "2026-10-04",
+      "source": "https://www.franfinance.fr/solutions-credits/credit-auto/"
+    },
+    {
+      "provider": "SG",
+      "product": "Prêt Jeune Actif",
+      "min_advertised_taeg_percent": 5.55,
+      "source": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/pret-jeune-actif"
+    }
+  ],
+  "products": [
+    {
+      "name": "Crédit Expresso",
+      "loan_type": "fixed",
+      "amount_min_eur": 1000,
+      "amount_max_eur": 75000,
+      "duration_min_months": 12,
+      "duration_max_months": 84,
+      "official_product_url": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/credit-conso-expresso",
+      "source_notes": "Plafond 75 000 EUR: convention de démonstration, pas plafond SG vérifié. Plafond absent du catalogue : amount_max_eur est uniquement la borne des règles de démonstration.",
+      "rules": [
+        {
+          "amount_min_eur": 1000,
+          "amount_max_eur": 3000,
+          "duration_min_months": 12,
+          "duration_max_months": 24,
+          "taeg_percent": 9.9,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_credit_expresso",
+          "rule_id": "sg_credit_expresso__01"
+        },
+        {
+          "amount_min_eur": 1000,
+          "amount_max_eur": 3000,
+          "duration_min_months": 25,
+          "duration_max_months": 48,
+          "taeg_percent": 10.9,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_credit_expresso",
+          "rule_id": "sg_credit_expresso__02"
+        },
+        {
+          "amount_min_eur": 1000,
+          "amount_max_eur": 3000,
+          "duration_min_months": 49,
+          "duration_max_months": 84,
+          "taeg_percent": 11.9,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_credit_expresso",
+          "rule_id": "sg_credit_expresso__03"
+        },
+        {
+          "amount_min_eur": 3000.01,
+          "amount_max_eur": 6000,
+          "duration_min_months": 12,
+          "duration_max_months": 24,
+          "taeg_percent": 7.5,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_credit_expresso",
+          "rule_id": "sg_credit_expresso__04"
+        },
+        {
+          "amount_min_eur": 3000.01,
+          "amount_max_eur": 6000,
+          "duration_min_months": 25,
+          "duration_max_months": 48,
+          "taeg_percent": 8.3,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_credit_expresso",
+          "rule_id": "sg_credit_expresso__05"
+        },
+        {
+          "amount_min_eur": 3000.01,
+          "amount_max_eur": 6000,
+          "duration_min_months": 49,
+          "duration_max_months": 84,
+          "taeg_percent": 9.2,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_credit_expresso",
+          "rule_id": "sg_credit_expresso__06"
+        },
+        {
+          "amount_min_eur": 6000.01,
+          "amount_max_eur": 75000,
+          "duration_min_months": 12,
+          "duration_max_months": 24,
+          "taeg_percent": 5.3,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_credit_expresso",
+          "rule_id": "sg_credit_expresso__07"
+        },
+        {
+          "amount_min_eur": 6000.01,
+          "amount_max_eur": 75000,
+          "duration_min_months": 25,
+          "duration_max_months": 48,
+          "taeg_percent": 5.9,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_credit_expresso",
+          "rule_id": "sg_credit_expresso__08"
+        },
+        {
+          "amount_min_eur": 6000.01,
+          "amount_max_eur": 75000,
+          "duration_min_months": 49,
+          "duration_max_months": 84,
+          "taeg_percent": 6.9,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_credit_expresso",
+          "rule_id": "sg_credit_expresso__09"
+        }
+      ],
+      "legacy_code": "expresso",
+      "id": "sg_credit_expresso",
+      "nom": "Crédit Expresso",
+      "famille": "pret_personnel",
+      "type_credit": "amortissable_non_affecte",
+      "cible": [
+        "particulier_majeur"
+      ],
+      "projets_adaptes": [
+        "voiture",
+        "travaux",
+        "vacances",
+        "voyage",
+        "demenagement",
+        "mariage",
+        "ameublement",
+        "equipement",
+        "ordinateur",
+        "depense_importante",
+        "projet_personnel"
+      ],
+      "projets_exclus": [
+        "acquisition_immobiliere",
+        "construction_immobiliere"
+      ],
+      "eligibilite": {},
+      "regles_recommandation": {
+        "priorite_si": [
+          "client_majeur",
+          "besoin >= 1000",
+          "projet_non_immobilier",
+          "besoin_financement_ponctuel"
+        ],
+        "eviter_si": [
+          "client_etudiant_eligible_pret_etudiant",
+          "client_fonctionnaire_eligible_bfm",
+          "besoin_recurrent_de_tresorerie",
+          "regroupement_de_credits"
+        ]
+      },
+      "url": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/credit-conso-expresso",
+      "devise": "EUR",
+      "catalogue_montant": {
+        "minimum": 1000,
+        "maximum_public": null,
+        "reponse_principe_immediate_jusqua": 35000,
+        "devise": "EUR"
+      },
+      "catalogue_duree": {
+        "minimum_mois": 12,
+        "maximum_mois": 84
+      },
+      "catalogue_taux_reference": {
+        "type": "fixe",
+        "taeg": 5.49,
+        "depend_du_dossier": true
+      },
+      "amount_max_catalogue_eur": null,
+      "amount_max_eur_demo_only": 75000
+    },
+    {
+      "name": "Crédit Auto Expresso",
+      "loan_type": "fixed",
+      "amount_min_eur": 1000,
+      "amount_max_eur": 75000,
+      "duration_min_months": 12,
+      "duration_max_months": 84,
+      "official_product_url": "https://particuliers.sg.fr/emprunter/credit-auto-deux-roues/credit-auto-expresso",
+      "source_notes": "Plafond 75 000 EUR: convention de démo; Franfinance publie 4,89% pour 15 000 EUR/48 mois, mais il ne s’agit pas du barème SG. Plafond absent du catalogue : amount_max_eur est uniquement la borne des règles de démonstration.",
+      "rules": [
+        {
+          "amount_min_eur": 1000,
+          "amount_max_eur": 3000,
+          "duration_min_months": 12,
+          "duration_max_months": 24,
+          "taeg_percent": 9.2,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_credit_auto_expresso",
+          "rule_id": "sg_credit_auto_expresso__01"
+        },
+        {
+          "amount_min_eur": 1000,
+          "amount_max_eur": 3000,
+          "duration_min_months": 25,
+          "duration_max_months": 48,
+          "taeg_percent": 10.2,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_credit_auto_expresso",
+          "rule_id": "sg_credit_auto_expresso__02"
+        },
+        {
+          "amount_min_eur": 1000,
+          "amount_max_eur": 3000,
+          "duration_min_months": 49,
+          "duration_max_months": 84,
+          "taeg_percent": 11.2,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_credit_auto_expresso",
+          "rule_id": "sg_credit_auto_expresso__03"
+        },
+        {
+          "amount_min_eur": 3000.01,
+          "amount_max_eur": 6000,
+          "duration_min_months": 12,
+          "duration_max_months": 24,
+          "taeg_percent": 6.9,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_credit_auto_expresso",
+          "rule_id": "sg_credit_auto_expresso__04"
+        },
+        {
+          "amount_min_eur": 3000.01,
+          "amount_max_eur": 6000,
+          "duration_min_months": 25,
+          "duration_max_months": 48,
+          "taeg_percent": 7.9,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_credit_auto_expresso",
+          "rule_id": "sg_credit_auto_expresso__05"
+        },
+        {
+          "amount_min_eur": 3000.01,
+          "amount_max_eur": 6000,
+          "duration_min_months": 49,
+          "duration_max_months": 84,
+          "taeg_percent": 8.9,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_credit_auto_expresso",
+          "rule_id": "sg_credit_auto_expresso__06"
+        },
+        {
+          "amount_min_eur": 6000.01,
+          "amount_max_eur": 75000,
+          "duration_min_months": 12,
+          "duration_max_months": 24,
+          "taeg_percent": 4.89,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_credit_auto_expresso",
+          "rule_id": "sg_credit_auto_expresso__07"
+        },
+        {
+          "amount_min_eur": 6000.01,
+          "amount_max_eur": 75000,
+          "duration_min_months": 25,
+          "duration_max_months": 48,
+          "taeg_percent": 5.49,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_credit_auto_expresso",
+          "rule_id": "sg_credit_auto_expresso__08"
+        },
+        {
+          "amount_min_eur": 6000.01,
+          "amount_max_eur": 75000,
+          "duration_min_months": 49,
+          "duration_max_months": 84,
+          "taeg_percent": 6.29,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_credit_auto_expresso",
+          "rule_id": "sg_credit_auto_expresso__09"
+        }
+      ],
+      "legacy_code": "auto_expresso",
+      "id": "sg_credit_auto_expresso",
+      "nom": "Crédit Auto Expresso",
+      "famille": "credit_auto",
+      "type_credit": "credit_amortissable",
+      "cible": [
+        "particulier_majeur"
+      ],
+      "projets_adaptes": [
+        "achat_voiture",
+        "achat_voiture_neuve",
+        "achat_voiture_occasion",
+        "achat_moto",
+        "achat_scooter",
+        "achat_deux_roues"
+      ],
+      "projets_exclus": [],
+      "eligibilite": {},
+      "regles_recommandation": {
+        "priorite_si": [
+          "projet_achat_vehicule",
+          "besoin >= 1000"
+        ],
+        "eviter_si": [
+          "client_fonctionnaire_avec_offre_bfm_plus_avantageuse"
+        ]
+      },
+      "url": "https://particuliers.sg.fr/emprunter/credit-auto-deux-roues/credit-auto-expresso",
+      "devise": "EUR",
+      "catalogue_montant": {
+        "minimum": 1000,
+        "maximum_public": null,
+        "reponse_principe_immediate_jusqua": 35000,
+        "devise": "EUR"
+      },
+      "catalogue_duree": {
+        "minimum_mois": 12,
+        "maximum_mois": 84
+      },
+      "catalogue_taux_reference": {
+        "type": "fixe",
+        "taeg": 4.99,
+        "depend_du_dossier": true
+      },
+      "amount_max_catalogue_eur": null,
+      "amount_max_eur_demo_only": 75000
+    },
+    {
+      "name": "Crédit renouvelable Alterna",
+      "loan_type": "revolving",
+      "amount_min_eur": 150,
+      "amount_max_eur": 21500,
+      "duration_min_months": 1,
+      "duration_max_months": 120,
+      "official_product_url": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/pret-credit-renouvelable-alterna",
+      "source_notes": "Les seuils portent sur l’encours utilisé, pas sur la réserve autorisée. Durée 1-120 mois: borne technique de démonstration, pas une durée contractuelle SG. Les règles de taux concernent le montant utilisé (>=150 € pour un virement) ; crédit renouvelable : ne pas calculer automatiquement comme prêt amortissable à échéances constantes.",
+      "rules": [
+        {
+          "amount_min_eur": 150,
+          "amount_max_eur": 3000,
+          "duration_min_months": 1,
+          "duration_max_months": 120,
+          "taeg_percent": 19.9,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_alterna",
+          "rule_id": "sg_alterna__01"
+        },
+        {
+          "amount_min_eur": 3000.01,
+          "amount_max_eur": 6000,
+          "duration_min_months": 1,
+          "duration_max_months": 120,
+          "taeg_percent": 13.5,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_alterna",
+          "rule_id": "sg_alterna__02"
+        },
+        {
+          "amount_min_eur": 6000.01,
+          "amount_max_eur": 21500,
+          "duration_min_months": 1,
+          "duration_max_months": 120,
+          "taeg_percent": 7.9,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_alterna",
+          "rule_id": "sg_alterna__03"
+        }
+      ],
+      "credit_line_min_eur": 1500,
+      "repayment_options_official": [
+        {
+          "outstanding_min_eur": 0.01,
+          "outstanding_max_eur": 750,
+          "slow_eur": 30,
+          "medium_eur": 60,
+          "fast_eur": 90
+        },
+        {
+          "outstanding_min_eur": 750.01,
+          "outstanding_max_eur": 1500,
+          "slow_eur": 60,
+          "medium_eur": 90,
+          "fast_eur": 130
+        },
+        {
+          "outstanding_min_eur": 1500.01,
+          "outstanding_max_eur": 3000,
+          "slow_eur": 120,
+          "medium_eur": 130,
+          "fast_eur": 180
+        },
+        {
+          "outstanding_min_eur": 3000.01,
+          "outstanding_max_eur": 4500,
+          "slow_eur": 130,
+          "medium_eur": 180,
+          "fast_eur": 240
+        },
+        {
+          "outstanding_min_eur": 4500.01,
+          "outstanding_max_eur": 6000,
+          "slow_eur": 180,
+          "medium_eur": 240,
+          "fast_eur": 310
+        },
+        {
+          "outstanding_min_eur": 6000.01,
+          "outstanding_max_eur": 7000,
+          "slow_eur": 200,
+          "medium_eur": 240,
+          "fast_eur": 310
+        },
+        {
+          "outstanding_min_eur": 7000.01,
+          "outstanding_max_eur": 10000,
+          "slow_eur": 270,
+          "medium_eur": 310,
+          "fast_eur": 390
+        },
+        {
+          "outstanding_min_eur": 10000.01,
+          "outstanding_max_eur": 15000,
+          "slow_eur": 400,
+          "medium_eur": 420,
+          "fast_eur": 460
+        },
+        {
+          "outstanding_min_eur": 15000.01,
+          "outstanding_max_eur": 21500,
+          "slow_eur": 560,
+          "medium_eur": 570,
+          "fast_eur": 580
+        }
+      ],
+      "legacy_code": "alterna",
+      "id": "sg_alterna",
+      "nom": "Crédit renouvelable Alterna",
+      "famille": "credit_renouvelable",
+      "type_credit": "renouvelable",
+      "cible": [
+        "particulier_majeur"
+      ],
+      "projets_adaptes": [
+        "imprevu",
+        "petite_tresorerie",
+        "achat",
+        "travaux",
+        "vacances",
+        "depense_ponctuelle"
+      ],
+      "projets_exclus": [],
+      "eligibilite": {},
+      "regles_recommandation": {
+        "priorite_si": [
+          "besoin_de_reserve_disponible",
+          "depenses_imprevues",
+          "besoins_recurrents_de_petits_montants"
+        ],
+        "eviter_si": [
+          "achat_unique_financable_par_pret_amortissable",
+          "besoin_long_terme",
+          "client_risque_surendettement"
+        ],
+        "vigilance": "Comparer systématiquement le coût total avec un prêt personnel amortissable."
+      },
+      "url": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/pret-credit-renouvelable-alterna",
+      "devise": "EUR",
+      "catalogue_montant": {
+        "minimum": 1500,
+        "maximum": null,
+        "minimum_virement": 150,
+        "devise": "EUR",
+        "determination": "selon_capacite_remboursement_et_besoins"
+      },
+      "catalogue_duree": null,
+      "catalogue_taux_reference": {
+        "type": "variable_selon_utilisation",
+        "taeg": 16.9
+      },
+      "duration_catalogue_non_precisee": true,
+      "amount_basis": "montant_utilise (virement >=150 €); reserve autorisee >=1500 € distincte du montant utilisé"
+    },
+    {
+      "name": "Crédit Expresso Jeune Actif",
+      "loan_type": "fixed",
+      "amount_min_eur": 1500,
+      "amount_max_eur": 7000,
+      "duration_min_months": 12,
+      "duration_max_months": 60,
+      "official_product_url": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/pret-jeune-actif",
+      "source_notes": "SG annonce « à partir de 5,55% TAEG fixe » sans publier les combinaisons montant/durée ; attribution des taux aux tranches = fictive.",
+      "rules": [
+        {
+          "amount_min_eur": 1500,
+          "amount_max_eur": 3000,
+          "duration_min_months": 12,
+          "duration_max_months": 24,
+          "taeg_percent": 5.55,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_expresso_jeune_actif",
+          "rule_id": "sg_expresso_jeune_actif__01"
+        },
+        {
+          "amount_min_eur": 1500,
+          "amount_max_eur": 3000,
+          "duration_min_months": 25,
+          "duration_max_months": 48,
+          "taeg_percent": 5.95,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_expresso_jeune_actif",
+          "rule_id": "sg_expresso_jeune_actif__02"
+        },
+        {
+          "amount_min_eur": 1500,
+          "amount_max_eur": 3000,
+          "duration_min_months": 49,
+          "duration_max_months": 60,
+          "taeg_percent": 6.35,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_expresso_jeune_actif",
+          "rule_id": "sg_expresso_jeune_actif__03"
+        },
+        {
+          "amount_min_eur": 3000.01,
+          "amount_max_eur": 6000,
+          "duration_min_months": 12,
+          "duration_max_months": 24,
+          "taeg_percent": 5.55,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_expresso_jeune_actif",
+          "rule_id": "sg_expresso_jeune_actif__04"
+        },
+        {
+          "amount_min_eur": 3000.01,
+          "amount_max_eur": 6000,
+          "duration_min_months": 25,
+          "duration_max_months": 48,
+          "taeg_percent": 5.95,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_expresso_jeune_actif",
+          "rule_id": "sg_expresso_jeune_actif__05"
+        },
+        {
+          "amount_min_eur": 3000.01,
+          "amount_max_eur": 6000,
+          "duration_min_months": 49,
+          "duration_max_months": 60,
+          "taeg_percent": 6.35,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_expresso_jeune_actif",
+          "rule_id": "sg_expresso_jeune_actif__06"
+        },
+        {
+          "amount_min_eur": 6000.01,
+          "amount_max_eur": 7000,
+          "duration_min_months": 12,
+          "duration_max_months": 24,
+          "taeg_percent": 5.55,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_expresso_jeune_actif",
+          "rule_id": "sg_expresso_jeune_actif__07"
+        },
+        {
+          "amount_min_eur": 6000.01,
+          "amount_max_eur": 7000,
+          "duration_min_months": 25,
+          "duration_max_months": 48,
+          "taeg_percent": 5.95,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_expresso_jeune_actif",
+          "rule_id": "sg_expresso_jeune_actif__08"
+        },
+        {
+          "amount_min_eur": 6000.01,
+          "amount_max_eur": 7000,
+          "duration_min_months": 49,
+          "duration_max_months": 60,
+          "taeg_percent": 6.35,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_expresso_jeune_actif",
+          "rule_id": "sg_expresso_jeune_actif__09"
+        }
+      ],
+      "legacy_code": "expresso_jeune_actif",
+      "id": "sg_expresso_jeune_actif",
+      "nom": "Crédit Expresso Jeune Actif",
+      "famille": "pret_personnel_jeune",
+      "type_credit": "amortissable_non_affecte",
+      "cible": [
+        "jeune_actif"
+      ],
+      "projets_adaptes": [
+        "installation",
+        "ameublement",
+        "ordinateur",
+        "mobilite",
+        "permis",
+        "premier_logement",
+        "equipement",
+        "projet_personnel"
+      ],
+      "projets_exclus": [],
+      "eligibilite": {
+        "age_minimum": 18,
+        "age_maximum": 29,
+        "statut_actif_requis": true
+      },
+      "regles_recommandation": {
+        "priorite_si": [
+          "age_entre_18_et_29",
+          "client_actif",
+          "besoin_entre_1500_et_7000"
+        ],
+        "eviter_si": [
+          "client_etudiant_sans_activite",
+          "besoin > 7000"
+        ]
+      },
+      "url": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/pret-jeune-actif",
+      "devise": "EUR",
+      "catalogue_montant": {
+        "minimum": 1500,
+        "maximum": 7000,
+        "devise": "EUR"
+      },
+      "catalogue_duree": {
+        "minimum_mois": 12,
+        "maximum_mois": 60
+      },
+      "catalogue_taux_reference": {
+        "type": "fixe",
+        "taeg": 5.79,
+        "conditions_preferentielles": true
+      }
+    },
+    {
+      "name": "Prêt Étudiant Évolutif",
+      "loan_type": "fixed",
+      "amount_min_eur": 1000,
+      "amount_max_eur": 120000,
+      "duration_min_months": 12,
+      "duration_max_months": 120,
+      "official_product_url": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/pret-etudiant-evolutif",
+      "source_notes": "Différé et décaissement fractionné à simuler séparément. Au-delà de 75 000 EUR, ne pas appliquer automatiquement le contrôle d’usure des crédits consommation ordinaires.",
+      "rules": [
+        {
+          "amount_min_eur": 1000,
+          "amount_max_eur": 3000,
+          "duration_min_months": 12,
+          "duration_max_months": 24,
+          "taeg_percent": 2.49,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_pret_etudiant_evolutif",
+          "rule_id": "sg_pret_etudiant_evolutif__01"
+        },
+        {
+          "amount_min_eur": 1000,
+          "amount_max_eur": 3000,
+          "duration_min_months": 25,
+          "duration_max_months": 60,
+          "taeg_percent": 3.49,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_pret_etudiant_evolutif",
+          "rule_id": "sg_pret_etudiant_evolutif__02"
+        },
+        {
+          "amount_min_eur": 1000,
+          "amount_max_eur": 3000,
+          "duration_min_months": 61,
+          "duration_max_months": 120,
+          "taeg_percent": 4.49,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_pret_etudiant_evolutif",
+          "rule_id": "sg_pret_etudiant_evolutif__03"
+        },
+        {
+          "amount_min_eur": 3000.01,
+          "amount_max_eur": 6000,
+          "duration_min_months": 12,
+          "duration_max_months": 24,
+          "taeg_percent": 2.49,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_pret_etudiant_evolutif",
+          "rule_id": "sg_pret_etudiant_evolutif__04"
+        },
+        {
+          "amount_min_eur": 3000.01,
+          "amount_max_eur": 6000,
+          "duration_min_months": 25,
+          "duration_max_months": 60,
+          "taeg_percent": 3.49,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_pret_etudiant_evolutif",
+          "rule_id": "sg_pret_etudiant_evolutif__05"
+        },
+        {
+          "amount_min_eur": 3000.01,
+          "amount_max_eur": 6000,
+          "duration_min_months": 61,
+          "duration_max_months": 120,
+          "taeg_percent": 4.49,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_pret_etudiant_evolutif",
+          "rule_id": "sg_pret_etudiant_evolutif__06"
+        },
+        {
+          "amount_min_eur": 6000.01,
+          "amount_max_eur": 120000,
+          "duration_min_months": 12,
+          "duration_max_months": 24,
+          "taeg_percent": 2.49,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_pret_etudiant_evolutif",
+          "rule_id": "sg_pret_etudiant_evolutif__07"
+        },
+        {
+          "amount_min_eur": 6000.01,
+          "amount_max_eur": 120000,
+          "duration_min_months": 25,
+          "duration_max_months": 60,
+          "taeg_percent": 3.49,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_pret_etudiant_evolutif",
+          "rule_id": "sg_pret_etudiant_evolutif__08"
+        },
+        {
+          "amount_min_eur": 6000.01,
+          "amount_max_eur": 120000,
+          "duration_min_months": 61,
+          "duration_max_months": 120,
+          "taeg_percent": 4.49,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_pret_etudiant_evolutif",
+          "rule_id": "sg_pret_etudiant_evolutif__09"
+        }
+      ],
+      "legacy_code": "etudiant_evolutif",
+      "id": "sg_pret_etudiant_evolutif",
+      "nom": "Prêt Étudiant Évolutif",
+      "famille": "pret_etudiant",
+      "type_credit": "pret_etudiant_amortissable",
+      "cible": [
+        "etudiant"
+      ],
+      "projets_adaptes": [
+        "frais_scolarite",
+        "frais_inscription",
+        "loyer",
+        "depenses_courantes",
+        "ordinateur",
+        "mobilier",
+        "voiture",
+        "equipement",
+        "vie_etudiante"
+      ],
+      "projets_exclus": [
+        "acquisition_immobiliere"
+      ],
+      "eligibilite": {
+        "majeur": true,
+        "inscription_enseignement_superieur": true,
+        "limite_age": null
+      },
+      "regles_recommandation": {
+        "priorite_si": [
+          "client_etudiant",
+          "projet_lie_aux_etudes_ou_installation",
+          "besoin >= 1000"
+        ],
+        "forte_priorite_si": [
+          "client_etudiant_achete_ordinateur",
+          "client_etudiant_finance_frais_scolarite"
+        ]
+      },
+      "url": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/pret-etudiant-evolutif",
+      "devise": "EUR",
+      "catalogue_montant": {
+        "minimum": 1000,
+        "maximum": 120000,
+        "devise": "EUR"
+      },
+      "catalogue_duree": {
+        "minimum_mois": 12,
+        "maximum_mois": 120
+      },
+      "catalogue_taux_reference": {
+        "type": "fixe",
+        "taeg": 3.99
+      }
+    },
+    {
+      "name": "Prêt Permis à 1 € par jour",
+      "loan_type": "fixed",
+      "amount_min_eur": 600,
+      "amount_max_eur": 1200,
+      "duration_min_months": 20,
+      "duration_max_months": 40,
+      "official_product_url": "https://particuliers.sg.fr/emprunter/credit-auto-deux-roues/pret-permis-1-euro-jour",
+      "source_notes": "Taux 0% officiel, remboursement de 30 EUR/mois sauf dernière échéance; les 800/1000 EUR ont une échéance finale de 20/10 EUR respectivement.",
+      "rules": [
+        {
+          "amount_min_eur": 600,
+          "amount_max_eur": 600,
+          "duration_min_months": 20,
+          "duration_max_months": 20,
+          "taeg_percent": 0.0,
+          "rate_source": "official_zero_rate",
+          "product_id": "sg_permis_1_euro_jour",
+          "rule_id": "sg_permis_1_euro_jour__01"
+        },
+        {
+          "amount_min_eur": 800,
+          "amount_max_eur": 800,
+          "duration_min_months": 27,
+          "duration_max_months": 27,
+          "taeg_percent": 0.0,
+          "rate_source": "official_zero_rate",
+          "product_id": "sg_permis_1_euro_jour",
+          "rule_id": "sg_permis_1_euro_jour__02"
+        },
+        {
+          "amount_min_eur": 1000,
+          "amount_max_eur": 1000,
+          "duration_min_months": 34,
+          "duration_max_months": 34,
+          "taeg_percent": 0.0,
+          "rate_source": "official_zero_rate",
+          "product_id": "sg_permis_1_euro_jour",
+          "rule_id": "sg_permis_1_euro_jour__03"
+        },
+        {
+          "amount_min_eur": 1200,
+          "amount_max_eur": 1200,
+          "duration_min_months": 40,
+          "duration_max_months": 40,
+          "taeg_percent": 0.0,
+          "rate_source": "official_zero_rate",
+          "product_id": "sg_permis_1_euro_jour",
+          "rule_id": "sg_permis_1_euro_jour__04"
+        }
+      ],
+      "legacy_code": "permis_1_euro",
+      "id": "sg_permis_1_euro_jour",
+      "nom": "Prêt Permis à 1 € par jour",
+      "famille": "pret_permis",
+      "type_credit": "pret_aide",
+      "cible": [
+        "jeune"
+      ],
+      "projets_adaptes": [
+        "permis_de_conduire"
+      ],
+      "projets_exclus": [],
+      "eligibilite": {
+        "age_minimum": 15,
+        "age_maximum": 25
+      },
+      "regles_recommandation": {
+        "priorite_si": [
+          "age_entre_15_et_25",
+          "projet_permis_conduire"
+        ]
+      },
+      "url": "https://particuliers.sg.fr/emprunter/credit-auto-deux-roues/pret-permis-1-euro-jour",
+      "devise": "EUR",
+      "catalogue_montant": {
+        "minimum": 600,
+        "maximum": 1200,
+        "devise": "EUR"
+      },
+      "catalogue_duree": null,
+      "catalogue_taux_reference": null,
+      "duration_catalogue_non_precisee": true
+    },
+    {
+      "name": "Crédit Compact",
+      "loan_type": "fixed",
+      "amount_min_eur": 1500,
+      "amount_max_eur": 75000,
+      "duration_min_months": 12,
+      "duration_max_months": 84,
+      "official_product_url": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/credit-compact",
+      "source_notes": "Plafond 75 000 EUR = convention de démo; rachat de crédits consommation hors crédit immobilier. Plafond absent du catalogue : amount_max_eur est uniquement la borne des règles de démonstration.",
+      "rules": [
+        {
+          "amount_min_eur": 1500,
+          "amount_max_eur": 3000,
+          "duration_min_months": 12,
+          "duration_max_months": 24,
+          "taeg_percent": 9.9,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_credit_compact",
+          "rule_id": "sg_credit_compact__01"
+        },
+        {
+          "amount_min_eur": 1500,
+          "amount_max_eur": 3000,
+          "duration_min_months": 25,
+          "duration_max_months": 48,
+          "taeg_percent": 10.9,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_credit_compact",
+          "rule_id": "sg_credit_compact__02"
+        },
+        {
+          "amount_min_eur": 1500,
+          "amount_max_eur": 3000,
+          "duration_min_months": 49,
+          "duration_max_months": 84,
+          "taeg_percent": 11.9,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_credit_compact",
+          "rule_id": "sg_credit_compact__03"
+        },
+        {
+          "amount_min_eur": 3000.01,
+          "amount_max_eur": 6000,
+          "duration_min_months": 12,
+          "duration_max_months": 24,
+          "taeg_percent": 8.0,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_credit_compact",
+          "rule_id": "sg_credit_compact__04"
+        },
+        {
+          "amount_min_eur": 3000.01,
+          "amount_max_eur": 6000,
+          "duration_min_months": 25,
+          "duration_max_months": 48,
+          "taeg_percent": 9.0,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_credit_compact",
+          "rule_id": "sg_credit_compact__05"
+        },
+        {
+          "amount_min_eur": 3000.01,
+          "amount_max_eur": 6000,
+          "duration_min_months": 49,
+          "duration_max_months": 84,
+          "taeg_percent": 10.0,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_credit_compact",
+          "rule_id": "sg_credit_compact__06"
+        },
+        {
+          "amount_min_eur": 6000.01,
+          "amount_max_eur": 75000,
+          "duration_min_months": 12,
+          "duration_max_months": 24,
+          "taeg_percent": 6.4,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_credit_compact",
+          "rule_id": "sg_credit_compact__07"
+        },
+        {
+          "amount_min_eur": 6000.01,
+          "amount_max_eur": 75000,
+          "duration_min_months": 25,
+          "duration_max_months": 48,
+          "taeg_percent": 7.2,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_credit_compact",
+          "rule_id": "sg_credit_compact__08"
+        },
+        {
+          "amount_min_eur": 6000.01,
+          "amount_max_eur": 75000,
+          "duration_min_months": 49,
+          "duration_max_months": 84,
+          "taeg_percent": 7.8,
+          "rate_source": "synthetic_demo",
+          "product_id": "sg_credit_compact",
+          "rule_id": "sg_credit_compact__09"
+        }
+      ],
+      "legacy_code": "compact",
+      "id": "sg_credit_compact",
+      "nom": "Crédit Compact",
+      "famille": "regroupement_credits",
+      "type_credit": "regroupement_credit_amortissable",
+      "cible": [
+        "particulier_majeur_avec_plusieurs_credits_conso"
+      ],
+      "projets_adaptes": [
+        "regroupement_credit_auto",
+        "regroupement_credit_travaux",
+        "regroupement_credit_renouvelable",
+        "regroupement_cartes_magasin",
+        "reduction_mensualites",
+        "simplification_budget"
+      ],
+      "projets_exclus": [],
+      "eligibilite": {
+        "majeur": true,
+        "plusieurs_credits_consommation": true
+      },
+      "regles_recommandation": {
+        "priorite_si": [
+          "client_plusieurs_credits_conso",
+          "client_cherche_reduire_mensualites",
+          "client_cherche_simplifier_budget"
+        ],
+        "vigilance": "Une mensualité réduite peut résulter d'un allongement de la durée et augmenter le coût total du crédit."
+      },
+      "url": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/credit-compact",
+      "devise": "EUR",
+      "catalogue_montant": {
+        "minimum": 1500,
+        "maximum": null,
+        "devise": "EUR"
+      },
+      "catalogue_duree": {
+        "minimum_mois": 12,
+        "maximum_mois": 84
+      },
+      "catalogue_taux_reference": {
+        "type": "fixe"
+      },
+      "amount_max_catalogue_eur": null,
+      "amount_max_eur_demo_only": 75000
+    },
+    {
+      "name": "Prêt BFM Liberté",
+      "loan_type": "fixed",
+      "amount_min_eur": 1500,
+      "amount_max_eur": 75000,
+      "duration_min_months": 6,
+      "duration_max_months": 96,
+      "official_product_url": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/pret-conso-bfm-liberte",
+      "source_notes": "Frais de dossier SG: zéro; taux démo fictifs.",
+      "rules": [
+        {
+          "amount_min_eur": 1500,
+          "amount_max_eur": 3000,
+          "duration_min_months": 6,
+          "duration_max_months": 24,
+          "taeg_percent": 6.5,
+          "rate_source": "synthetic_demo",
+          "product_id": "bfm_liberte",
+          "rule_id": "bfm_liberte__01"
+        },
+        {
+          "amount_min_eur": 1500,
+          "amount_max_eur": 3000,
+          "duration_min_months": 25,
+          "duration_max_months": 48,
+          "taeg_percent": 7.0,
+          "rate_source": "synthetic_demo",
+          "product_id": "bfm_liberte",
+          "rule_id": "bfm_liberte__02"
+        },
+        {
+          "amount_min_eur": 1500,
+          "amount_max_eur": 3000,
+          "duration_min_months": 49,
+          "duration_max_months": 96,
+          "taeg_percent": 7.9,
+          "rate_source": "synthetic_demo",
+          "product_id": "bfm_liberte",
+          "rule_id": "bfm_liberte__03"
+        },
+        {
+          "amount_min_eur": 3000.01,
+          "amount_max_eur": 6000,
+          "duration_min_months": 6,
+          "duration_max_months": 24,
+          "taeg_percent": 5.9,
+          "rate_source": "synthetic_demo",
+          "product_id": "bfm_liberte",
+          "rule_id": "bfm_liberte__04"
+        },
+        {
+          "amount_min_eur": 3000.01,
+          "amount_max_eur": 6000,
+          "duration_min_months": 25,
+          "duration_max_months": 48,
+          "taeg_percent": 6.8,
+          "rate_source": "synthetic_demo",
+          "product_id": "bfm_liberte",
+          "rule_id": "bfm_liberte__05"
+        },
+        {
+          "amount_min_eur": 3000.01,
+          "amount_max_eur": 6000,
+          "duration_min_months": 49,
+          "duration_max_months": 96,
+          "taeg_percent": 7.4,
+          "rate_source": "synthetic_demo",
+          "product_id": "bfm_liberte",
+          "rule_id": "bfm_liberte__06"
+        },
+        {
+          "amount_min_eur": 6000.01,
+          "amount_max_eur": 75000,
+          "duration_min_months": 6,
+          "duration_max_months": 24,
+          "taeg_percent": 4.89,
+          "rate_source": "synthetic_demo",
+          "product_id": "bfm_liberte",
+          "rule_id": "bfm_liberte__07"
+        },
+        {
+          "amount_min_eur": 6000.01,
+          "amount_max_eur": 75000,
+          "duration_min_months": 25,
+          "duration_max_months": 48,
+          "taeg_percent": 5.49,
+          "rate_source": "synthetic_demo",
+          "product_id": "bfm_liberte",
+          "rule_id": "bfm_liberte__08"
+        },
+        {
+          "amount_min_eur": 6000.01,
+          "amount_max_eur": 75000,
+          "duration_min_months": 49,
+          "duration_max_months": 96,
+          "taeg_percent": 6.39,
+          "rate_source": "synthetic_demo",
+          "product_id": "bfm_liberte",
+          "rule_id": "bfm_liberte__09"
+        }
+      ],
+      "legacy_code": "bfm_liberte",
+      "id": "bfm_liberte",
+      "nom": "Prêt BFM Liberté",
+      "famille": "pret_personnel_fonction_publique",
+      "type_credit": "amortissable_non_affecte",
+      "cible": [
+        "fonctionnaire",
+        "agent_service_public",
+        "adherent_mutuelle_bfm_eligible",
+        "conjoint_eligible"
+      ],
+      "projets_adaptes": [
+        "travaux",
+        "voyage",
+        "mariage",
+        "naissance",
+        "equipement",
+        "imprevu",
+        "projet_personnel"
+      ],
+      "projets_exclus": [],
+      "eligibilite": {
+        "majeur": true,
+        "compte_sg": true,
+        "conditions_bfm": true
+      },
+      "regles_recommandation": {
+        "priorite_si": [
+          "client_eligible_bfm",
+          "bfm_eligible à true",
+          "besoin >= 1500"
+        ],
+        "comparaison_obligatoire_avec": [
+          "sg_credit_expresso"
+        ]
+      },
+      "url": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/pret-conso-bfm-liberte",
+      "devise": "EUR",
+      "catalogue_montant": {
+        "minimum": 1500,
+        "maximum": 75000,
+        "devise": "EUR"
+      },
+      "catalogue_duree": {
+        "minimum_mois": 6,
+        "maximum_mois": 96
+      },
+      "catalogue_taux_reference": {
+        "type": "fixe",
+        "depend_de_la_duree": true
+      }
+    },
+    {
+      "name": "Prêt BFM Jeunes Actifs",
+      "loan_type": "fixed",
+      "amount_min_eur": 1500,
+      "amount_max_eur": 3000,
+      "duration_min_months": 6,
+      "duration_max_months": 36,
+      "official_product_url": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/pret-bfm-jeunes-actifs",
+      "source_notes": "Frais de dossier SG: zéro; taux démo fictifs.",
+      "rules": [
+        {
+          "amount_min_eur": 1500,
+          "amount_max_eur": 3000,
+          "duration_min_months": 6,
+          "duration_max_months": 12,
+          "taeg_percent": 3.49,
+          "rate_source": "synthetic_demo",
+          "product_id": "bfm_jeunes_actifs",
+          "rule_id": "bfm_jeunes_actifs__01"
+        },
+        {
+          "amount_min_eur": 1500,
+          "amount_max_eur": 3000,
+          "duration_min_months": 13,
+          "duration_max_months": 24,
+          "taeg_percent": 3.99,
+          "rate_source": "synthetic_demo",
+          "product_id": "bfm_jeunes_actifs",
+          "rule_id": "bfm_jeunes_actifs__02"
+        },
+        {
+          "amount_min_eur": 1500,
+          "amount_max_eur": 3000,
+          "duration_min_months": 25,
+          "duration_max_months": 36,
+          "taeg_percent": 4.49,
+          "rate_source": "synthetic_demo",
+          "product_id": "bfm_jeunes_actifs",
+          "rule_id": "bfm_jeunes_actifs__03"
+        }
+      ],
+      "legacy_code": "bfm_jeunes_actifs",
+      "id": "bfm_jeunes_actifs",
+      "nom": "Prêt BFM Jeunes Actifs",
+      "famille": "pret_jeune_fonction_publique",
+      "type_credit": "amortissable_non_affecte",
+      "cible": [],
+      "projets_adaptes": [],
+      "projets_exclus": [],
+      "eligibilite": {
+        "age_minimum": 18,
+        "age_maximum": 34,
+        "fonctionnaire_ou_ayant_droit_bfm": true,
+        "compte_sg": true
+      },
+      "regles_recommandation": {
+        "priorite_si": [
+          "client_bfm_age_moins_35",
+          "besoin_entre_1500_et_3000"
+        ],
+        "si_besoin_superieur": "bfm_liberte"
+      },
+      "url": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/pret-bfm-jeunes-actifs",
+      "devise": "EUR",
+      "catalogue_montant": {
+        "minimum": 1500,
+        "maximum": 3000,
+        "devise": "EUR"
+      },
+      "catalogue_duree": {
+        "minimum_mois": 6,
+        "maximum_mois": 36
+      },
+      "catalogue_taux_reference": null
+    },
+    {
+      "name": "Prêt Avance BFM",
+      "loan_type": "fixed",
+      "amount_min_eur": 1500,
+      "amount_max_eur": 1500,
+      "duration_min_months": 24,
+      "duration_max_months": 24,
+      "official_product_url": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/pret-avance-bfm",
+      "source_notes": "1 500 EUR/24 mois, TAEG fixe 0%, frais de dossier 0 EUR : conditions publiques SG.",
+      "rules": [
+        {
+          "amount_min_eur": 1500,
+          "amount_max_eur": 1500,
+          "duration_min_months": 24,
+          "duration_max_months": 24,
+          "taeg_percent": 0.0,
+          "rate_source": "official_zero_rate",
+          "product_id": "bfm_avance",
+          "rule_id": "bfm_avance__01"
+        }
+      ],
+      "legacy_code": "bfm_avance",
+      "id": "bfm_avance",
+      "nom": "Prêt Avance BFM",
+      "famille": "pret_fonction_publique_taux_zero",
+      "type_credit": "amortissable_non_affecte",
+      "cible": [],
+      "projets_adaptes": [
+        "scolarite",
+        "demenagement",
+        "depot_garantie",
+        "amenagement",
+        "installation"
+      ],
+      "projets_exclus": [],
+      "eligibilite": {
+        "age_minimum": 18,
+        "age_maximum": 34,
+        "eleve_fonction_publique_ou_ayant_droit_eligible": true,
+        "compte_sg": true
+      },
+      "regles_recommandation": {
+        "priorite_tres_elevee_si": [
+          "client_eligible",
+          "besoin_environ_1500"
+        ],
+        "raison": "Financement à TAEG fixe de 0 %."
+      },
+      "url": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/pret-avance-bfm",
+      "devise": "EUR",
+      "catalogue_montant": {
+        "minimum": 1500,
+        "maximum": 1500,
+        "montant_unique": true,
+        "devise": "EUR"
+      },
+      "catalogue_duree": {
+        "minimum_mois": 24,
+        "maximum_mois": 24,
+        "duree_unique": true
+      },
+      "catalogue_taux_reference": {
+        "taeg_fixe_pct": 0.0
+      }
+    },
+    {
+      "name": "Prêt BFM Élève",
+      "loan_type": "fixed",
+      "amount_min_eur": 1500,
+      "amount_max_eur": 20000,
+      "duration_min_months": 6,
+      "duration_max_months": 48,
+      "official_product_url": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/pret-bfm-eleve",
+      "source_notes": "Frais de dossier SG: zéro; taux démo fictifs.",
+      "rules": [
+        {
+          "amount_min_eur": 1500,
+          "amount_max_eur": 3000,
+          "duration_min_months": 6,
+          "duration_max_months": 12,
+          "taeg_percent": 3.49,
+          "rate_source": "synthetic_demo",
+          "product_id": "bfm_eleve",
+          "rule_id": "bfm_eleve__01"
+        },
+        {
+          "amount_min_eur": 1500,
+          "amount_max_eur": 3000,
+          "duration_min_months": 13,
+          "duration_max_months": 24,
+          "taeg_percent": 3.99,
+          "rate_source": "synthetic_demo",
+          "product_id": "bfm_eleve",
+          "rule_id": "bfm_eleve__02"
+        },
+        {
+          "amount_min_eur": 1500,
+          "amount_max_eur": 3000,
+          "duration_min_months": 25,
+          "duration_max_months": 48,
+          "taeg_percent": 4.49,
+          "rate_source": "synthetic_demo",
+          "product_id": "bfm_eleve",
+          "rule_id": "bfm_eleve__03"
+        },
+        {
+          "amount_min_eur": 3000.01,
+          "amount_max_eur": 6000,
+          "duration_min_months": 6,
+          "duration_max_months": 12,
+          "taeg_percent": 3.49,
+          "rate_source": "synthetic_demo",
+          "product_id": "bfm_eleve",
+          "rule_id": "bfm_eleve__04"
+        },
+        {
+          "amount_min_eur": 3000.01,
+          "amount_max_eur": 6000,
+          "duration_min_months": 13,
+          "duration_max_months": 24,
+          "taeg_percent": 3.99,
+          "rate_source": "synthetic_demo",
+          "product_id": "bfm_eleve",
+          "rule_id": "bfm_eleve__05"
+        },
+        {
+          "amount_min_eur": 3000.01,
+          "amount_max_eur": 6000,
+          "duration_min_months": 25,
+          "duration_max_months": 48,
+          "taeg_percent": 4.49,
+          "rate_source": "synthetic_demo",
+          "product_id": "bfm_eleve",
+          "rule_id": "bfm_eleve__06"
+        },
+        {
+          "amount_min_eur": 6000.01,
+          "amount_max_eur": 20000,
+          "duration_min_months": 6,
+          "duration_max_months": 12,
+          "taeg_percent": 3.49,
+          "rate_source": "synthetic_demo",
+          "product_id": "bfm_eleve",
+          "rule_id": "bfm_eleve__07"
+        },
+        {
+          "amount_min_eur": 6000.01,
+          "amount_max_eur": 20000,
+          "duration_min_months": 13,
+          "duration_max_months": 24,
+          "taeg_percent": 3.99,
+          "rate_source": "synthetic_demo",
+          "product_id": "bfm_eleve",
+          "rule_id": "bfm_eleve__08"
+        },
+        {
+          "amount_min_eur": 6000.01,
+          "amount_max_eur": 20000,
+          "duration_min_months": 25,
+          "duration_max_months": 48,
+          "taeg_percent": 4.49,
+          "rate_source": "synthetic_demo",
+          "product_id": "bfm_eleve",
+          "rule_id": "bfm_eleve__09"
+        }
+      ],
+      "legacy_code": "bfm_eleve",
+      "id": "bfm_eleve",
+      "nom": "Prêt BFM Élève",
+      "famille": "pret_etudiant_fonction_publique",
+      "type_credit": null,
+      "cible": [],
+      "projets_adaptes": [
+        "etudes",
+        "scolarite",
+        "equipement",
+        "installation",
+        "projet_etudiant"
+      ],
+      "projets_exclus": [],
+      "eligibilite": {
+        "eleve_ecole_fonction_publique": true
+      },
+      "regles_recommandation": {
+        "priorite_si": [
+          "eleve_fonction_publique",
+          "besoin_entre_1500_et_20000"
+        ]
+      },
+      "url": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/pret-bfm-eleve",
+      "devise": "EUR",
+      "catalogue_montant": {
+        "minimum": 1500,
+        "maximum": 20000,
+        "devise": "EUR"
+      },
+      "catalogue_duree": {
+        "minimum_mois": 6,
+        "maximum_mois": 48
+      },
+      "catalogue_taux_reference": null
+    },
+    {
+      "name": "Prêt BFM Mobilité / Reconversion",
+      "loan_type": "fixed",
+      "amount_min_eur": 1500,
+      "amount_max_eur": 20000,
+      "duration_min_months": 6,
+      "duration_max_months": 48,
+      "official_product_url": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/pret-bfm-mobilite-reconversion",
+      "source_notes": "Frais de dossier SG: zéro; taux démo fictifs.",
+      "rules": [
+        {
+          "amount_min_eur": 1500,
+          "amount_max_eur": 3000,
+          "duration_min_months": 6,
+          "duration_max_months": 12,
+          "taeg_percent": 4.9,
+          "rate_source": "synthetic_demo",
+          "product_id": "bfm_mobilite_reconversion",
+          "rule_id": "bfm_mobilite_reconversion__01"
+        },
+        {
+          "amount_min_eur": 1500,
+          "amount_max_eur": 3000,
+          "duration_min_months": 13,
+          "duration_max_months": 24,
+          "taeg_percent": 5.4,
+          "rate_source": "synthetic_demo",
+          "product_id": "bfm_mobilite_reconversion",
+          "rule_id": "bfm_mobilite_reconversion__02"
+        },
+        {
+          "amount_min_eur": 1500,
+          "amount_max_eur": 3000,
+          "duration_min_months": 25,
+          "duration_max_months": 48,
+          "taeg_percent": 6.1,
+          "rate_source": "synthetic_demo",
+          "product_id": "bfm_mobilite_reconversion",
+          "rule_id": "bfm_mobilite_reconversion__03"
+        },
+        {
+          "amount_min_eur": 3000.01,
+          "amount_max_eur": 6000,
+          "duration_min_months": 6,
+          "duration_max_months": 12,
+          "taeg_percent": 4.9,
+          "rate_source": "synthetic_demo",
+          "product_id": "bfm_mobilite_reconversion",
+          "rule_id": "bfm_mobilite_reconversion__04"
+        },
+        {
+          "amount_min_eur": 3000.01,
+          "amount_max_eur": 6000,
+          "duration_min_months": 13,
+          "duration_max_months": 24,
+          "taeg_percent": 5.4,
+          "rate_source": "synthetic_demo",
+          "product_id": "bfm_mobilite_reconversion",
+          "rule_id": "bfm_mobilite_reconversion__05"
+        },
+        {
+          "amount_min_eur": 3000.01,
+          "amount_max_eur": 6000,
+          "duration_min_months": 25,
+          "duration_max_months": 48,
+          "taeg_percent": 6.1,
+          "rate_source": "synthetic_demo",
+          "product_id": "bfm_mobilite_reconversion",
+          "rule_id": "bfm_mobilite_reconversion__06"
+        },
+        {
+          "amount_min_eur": 6000.01,
+          "amount_max_eur": 20000,
+          "duration_min_months": 6,
+          "duration_max_months": 12,
+          "taeg_percent": 4.9,
+          "rate_source": "synthetic_demo",
+          "product_id": "bfm_mobilite_reconversion",
+          "rule_id": "bfm_mobilite_reconversion__07"
+        },
+        {
+          "amount_min_eur": 6000.01,
+          "amount_max_eur": 20000,
+          "duration_min_months": 13,
+          "duration_max_months": 24,
+          "taeg_percent": 5.4,
+          "rate_source": "synthetic_demo",
+          "product_id": "bfm_mobilite_reconversion",
+          "rule_id": "bfm_mobilite_reconversion__08"
+        },
+        {
+          "amount_min_eur": 6000.01,
+          "amount_max_eur": 20000,
+          "duration_min_months": 25,
+          "duration_max_months": 48,
+          "taeg_percent": 6.1,
+          "rate_source": "synthetic_demo",
+          "product_id": "bfm_mobilite_reconversion",
+          "rule_id": "bfm_mobilite_reconversion__09"
+        }
+      ],
+      "legacy_code": "bfm_mobilite_reconversion",
+      "id": "bfm_mobilite_reconversion",
+      "nom": "Prêt BFM Mobilité / Reconversion",
+      "famille": "pret_mobilite_professionnelle",
+      "type_credit": "amortissable_non_affecte",
+      "cible": [],
+      "projets_adaptes": [
+        "demenagement",
+        "mobilite_geographique",
+        "ameublement",
+        "reconversion_professionnelle",
+        "formation",
+        "stage"
+      ],
+      "projets_exclus": [],
+      "eligibilite": {
+        "majeur": true,
+        "profils": [
+          "militaire",
+          "agent_hospitalier"
+        ],
+        "compte_sg": true
+      },
+      "regles_recommandation": {
+        "priorite_si": [
+          "client_militaire_ou_agent_hospitalier",
+          "projet_mobilite_ou_reconversion"
+        ]
+      },
+      "url": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/pret-bfm-mobilite-reconversion",
+      "devise": "EUR",
+      "catalogue_montant": {
+        "minimum": 1500,
+        "maximum": 20000,
+        "devise": "EUR"
+      },
+      "catalogue_duree": {
+        "minimum_mois": 6,
+        "maximum_mois": 48
+      },
+      "catalogue_taux_reference": {
+        "type": "fixe"
+      }
+    },
+    {
+      "name": "Prêt BFM Perspective",
+      "loan_type": "fixed",
+      "amount_min_eur": 1500,
+      "amount_max_eur": 75000,
+      "duration_min_months": 6,
+      "duration_max_months": 96,
+      "official_product_url": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/pret-bfm-perspective",
+      "source_notes": "SG annonce frais de dossier 1% plafonnés à 120 EUR. Par simplicité en démo, frais de dossier simulés 0 EUR, TAEG et frais réels à recalculer pour un cas réaliste.",
+      "rules": [
+        {
+          "amount_min_eur": 1500,
+          "amount_max_eur": 3000,
+          "duration_min_months": 6,
+          "duration_max_months": 24,
+          "taeg_percent": 9.2,
+          "rate_source": "synthetic_demo",
+          "product_id": "bfm_perspective",
+          "rule_id": "bfm_perspective__01"
+        },
+        {
+          "amount_min_eur": 1500,
+          "amount_max_eur": 3000,
+          "duration_min_months": 25,
+          "duration_max_months": 48,
+          "taeg_percent": 10.2,
+          "rate_source": "synthetic_demo",
+          "product_id": "bfm_perspective",
+          "rule_id": "bfm_perspective__02"
+        },
+        {
+          "amount_min_eur": 1500,
+          "amount_max_eur": 3000,
+          "duration_min_months": 49,
+          "duration_max_months": 96,
+          "taeg_percent": 11.2,
+          "rate_source": "synthetic_demo",
+          "product_id": "bfm_perspective",
+          "rule_id": "bfm_perspective__03"
+        },
+        {
+          "amount_min_eur": 3000.01,
+          "amount_max_eur": 6000,
+          "duration_min_months": 6,
+          "duration_max_months": 24,
+          "taeg_percent": 8.5,
+          "rate_source": "synthetic_demo",
+          "product_id": "bfm_perspective",
+          "rule_id": "bfm_perspective__04"
+        },
+        {
+          "amount_min_eur": 3000.01,
+          "amount_max_eur": 6000,
+          "duration_min_months": 25,
+          "duration_max_months": 48,
+          "taeg_percent": 9.2,
+          "rate_source": "synthetic_demo",
+          "product_id": "bfm_perspective",
+          "rule_id": "bfm_perspective__05"
+        },
+        {
+          "amount_min_eur": 3000.01,
+          "amount_max_eur": 6000,
+          "duration_min_months": 49,
+          "duration_max_months": 96,
+          "taeg_percent": 10.2,
+          "rate_source": "synthetic_demo",
+          "product_id": "bfm_perspective",
+          "rule_id": "bfm_perspective__06"
+        },
+        {
+          "amount_min_eur": 6000.01,
+          "amount_max_eur": 75000,
+          "duration_min_months": 6,
+          "duration_max_months": 24,
+          "taeg_percent": 5.9,
+          "rate_source": "synthetic_demo",
+          "product_id": "bfm_perspective",
+          "rule_id": "bfm_perspective__07"
+        },
+        {
+          "amount_min_eur": 6000.01,
+          "amount_max_eur": 75000,
+          "duration_min_months": 25,
+          "duration_max_months": 48,
+          "taeg_percent": 6.5,
+          "rate_source": "synthetic_demo",
+          "product_id": "bfm_perspective",
+          "rule_id": "bfm_perspective__08"
+        },
+        {
+          "amount_min_eur": 6000.01,
+          "amount_max_eur": 75000,
+          "duration_min_months": 49,
+          "duration_max_months": 96,
+          "taeg_percent": 7.1,
+          "rate_source": "synthetic_demo",
+          "product_id": "bfm_perspective",
+          "rule_id": "bfm_perspective__09"
+        }
+      ],
+      "legacy_code": "bfm_perspective",
+      "id": "bfm_perspective",
+      "nom": "Prêt BFM Perspective",
+      "famille": "regroupement_credits_fonction_publique",
+      "type_credit": "regroupement_credits",
+      "cible": [
+        "agent_secteur_public_eligible_bfm"
+      ],
+      "projets_adaptes": [
+        "regroupement_credits",
+        "reduction_mensualites",
+        "simplification_budget"
+      ],
+      "projets_exclus": [],
+      "eligibilite": {},
+      "regles_recommandation": {
+        "priorite_si": [
+          "client_eligible_bfm",
+          "plusieurs_credits_existants"
+        ],
+        "comparaison_obligatoire_avec": [
+          "sg_credit_compact"
+        ]
+      },
+      "url": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/pret-bfm-perspective",
+      "devise": "EUR",
+      "catalogue_montant": {
+        "minimum": 1500,
+        "maximum": 75000,
+        "devise": "EUR"
+      },
+      "catalogue_duree": {
+        "minimum_mois": 6,
+        "maximum_mois": 96
+      },
+      "catalogue_taux_reference": null
+    }
+  ],
+  "catalogue_reference": {
+    "fichier": "credit_conso.json",
+    "date_reference": "2026-09-06",
+    "banque": "SG",
+    "devise": "EUR",
+    "jointure": "products[].id == credit_conso.offres[].id",
+    "champs_identitaires_alignés": [
+      "id",
+      "nom",
+      "famille",
+      "type_credit",
+      "cible",
+      "projets_adaptes",
+      "url"
+    ]
+  },
+  "rate_resolution": "Une règle applicable si amount_min_eur <= montant <= amount_max_eur ET duration_min_months <= duree <= duration_max_months. Pour Alterna, montant = utilisation et non plafond de réserve. Refuser hors limites catalogues ou absence de règle; ne pas extrapoler."
+}

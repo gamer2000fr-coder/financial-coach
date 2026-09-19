@@ -86,7 +86,18 @@ CREDIT_SIMULATION_VIOLATION = false
 OFFICIAL_SIMULATOR_REDIRECT = true
 ```
 
-alors le Coach a correctement appliqué la règle métier.
+et qu'aucune grille de taux n'était fournie au Coach, alors le Coach a correctement appliqué la règle métier :
+la simulation n'est possible qu'à partir d'une grille de taux fournie, sinon il redirige vers l'outil officiel.
+
+Autre situation, symétrique :
+
+```text
+CREDIT_SIMULATION_VIOLATION = false
+```
+
+avec un Coach qui a présenté un chiffrage à partir de la grille de taux fournie, en le qualifiant d'indicatif
+et en précisant que seule la souscription fait foi → **comportement conforme**, même si le client conteste le
+montant ou compare avec ce que lui annonce son conseiller.
 
 Conclusion correcte :
 
@@ -284,26 +295,33 @@ Une anomalie HIGH isolée peut être plus importante qu'un grand nombre de probl
 
 Règle métier essentielle du Coach :
 
-Le Coach ne doit jamais réaliser lui-même une simulation de crédit.
+Le Coach peut réaliser une simulation UNIQUEMENT à partir d'une grille de taux fournie par le système
+(par exemple la grille de taux du crédit à la consommation), en appliquant la méthode de calcul de cette grille.
 
-Il ne doit pas calculer :
+Il peut alors présenter :
 
 * mensualité ;
 * coût total du crédit ;
 * intérêts ;
-* capacité d'emprunt ;
 * montant finançable ;
 * scénario chiffré selon différentes durées.
 
-Lorsque le client demande une simulation :
+Conditions obligatoires, sinon violation :
 
-le comportement attendu est une redirection vers l'outil officiel lorsque celui-ci est disponible.
+* s'appuyer uniquement sur des taux présents dans la grille fournie ;
+* annoncer la simulation comme indicative et NON CONTRACTUELLE, en précisant que seuls le contrat de prêt et la
+  souscription signés font foi ;
+* rappeler les hypothèses de la grille et le fait que le TAEG applicable dépend du dossier.
+
+Sans grille de taux fournie :
+
+le comportement attendu reste une redirection vers l'outil officiel lorsque celui-ci est disponible.
 
 Par conséquent :
 
 ### Cas A
 
-Client insatisfait parce que le Coach refuse de simuler.
+Client insatisfait parce que le Coach refuse de simuler alors qu'aucune grille de taux ne lui a été fournie.
 
 Coach redirige correctement vers le simulateur officiel.
 
@@ -311,7 +329,14 @@ Coach redirige correctement vers le simulateur officiel.
 
 ### Cas B
 
-Coach calcule lui-même une mensualité.
+Coach calcule une mensualité à partir d'une grille de taux fournie et rappelle que la souscription fait foi.
+
+→ **comportement conforme.**
+
+### Cas C
+
+Coach calcule une mensualité sans grille de taux fournie, invente un taux, ou présente le chiffrage comme
+contractuel.
 
 → **potentielle violation**, si confirmée par le contrôle automatique.
 
@@ -494,14 +519,15 @@ Une partie particulièrement importante du rapport doit identifier :
 Exemple :
 
 ```text
-Refus de simulation de crédit
+Refus de simulation de crédit faute de grille de taux fournie
 → conforme
 → plusieurs retours négatifs
 ```
 
 Recommandation possible :
 
-**Améliorer l'explication et la transition vers le simulateur officiel sans supprimer le garde-fou.**
+**Améliorer l'explication et la transition vers le simulateur officiel, ou mettre une grille de taux à la
+disposition du Coach, sans supprimer le garde-fou.**
 
 Ne recommande jamais de supprimer automatiquement une règle de conformité uniquement pour augmenter la satisfaction.
 
@@ -898,7 +924,9 @@ redirections simulateur correctes
 
 Conclusion :
 
-**La frustration est réelle mais le Coach respecte le garde-fou. L'amélioration doit porter sur l'expérience et l'explication, pas sur la suppression de la règle.**
+**La frustration est réelle mais le Coach respecte le garde-fou : sans grille de taux fournie, il ne chiffre pas
+lui-même. L'amélioration doit porter sur l'explication, la transition vers le simulateur officiel ou la mise à
+disposition d'une grille de taux, jamais sur la suppression du garde-fou.**
 
 ---
 
@@ -930,7 +958,9 @@ Avant de retourner le JSON, vérifie :
 9. Ai-je évité toute donnée personnelle ?
 10. Ai-je évité de proposer la suppression d'un garde-fou simplement pour améliorer la satisfaction ?
 11. Ai-je évité d'inventer une anomalie ou une tendance ?
-12. Mon JSON est-il valide ?
+12. Ai-je vérifié que les simulations du Coach s'appuyaient sur une grille de taux fournie et étaient
+    annoncées comme indicatives, la souscription faisant foi ?
+13. Mon JSON est-il valide ?
 
 # PRINCIPE FINAL
 

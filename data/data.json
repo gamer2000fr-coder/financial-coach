@@ -16,6 +16,10 @@
     "description": "Crédit consommation"
   },
   {
+    "path": "/data/catalogue/taux/grilles_taux_credit_conso.json",
+    "description": "Grille de taux de crédit consommation"
+  },
+  {
     "path": "/data/catalogue/credit_immo.json",
     "description": "Crédit immobilier"
   },

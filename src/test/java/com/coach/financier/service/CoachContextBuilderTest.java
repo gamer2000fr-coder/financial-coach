@@ -104,6 +104,33 @@ class CoachContextBuilderTest {
         assertTrue(ctx.debug().contains("[COACH]"));
     }
 
+    /**
+     * Délai de mise à disposition des fonds : il vient du CATALOGUE, il est transmis au Coach quand il est
+     * renseigné, et il est ABSENT quand le catalogue ne le documente pas — jamais de délai inventé.
+     */
+    @Test
+    void theFundAvailabilityDelayIsForwardedOnlyWhenTheCatalogueDocumentsIt() {
+        IntentClassification c = classification(FinancialIntent.FINANCING_REQUEST, ProjectType.VEHICLE,
+                new BigDecimal("15000"));
+
+        CoachContext ctx = builder.build("Je veux financer une voiture", c, project(c), List.of());
+
+        Map<String, Object> expresso = compactProduct(ctx, "sg_credit_expresso");
+        Map<String, Object> auto = compactProduct(ctx, "sg_credit_auto_expresso");
+
+        assertEquals(Map.of("minDays", 8), expresso.get("fundAvailabilityDelay"),
+                "le délai documenté (fonds.delai_minimum_jours = 8) est transmis au Coach");
+        assertFalse(auto.containsKey("fundAvailabilityDelay"),
+                "aucun délai inventé pour un produit qui n'en documente pas");
+    }
+
+    private static Map<String, Object> compactProduct(CoachContext ctx, String productId) {
+        return ctx.compatibleProducts().stream()
+                .filter(product -> productId.equals(product.get("id")))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Produit absent du contexte : " + productId));
+    }
+
     /** Chemins réellement MONTRÉS à l'IA (le catalogue envoyé est une liste de {path, description}). */
     private static Set<String> catalogPaths(CoachContext ctx) {
         Set<String> paths = new LinkedHashSet<>();

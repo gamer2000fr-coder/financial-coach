@@ -19,8 +19,8 @@ import java.util.UUID;
  * l'index) : rejouer la génération ne crée jamais de doublon grâce à l'idempotence des stores.
  * <p>
  * Le jeu reproduit volontairement les cas intéressants du croisement satisfaction × conformité :
- * des clients insatisfaits alors que le Coach est CONFORME (frustration liée au refus de simuler un
- * crédit) et quelques anomalies réelles côté Coach.
+ * des clients insatisfaits alors que le Coach est CONFORME (chiffrage de crédit attendu mais non réalisé
+ * alors que la grille de taux était disponible) et quelques anomalies réelles côté Coach.
  */
 @Service
 public class QualityDemoDataService {
@@ -147,11 +147,11 @@ public class QualityDemoDataService {
 
     private static String negativeComment(int index, boolean realCreditViolation) {
         if (realCreditViolation) {
-            return "Le Coach m'a donné un montant de mensualité que je n'ai pas pu vérifier.";
+            return "Le Coach m'a annoncé une mensualité sans référence de taux, impossible à vérifier.";
         }
         return switch (index % 4) {
             case 0 -> "Le Coach répétait les mêmes chiffres à chaque message.";
-            case 1 -> "Je n'ai pas obtenu la mensualité de mon crédit, il m'a renvoyé vers un simulateur.";
+            case 1 -> "Je voulais une estimation chiffrée, le Coach m'a seulement renvoyé vers un simulateur.";
             case 2 -> "Les explications étaient longues et difficiles à suivre.";
             default -> "Il manquait des informations sur l'offre proposée.";
         };
@@ -160,7 +160,8 @@ public class QualityDemoDataService {
     private static String detail(String checkType) {
         return switch (checkType) {
             case QualityModels.CREDIT_SIMULATION_VIOLATION ->
-                    "Le Coach semble avoir produit lui-même un chiffrage de crédit (anomalie de démonstration).";
+                    "Le Coach semble avoir produit un chiffrage de crédit sans s'appuyer sur la grille de taux "
+                            + "fournie (anomalie de démonstration).";
             case QualityModels.PRODUCT_MISMATCH ->
                     "Une offre hors familles autorisées a été présentée (anomalie de démonstration).";
             case QualityModels.EXCESSIVE_REPETITION ->

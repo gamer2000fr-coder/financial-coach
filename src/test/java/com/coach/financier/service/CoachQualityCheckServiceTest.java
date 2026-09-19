@@ -24,8 +24,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Contrôles automatiques qualité (§15 à §21) : le point crucial est qu'une mauvaise note client ne
- * devient JAMAIS une anomalie du Coach, et qu'une règle correctement appliquée (redirection vers le
- * simulateur officiel) n'est jamais signalée comme violation.
+ * devient JAMAIS une anomalie du Coach, qu'une règle correctement appliquée (redirection vers le
+ * simulateur officiel) n'est jamais signalée comme violation, et qu'à l'inverse une simulation ISSUE DE
+ * LA GRILLE DE TAUX, annoncée comme non contractuelle, est désormais conforme (§10 du prompt).
  */
 class CoachQualityCheckServiceTest {
 
@@ -71,6 +72,36 @@ class CoachQualityCheckServiceTest {
         QualityModels.QualityCheck check = checkOf(conversation, QualityModels.CREDIT_SIMULATION_VIOLATION);
 
         assertFalse(check.detected(), "Une redirection vers le simulateur officiel est conforme");
+    }
+
+    @Test
+    void noCreditSimulationViolation_whenTheCoachSimulatesFromTheProvidedRateGrid() {
+        // Cas B du prompt : le Coach chiffre à partir de la GRILLE DE TAUX et rappelle que la souscription fait foi.
+        ConversationModels.Conversation conversation = conversation(
+                "Combien je rembourserais pour 15 000 € ?",
+                "À partir de la grille de taux du crédit à la consommation, pour 15 000 € sur 48 mois, le TAEG "
+                        + "indicatif est de 5,49 % : la mensualité serait d'environ 348 € par mois. Cette "
+                        + "simulation est indicative et non contractuelle : seuls le contrat de prêt et la "
+                        + "souscription signés font foi.");
+
+        QualityModels.QualityCheck check = checkOf(conversation, QualityModels.CREDIT_SIMULATION_VIOLATION);
+
+        assertFalse(check.detected(),
+                "Un chiffrage issu de la grille de taux, annoncé comme non contractuel, est conforme");
+    }
+
+    @Test
+    void creditSimulationViolation_whenTheFigureIsPresentedAsContractual() {
+        // Cas C du prompt : aucun taux de référence, et le chiffrage est présenté comme un engagement.
+        ConversationModels.Conversation conversation = conversation(
+                "Combien je rembourserais pour 15 000 € ?",
+                "Pour 15 000 € sur 48 mois, la mensualité est de 348 € par mois : c'est l'engagement ferme "
+                        + "de la banque.");
+
+        QualityModels.QualityCheck check = checkOf(conversation, QualityModels.CREDIT_SIMULATION_VIOLATION);
+
+        assertTrue(check.detected(),
+                "Un chiffrage sans grille de taux ni mention indicative doit rester une violation");
     }
 
     @Test

@@ -404,7 +404,8 @@ public class MockAIService implements AIService {
                     .append(String.join(", ", rejected)).append(". Ne pas reproposer sans échange.\n\n");
         }
         sb.append("Suivi conseillé\n- Reprendre contact avec le client pour confirmer son besoin et vérifier l'éligibilité, ")
-                .append("puis réaliser un devis ou une simulation sur les outils officiels.\n\n");
+                .append("puis vérifier le chiffrage à partir de la grille de taux et préparer l'offre ferme ")
+                .append("(la souscription fait foi).\n\n");
         sb.append("Vous trouverez en pièce jointe un brouillon d'email préparé à destination du client, basé sur les ")
                 .append("besoins et centres d'intérêt identifiés pendant l'échange. Merci de le vérifier et de l'adapter ")
                 .append("si nécessaire avant tout envoi. Le contenu n'a pas encore été envoyé au client.");
@@ -648,7 +649,8 @@ public class MockAIService implements AIService {
      * <p>
      * Le mock respecte les règles du prompt : aucun chiffre inventé, satisfaction et conformité
      * TENUES SÉPARÉES, une mauvaise note n'est jamais transformée en anomalie du Coach, et la
-     * frustration liée à une règle correctement appliquée (simulation de crédit) est explicitée.
+     * frustration liée à une règle correctement appliquée (chiffrage de crédit non réalisé malgré la
+     * grille de taux disponible) est explicitée.
      */
     @Override
     public com.coach.financier.model.QualityModels.QualityReport analyzeQuality(
@@ -724,8 +726,7 @@ public class MockAIService implements AIService {
                         + compliance.anomalies() + " anomalie(s) dont " + compliance.highAnomalies()
                         + " de sévérité HIGH.";
                 if (creditViolations == 0) {
-                    complianceSummary += " Aucune violation du garde-fou interdisant les simulations de "
-                            + "crédit n'a été détectée.";
+                    complianceSummary += " Aucun chiffrage de crédit hors grille de taux n'a été détecté.";
                 }
                 for (com.coach.financier.model.QualityModels.CheckMetric check : aggregates.qualityChecks()) {
                     if (check.detected() == 0) continue;
@@ -763,19 +764,22 @@ public class MockAIService implements AIService {
                 }
             }
 
-            // Frustration liée à une règle CONFORME (ex. refus de simuler un crédit) : signalée comme telle.
+            // Chiffrage de crédit attendu mais NON réalisé alors que la grille de taux était disponible : la
+            // règle est correctement appliquée (aucune violation détectée) mais elle frustre le client.
             long simulationRefusals = reasonCount(aggregates,
                     com.coach.financier.model.QualityModels.ACTION_NOT_POSSIBLE);
             long creditViolations = detected(aggregates, com.coach.financier.model.QualityModels
                     .CREDIT_SIMULATION_VIOLATION);
             if (simulationRefusals > 0 && creditViolations == 0) {
                 friction.add(new com.coach.financier.model.QualityModels.RuleFriction(
-                        "Interdiction pour le Coach de réaliser lui-même une simulation de crédit",
-                        simulationRefusals + " avis mentionnent une action impossible (redirection vers le "
-                                + "simulateur officiel) alors qu'aucune violation du garde-fou n'a été détectée.",
+                        "Chiffrage de crédit attendu mais non réalisé (grille de taux non utilisée)",
+                        simulationRefusals + " avis mentionnent une action impossible (renvoi vers le "
+                                + "simulateur officiel) alors qu'aucun chiffrage hors grille n'a été détecté : "
+                                + "la règle est respectée, l'attente du client ne l'est pas.",
                         Boolean.TRUE,
-                        "Améliorer l'explication de la règle et la transition vers le simulateur officiel "
-                                + "sans supprimer le garde-fou."));
+                        "Rappeler au Coach qu'il peut chiffrer à partir de la grille de taux en précisant que la "
+                                + "simulation est indicative et que la souscription fait foi, et fournir le lien du "
+                                + "simulateur officiel pour l'offre ferme."));
             }
 
             for (com.coach.financier.model.MarketingModels.TrendMetric trend : aggregates.trends()) {
@@ -816,8 +820,8 @@ public class MockAIService implements AIService {
                         "MEDIUM", "Mieux expliquer les règles qui frustrent",
                         matrix.unsatisfiedCompliant() + " client(s) insatisfait(s) alors que le Coach était "
                                 + "conforme.",
-                        "Expliquer pourquoi la simulation de crédit est réalisée dans l'outil officiel et "
-                                + "fournir immédiatement le lien correspondant.",
+                        "Rappeler que le chiffrage s'appuie sur la grille de taux (simulation indicative, la "
+                                + "souscription fait foi) et fournir le lien du simulateur officiel.",
                         "Frustration réduite sans affaiblir la conformité."));
             }
             if (satisfaction != null && !satisfaction.sufficientSample()) {

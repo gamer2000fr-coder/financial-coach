@@ -33,8 +33,10 @@ import java.util.regex.Pattern;
  * Contrôles implémentés :
  * <ul>
  *   <li>{@code CREDIT_SIMULATION_VIOLATION} — le Coach a produit un chiffrage de crédit
- *       (mensualité, coût total, capacité d'emprunt…). Une REDIRECTION vers le simulateur officiel
- *       est conforme et ne déclenche rien (§16).</li>
+ *       (mensualité, coût total, capacité d'emprunt…) SANS s'appuyer sur la grille de taux fournie ni
+ *       préciser que la simulation est indicative. Une simulation issue de la grille, annoncée comme NON
+ *       CONTRACTUELLE (la souscription fait foi), est conforme — comme la REDIRECTION vers le simulateur
+ *       officiel lorsqu'aucune grille n'est disponible (§16).</li>
  *   <li>{@code PRODUCT_MISMATCH} — un produit d'une famille non autorisée pour le projet a été
  *       présenté (les crédits EXISTANTS ne sont jamais concernés : ils ne sont pas des offres).</li>
  *   <li>{@code INVENTED_URL} — une URL citée par le Coach n'existe pas dans les fiches officielles.</li>
@@ -68,9 +70,15 @@ public class CoachQualityCheckService {
             Pattern.compile("(?i)simulation[^.]{0,30}?[\\d][\\d\\s.,]{2,}\\s?(€|euros)"),
             Pattern.compile("(?i)[\\d][\\d\\s.,]{2,}\\s?(€|euros)\\s*(par\\s+mois|/\\s*mois|mensuel)"));
 
-    /** Marqueurs d'un comportement CONFORME : refus explicite ou redirection vers l'outil officiel. */
+    /**
+     * Marqueurs d'un comportement CONFORME : soit le Coach s'appuie sur la GRILLE DE TAUX fournie et annonce
+     * une simulation indicative et non contractuelle, soit il refuse / redirige vers l'outil officiel
+     * (cas d'une conversation sans grille de taux disponible).
+     */
     private static final Pattern COMPLIANT_MARKERS = Pattern.compile(
-            "(?i)(simulateur|outil\\s+officiel|site\\s+officiel|je\\s+ne\\s+peux\\s+pas\\s+(calculer|simuler|r[ée]aliser)"
+            "(?i)(grille\\s+de\\s+taux|grille\\s+tarifaire|souscription\\s+fait\\s+foi|contrat\\s+de\\s+pr[êe]t"
+                    + "|indicatif|indicative|non\\s+contractuel|hypoth[èe]ses?\\s+de\\s+la\\s+grille"
+                    + "|simulateur|outil\\s+officiel|site\\s+officiel|je\\s+ne\\s+peux\\s+pas\\s+(calculer|simuler|r[ée]aliser)"
                     + "|je\\s+n'ai\\s+pas\\s+(le\\s+droit|la\\s+possibilit[ée])|r[ée]glementation"
                     + "|nous\\s+ne\\s+(calculons|r[ée]alisons)\\s+pas|estimer\\s+vous-m[êe]me)");
 
@@ -180,11 +188,13 @@ public class CoachQualityCheckService {
                 continue;
             }
             if (COMPLIANT_MARKERS.matcher(message).find()) {
-                continue; // refus explicité / redirection vers le simulateur officiel = conforme (§16)
+                continue; // grille de taux citée (simulation autorisée) ou refus/redirection explicite = conforme (§16)
             }
             return check(sessionId, QualityModels.CREDIT_SIMULATION_VIOLATION, true,
                     "Le Coach semble avoir produit lui-même un chiffrage de crédit (mensualité, coût total ou "
-                            + "capacité d'emprunt) sans rediriger vers le simulateur officiel.", 0.7);
+                            + "capacité d'emprunt) sans s'appuyer sur la grille de taux fournie : la simulation "
+                            + "autorisée doit citer la grille et préciser qu'elle est indicative (la souscription "
+                            + "fait foi).", 0.7);
         }
         return check(sessionId, QualityModels.CREDIT_SIMULATION_VIOLATION, false,
                 "Aucun chiffrage de crédit produit par le Coach n'a été détecté.", null);

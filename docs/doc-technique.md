@@ -82,7 +82,8 @@ service/
   ProductCatalogueService      # lecture products.json + filtrage produits compatible
   ProductUrlIndex              # index id → URL officielle des produits (whitelist anti-invention)
   ProjectProductMappingService # mapping déterministe ProjectType → ProductFamily
-  CreditSimulationService      # calcul déterministe de mensualité (TAEG)
+  CreditRateGridService        # grille de taux crédit conso (TAEG par tranche montant/durée) + taux d'usure
+  CreditSimulationService      # simulation déterministe (annuité constante, TAEG de la grille)
   AILogService                 # tampon en mémoire des traces (500 max)
   AgentPromptStore             # édition prompts agents (agent/<file>, source de vérité)
   ConversationClosureService   # FIN DE CONVERSATION : dossier de suivi conseiller (+ événements marketing)
@@ -135,7 +136,7 @@ config/
 model/
   AIModels, ChatModels, FinancialSummary, BankingModels, ConversationModels
   IntentClassification, CurrentProject, ProjectType, FinancialIntent, AgentDefinition,
-  ProductFamily, ConfidenceLevel, BankProduct, CreditSimulation(Request), LogEntry
+  ProductFamily, ConfidenceLevel, BankProduct, CreditSimulation, LogEntry
   SuiviModels, MarketingModels, QualityModels, AdvisorFeedbackModels
   PromptOptimizationModels  # diagnostics Agent A/B, versions, itérations, snapshot, campagne
 ```
@@ -150,7 +151,8 @@ model/
 | `DataRequestService` | Catalogue + accès fichiers (déclaratif, cascade, tout chemin demandé du catalogue est fourni) |
 | `ProjectProductMappingService` | **Règle métier** type de projet → familles autorisées |
 | `ProductCatalogueService` | Charge les produits (`products.json`) et filtre (famille + montant) |
-| `CreditSimulationService` | Mensualité déterministe si montant/durée/TAEG fournis |
+| `CreditRateGridService` | Grille de taux du crédit conso (`grilles_taux_credit_conso.json`) : TAEG par tranche (montant, durée), taux d'usure, détection du crédit renouvelable |
+| `CreditSimulationService` | Simulation DÉTERMINISTE adossée à la grille (annuité constante, taux mensuel actuariel) : mensualité, coût total, dernière échéance ajustée ; refuse tout chiffrage hors grille, le renouvelable et un TAEG au-delà du taux d'usure ; porte la mention « la souscription fait foi » |
 | `AILogService` | Journal des appels IA (consultable par l'UI) |
 | `AgentPromptStore` | Édition des prompts d'agents (page « Agents ») — `agent/<file>` uniquement |
 | `AgentFiles` | Lecture de `agents.json` et du prompt système de l'agent actif |
@@ -182,7 +184,7 @@ Tous les fichiers sont lus **depuis le système de fichiers `./data`** (racine d
 |---|---|
 | `data.json` | Catalogue `[{path, description}]` envoyé à l'IA (hors cascade, auto-gérée) |
 | `banking_demo_normalized.json` | Comptes, mois 07/2025→08/2026, épargne, crédits |
-| `catalogue/products.json` | **52 produits** machine : id, name, family, allowedProjectTypes, min/max, durées, taeg |
+| `catalogue/products.json` | **52 produits** machine : id, name, family, allowedProjectTypes, min/max, durées, taeg, `fundAvailabilityDelay` (délai de mise à disposition des fonds, renseigné pour 2 produits seulement) |
 | `catalogue/*.json` | Fiches produits pédagogiques (credit_conso, credit_immo, epargne, assurances…) |
 | `catalogue/cascade/*.txt` | Arbres de décision produit (attachés à la volée à la fiche parente) |
 | `synthese_financier.json` | Synthèse mensuelle + globale |
@@ -291,6 +293,7 @@ app.prompt-optimization.hash-salt: ${PROMPT_OPT_HASH_SALT:…}
 | POST | `/api/chat` | Envoyer un message (voir §6) |
 | GET | `/api/financial-summary` | Synthèse financière (carte « Vue d'ensemble ») |
 | GET | `/api/banking-data` | Données bancaires brutes (non utilisé par l'UI) |
+| POST | `/api/credit/simulation` | **Simulation de crédit déterministe** `{productId, amount, durationMonths}` à partir de la grille de taux : mensualité, coût total, dernière échéance + mention « la souscription fait foi » ; **400** `{error: SIMULATION_IMPOSSIBLE, message}` si produit inconnu, tranche absente, crédit renouvelable ou TAEG > taux d'usure |
 | GET | `/api/logs` | Liste des traces IA (polling 2 s) |
 | GET | `/api/logs/{id}/prompt` | Prompt envoyé (sans données jointes) |
 | GET | `/api/logs/{id}/answer` | Réponse brute de l'IA pour une trace |
@@ -480,10 +483,22 @@ flowchart LR
 - Indicateurs : revenus/dépenses moyens, épargne, solde courant (dernier `nouveau_solde`), taux d'endettement, **taux d'épargne sur les 3 derniers mois entiers** (Σ épargne / Σ revenus ; si le dernier mois de données est le mois courant partiel, on recule d'un mois) ;
 - `emptySummary()` si aucune transaction.
 
-### 8.2 Simulation de crédit (`CreditSimulationService`)
-- Annuité constante : `M = C·r / (1 − (1+r)^−n)` avec `r = TAEG/12` ;
-- Retourne `null` si montant, durée ou TAEG **absent** (on n'invente jamais un taux) ;
-- Pour un TAEG = 0 : `M = C/n`, coût total = 0.
+### 8.2 Simulation de crédit (`CreditRateGridService` + `CreditSimulationService`)
+- **Source des taux** : `data/catalogue/taux/grilles_taux_credit_conso.json` — la MÊME grille est fournie au Coach.
+  Une règle = un couple (montant, durée) → TAEG ; le fichier porte aussi le **taux d'usure** par tranche de
+  montant. Grille absente ou produit inconnu ⇒ aucun taux, donc **aucune simulation** ;
+- **Méthode de calcul** (celle de la grille) : taux mensuel `i = (1 + TAEG/100)^(1/12) − 1` — et **non**
+  TAEG/12 —, mensualité `M = C·i / (1 − (1+i)^−n)`, **dernière échéance ajustée** pour solder capital et
+  intérêts ; TAEG = 0 ⇒ `M = C/n` et coût total nul ;
+- **Refus** (aucun chiffrage, motif explicite) : paramètre manquant, produit absent de la grille, couple
+  (montant, durée) non couvert, **crédit renouvelable** (Alterna : le taux s'applique aux sommes réellement
+  utilisées), TAEG supérieur au **taux d'usure** renseigné par la grille ;
+- **Mention obligatoire** portée par chaque simulation : « Simulation indicative et non contractuelle : seuls
+  le contrat de prêt et la souscription signés font foi », + hypothèses de la grille (taux hors assurance
+  facultative, frais de dossier 0 €, TAEG dépendant du dossier et de la durée) ;
+- Exposé par `POST /api/credit/simulation` (voir §5) : mêmes règles et mêmes taux que le Coach, pour vérifier
+  un chiffrage côté back-office. Le prompt de l'agent crédit conso autorise désormais le calcul à partir de
+  cette grille, à charge pour le Coach d'annoncer que la simulation est indicative et que la souscription fait foi.
 
 ---
 

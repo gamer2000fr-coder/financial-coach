@@ -74,7 +74,8 @@ ANTI-SURAPPRENTISSAGE (interdit)
 SÉPARATION DES RESPONSABILITÉS
 Conserve le principe du POC : le LLM comprend et explique ; le backend / Java décide, filtre et calcule lorsque
 la règle est déterministe. Ne transforme pas le prompt en moteur de compatibilité produit (Java le fait déjà) et
-ne lui fais pas calculer des mensualités ou des taux.
+ne lui fais pas calculer des mensualités ou des taux en dehors d'une grille de taux fournie, présentée comme
+indicative (seule la souscription fait foi).
 
 INTERDICTIONS
 - N'invente jamais de produit, taux, tarif, garantie, URL, critère d'éligibilité, seuil, procédure, politique

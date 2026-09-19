@@ -98,7 +98,7 @@ sequenceDiagram
 | **Données de l'agent** | fiches + arbres de décision injectés d'office | `AgentFiles` (`agent.data`) + `DataRequestService.readEntry` |
 | Prompt système | `generic.txt` (gabarit) + `principal.txt` ([agent_principal]) + prompt de l'agent ([agent]) | `AgentFiles.systemPromptFor` |
 | Choix de l'offre finale | l'agent choisit parmi le menu en appliquant les règles des fiches | LLM (fiches + cascade + compatibleProducts) |
-| Calcul mensualité | annuité constante si montant+durée+TAEG connus (sinon rien) | `CreditSimulationService` |
+| Calcul mensualité | annuité constante (taux mensuel actuariel `(1+TAEG/100)^(1/12)−1`) à partir de la **grille de taux** ; rien si tranche (montant, durée) absente, crédit renouvelable, ou TAEG > taux d'usure de la grille | `CreditRateGridService` + `CreditSimulationService` |
 | Logs / historique | prompt, agent, debug `[AGENT]`, réponse, conversation | `AILogService`, `LogsController`, `ConversationController` |
 | **Fin de conversation** | déclenchement (case suivi + ≥ 2 échanges), synthèse, validation produits/URLs, envoi au **seul** conseiller | `App.tsx` (bouton) → `ConversationClosureService` → `MailService` |
 | **Statistiques marketing** | types d'événements extraits, agrégats, scores, tranches de montant | IA (`suivi.txt`) **propose** → Java (`MarketingExtractionService`, `MarketingAnalyticsService`) **calcule et stocke** |
