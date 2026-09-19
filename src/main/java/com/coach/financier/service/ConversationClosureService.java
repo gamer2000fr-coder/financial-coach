@@ -54,6 +54,13 @@ public class ConversationClosureService {
     private static final String SUIVI_AGENT_LABEL = "Agent de suivi (suivi.txt)";
     /** Libellé de la « parole client » d'une trace de clôture (il n'y a pas de message client). */
     private static final String CLOSE_TRACE_MESSAGE = "Clôture de conversation — dossier de suivi";
+    /**
+     * Préfixe de l'objet du mail de NOTIFICATION envoyé au conseiller : il permet d'identifier et de
+     * trier automatiquement les dossiers de suivi dans la boîte du conseiller.
+     */
+    private static final String ADVISOR_SUBJECT_PREFIX = "[coach_financier] ";
+    /** Objet de repli du mail conseiller lorsque l'IA n'en fournit pas. */
+    private static final String DEFAULT_ADVISOR_SUBJECT = "Suivi client — dossier préparé";
 
     private final ConversationService conversationService;
     private final AIServiceFactory aiServiceFactory;
@@ -304,7 +311,20 @@ public class ConversationClosureService {
         }
         body.append("\n\n").append(advisorDossierService.feedbackBlock(sessionId));
         return new Validated(validated.summary(), validated.products(), validated.rejectedProducts(),
-                new SuiviModels.EmailContent(advisor.subject(), body.toString()), validated.preparedCustomerEmail());
+                new SuiviModels.EmailContent(advisorSubject(advisor.subject()), body.toString()),
+                validated.preparedCustomerEmail());
+    }
+
+    /**
+     * Objet du mail de notification au conseiller, préfixé par {@code [coach_financier]} afin de
+     * permettre son identification et son tri automatique dans la boîte du conseiller. Le préfixe
+     * n'est ajouté qu'une seule fois, même si l'appel est rejoué.
+     */
+    private static String advisorSubject(String subject) {
+        String base = firstNonBlank(subject, DEFAULT_ADVISOR_SUBJECT, "Suivi client");
+        return base.startsWith(ADVISOR_SUBJECT_PREFIX.strip())
+                ? base
+                : ADVISOR_SUBJECT_PREFIX + base;
     }
 
     /**
@@ -362,7 +382,7 @@ public class ConversationClosureService {
             warnings.add("URL non fournie neutralisée dans le brouillon client : " + violation);
         }
 
-        String advisorSubject = firstNonBlank(advisor.subject(), "Suivi client — dossier préparé", "Suivi client");
+        String advisorSubject = firstNonBlank(advisor.subject(), DEFAULT_ADVISOR_SUBJECT, "Suivi client");
         String customerSubject = firstNonBlank(customerEmail.subject(), summary.mainProject(), "Votre projet");
         String advisorBody = advisorUrlCheck.text();
         if (!advisorBody.toLowerCase(Locale.ROOT).contains("pièce jointe")) {
@@ -465,7 +485,8 @@ public class ConversationClosureService {
 
         aiLogService.log(sessionId, CLOSE_TRACE_MESSAGE, suiviDataSent(conversation, candidateCount),
                 conversation.transcript().size(), charCount, AIModels.AIStatus.ANSWER, List.of(),
-                SUIVI_AGENT_LABEL, suiviPromptSnapshot(systemPrompt, context), debug, suiviAnswer(result));
+                SUIVI_AGENT_LABEL, suiviPromptSnapshot(systemPrompt, context), debug, suiviAnswer(result),
+                sendStatus);
     }
 
     /**
@@ -497,7 +518,7 @@ public class ConversationClosureService {
         aiLogService.log(sessionId, CLOSE_TRACE_MESSAGE, suiviDataSent(conversation, candidateCount),
                 conversation.transcript().size(), charCount, AIModels.AIStatus.ERROR, List.of(),
                 SUIVI_AGENT_LABEL, suiviPromptSnapshot(systemPrompt, context), sb.toString(),
-                "Échec de la synthèse IA : " + cause);
+                "Échec de la synthèse IA : " + cause, "AI_FAILED");
     }
 
     /** Descriptions des données transmises à l'agent de suivi (affichées sur la page Logs). */

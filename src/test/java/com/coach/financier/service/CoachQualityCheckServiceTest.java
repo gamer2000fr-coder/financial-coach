@@ -232,7 +232,7 @@ class CoachQualityCheckServiceTest {
     void unansweredRequest_detectedOnAiError() {
         ConversationModels.Conversation conversation = conversation("Bonjour", "Bonjour !");
         List<LogEntry> logs = List.of(new LogEntry(1L, Instant.now().toString(), "s-qualite", "message",
-                List.of(), 1, 10, "ERROR", "agent", List.of(), "", "", ""));
+                List.of(), 1, 10, "ERROR", "agent", List.of(), "", "", "", ""));
 
         QualityModels.QualityCheck check = service.evaluate("s-qualite", conversation, logs).stream()
                 .filter(item -> QualityModels.UNANSWERED_REQUEST.equals(item.checkType()))

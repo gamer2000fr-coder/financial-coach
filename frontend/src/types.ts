@@ -75,6 +75,8 @@ export interface AiLog {
   agent?: string
   requestedData: string[]
   debug?: string
+  /** État d'envoi du mail au conseiller — renseigné UNIQUEMENT sur la trace de clôture de conversation. */
+  mailStatus?: string
 }
 
 export interface ConversationMessage {

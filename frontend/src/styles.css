@@ -590,6 +590,20 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 }
 .logs-status-badge.answer { background: #e6f6ec; color: #15803d; }
 .logs-status-badge.need_data { background: #fdf3d7; color: #b45309; }
+/* État d'envoi du mail au conseiller (trace de clôture) : phrase lisible, pas de majuscules. */
+.logs-status-badge.mail-ok,
+.logs-status-badge.mail-warn,
+.logs-status-badge.mail-ko {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  text-transform: none;
+  letter-spacing: 0;
+  border: 1px solid transparent;
+}
+.logs-status-badge.mail-ok { background: #e6f6ec; color: #15803d; border-color: #bfe6cd; }
+.logs-status-badge.mail-warn { background: #fdf3d7; color: #b45309; border-color: #f2ddab; }
+.logs-status-badge.mail-ko { background: #fdecec; color: #b91c1c; border-color: #f6c9c9; }
 .logs-status-badge.agent {
   display: inline-flex;
   align-items: center;

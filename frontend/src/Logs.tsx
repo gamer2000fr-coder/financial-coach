@@ -1,7 +1,26 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, Bot, Braces, Database, Eye, FileSearch, History, MessageSquare, Trash2, Type } from 'lucide-react'
+import { ArrowLeft, Bot, Braces, Database, Eye, FileSearch, History, Mail, MessageSquare, Trash2, Type } from 'lucide-react'
 import { clearLogs, fetchConversation, fetchLogAnswer, fetchLogPrompt, fetchLogs } from './api'
 import type { AiLog, ConversationData } from './types'
+
+/**
+ * État d'envoi du mail de notification au conseiller (trace de clôture « dossier de suivi »).
+ * Le statut vient du backend (bloc [SUIVI] de la clôture) : SENT = envoyé sans erreur ;
+ * PREPARED = envoi volontairement désactivé (send=false, dry-run) ; les autres = non envoyé.
+ */
+const MAIL_STATUS_LABELS: Record<string, { label: string; kind: 'ok' | 'warn' | 'ko' }> = {
+  SENT: { label: 'Mail conseiller : envoyé sans erreur', kind: 'ok' },
+  PREPARED: { label: 'Mail conseiller : non envoyé (mode préparation)', kind: 'warn' },
+  MAIL_UNAVAILABLE: { label: 'Mail conseiller : NON envoyé (service mail indisponible)', kind: 'ko' },
+  SEND_FAILED: { label: 'Mail conseiller : NON envoyé (échec de l’envoi)', kind: 'ko' },
+  AI_FAILED: { label: 'Mail conseiller : NON envoyé (échec de la synthèse IA)', kind: 'ko' },
+}
+
+function mailStatusInfo(status: string | undefined) {
+  if (!status) return null
+  const key = status.toUpperCase()
+  return MAIL_STATUS_LABELS[key] ?? { label: `Mail conseiller : ${status}`, kind: 'warn' as const }
+}
 
 export default function Logs() {
   const [logs, setLogs] = useState<AiLog[]>([])
@@ -174,6 +193,14 @@ export default function Logs() {
               {log.agent ? (
                 <span className="logs-status-badge agent" title="Agent IA utilisé">
                   <Bot size={12} /> {log.agent}
+                </span>
+              ) : null}
+              {mailStatusInfo(log.mailStatus) ? (
+                <span
+                  className={`logs-status-badge mail-${mailStatusInfo(log.mailStatus)!.kind}`}
+                  title="Envoi du mail de notification au conseiller (dossier de suivi)"
+                >
+                  <Mail size={12} /> {mailStatusInfo(log.mailStatus)!.label}
                 </span>
               ) : null}
               <time>{new Date(log.timestamp).toLocaleString('fr-FR')}</time>

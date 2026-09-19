@@ -10,7 +10,7 @@ spring:
   mail:
     host: ${MAIL_HOST:smtp.gmail.com}
     port: ${MAIL_PORT:587}
-    username: ${MAIL_USERNAME:coach.financier.pay@gmail.com}
+    username: ${MAIL_USERNAME:mli.2023.fr@gmail.com}
     password: ${CLE_GOOGLE_COACH_FINANCIER:}
     properties:
       mail:

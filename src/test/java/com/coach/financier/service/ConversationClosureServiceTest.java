@@ -185,10 +185,13 @@ class ConversationClosureServiceTest {
         ArgumentCaptor<String> agent = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<String> prompt = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<String> debug = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> mailStatus = ArgumentCaptor.forClass(String.class);
         verify(aiLogService, times(1)).log(eq("s1"), anyString(), anyList(), anyInt(), anyLong(),
                 eq(AIModels.AIStatus.ANSWER), anyList(), agent.capture(), prompt.capture(),
-                debug.capture(), anyString());
+                debug.capture(), anyString(), mailStatus.capture());
 
+        assertEquals("SENT", mailStatus.getValue(),
+                "La trace de clôture porte l'état d'envoi du mail (affiché sur la page Logs)");
         assertTrue(agent.getValue().toLowerCase().contains("suivi"));
         assertTrue(prompt.getValue().contains("=== PROMPT SYSTÈME"));
         assertTrue(prompt.getValue().contains("CONTEXTE DE CLÔTURE"));
@@ -268,7 +271,7 @@ class ConversationClosureServiceTest {
     private String captureSuiviDebug() {
         ArgumentCaptor<String> debug = ArgumentCaptor.forClass(String.class);
         verify(aiLogService, times(1)).log(anyString(), anyString(), anyList(), anyInt(), anyLong(),
-                any(), anyList(), anyString(), anyString(), debug.capture(), anyString());
+                any(), anyList(), anyString(), anyString(), debug.capture(), anyString(), anyString());
         return debug.getValue();
     }
 
@@ -287,7 +290,7 @@ class ConversationClosureServiceTest {
         verify(mailService, never()).sendWithAttachments(anyString(), anyString(), anyString(),
                 anyBoolean(), any());
         verify(aiLogService, never()).log(anyString(), anyString(), anyList(), anyInt(), anyLong(),
-                any(), anyList(), anyString(), anyString(), anyString(), anyString());
+                any(), anyList(), anyString(), anyString(), anyString(), anyString(), anyString());
     }
 
     private ConversationClosureService service() {

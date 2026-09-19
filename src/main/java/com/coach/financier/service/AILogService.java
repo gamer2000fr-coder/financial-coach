@@ -25,6 +25,20 @@ public class AILogService {
                                  List<String> dataSent, int historyCount, long charCount,
                                  AIModels.AIStatus status, List<String> requestedData,
                                  String agent, String prompt, String debug, String answer) {
+        log(sessionId, clientMessage, dataSent, historyCount, charCount, status, requestedData,
+                agent, prompt, debug, answer, null);
+    }
+
+    /**
+     * Variante avec l'état d'envoi du mail de notification (tracé SEULEMENT à la clôture de conversation) :
+     * {@code SENT} / {@code PREPARED} / {@code MAIL_UNAVAILABLE} / {@code SEND_FAILED} / {@code AI_FAILED}.
+     * {@code null} ou vide = trace sans notification à afficher.
+     */
+    public synchronized void log(String sessionId, String clientMessage,
+                                 List<String> dataSent, int historyCount, long charCount,
+                                 AIModels.AIStatus status, List<String> requestedData,
+                                 String agent, String prompt, String debug, String answer,
+                                 String mailStatus) {
         LogEntry entry = new LogEntry(
                 ++counter,
                 Instant.now().toString(),
@@ -38,7 +52,8 @@ public class AILogService {
                 requestedData == null ? List.of() : requestedData,
                 prompt == null ? "" : prompt,
                 debug == null ? "" : debug,
-                answer == null ? "" : answer
+                answer == null ? "" : answer,
+                mailStatus == null ? "" : mailStatus
         );
         entries.addFirst(entry);
         while (entries.size() > MAX_ENTRIES) {
