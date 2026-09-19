@@ -43,6 +43,8 @@ import type {
   ClientQuestionInput,
   ClientTurnView,
   ConversationComparison,
+  GeneratedClientBrief,
+  GeneratedClientBriefInput,
 } from './types.promptopt'
 
 function resolveApiBaseUrl(): string {
@@ -583,6 +585,20 @@ export async function fetchClientQuestion(input: ClientQuestionInput): Promise<C
   })
 }
 
+/**
+ * Projet proposé par l'Agent C pour le champ « Brief du client » (bouton « Générer projet ») : l'agent cherche
+ * lui-même un client et un projet correspondant à l'agent de coach sélectionné. `previousBriefs` contient les
+ * propositions déjà affichées : le modèle doit en chercher une franchement différente.
+ */
+export async function fetchGeneratedClientBrief(
+  input: GeneratedClientBriefInput,
+): Promise<GeneratedClientBrief> {
+  return apiFetch('/prompt-optimization/client/brief', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
 /** Vue complète d'une campagne : état, snapshot, itérations, versions et avis. */
 export async function fetchPromptCampaign(campaignId: string): Promise<PromptCampaignDetail> {
   return apiFetch(`/prompt-optimization/campaigns/${encodeURIComponent(campaignId)}`)
@@ -623,6 +639,19 @@ export async function sendPromptHumanFeedback(
 /** ProMEUT une version en production (action humaine explicite, prompt précédent sauvegardé). */
 export async function promotePromptVersion(campaignId: string, version: string): Promise<PromotionResult> {
   return apiFetch(`/prompt-optimization/campaigns/${encodeURIComponent(campaignId)}/promote`, {
+    method: 'POST',
+    body: JSON.stringify({ version }),
+  })
+}
+
+/**
+ * ACCEPTATION d'une version POUR LA CONVERSATION, sans écrire le prompt de production : c'est ce qu'utilise le
+ * mode automatique de l'Agent C. La réponse de la version acceptée entre dans le fil (le client garde sa
+ * mémoire), la campagne est close, mais le fichier de production reste intact : la décision d'écrire reste
+ * humaine, à la fin du scénario, après comparaison début ↔ fin.
+ */
+export async function acceptPromptVersion(campaignId: string, version: string): Promise<PromotionResult> {
+  return apiFetch(`/prompt-optimization/campaigns/${encodeURIComponent(campaignId)}/accept`, {
     method: 'POST',
     body: JSON.stringify({ version }),
   })

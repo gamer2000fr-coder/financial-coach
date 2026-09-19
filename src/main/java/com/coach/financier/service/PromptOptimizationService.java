@@ -18,6 +18,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -26,6 +27,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * ATELIER d'amélioration itérative des prompts : orchestration et machine d'état.
@@ -147,6 +150,152 @@ public class PromptOptimizationService {
     }
 
     /**
+     * PROJET proposé par l'Agent C pour le champ « Brief du client » (bouton « Générer projet ») : l'agent
+     * cherche lui-même un client et un projet correspondant à l'<b>agent de coach sélectionné</b> (crédit à la
+     * consommation, épargne, assurance…). Chaque nouvel appui doit proposer un projet DIFFÉRENT : les briefs
+     * déjà proposés sont transmis au modèle avec l'interdiction de les reprendre.
+     * <p>
+     * Le modèle ne reçoit que ce qui est nécessaire : le libellé et le prompt de l'agent (pour rester dans son
+     * périmètre) et les TROIS chiffres du dossier — exactement ceux que le client simulé connaîtra ensuite.
+     * Aucune écriture : la proposition n'est qu'un texte à relire, que l'humain reste libre de modifier.
+     *
+     * @param previousBriefs briefs déjà proposés (le plus récent en dernier), à ne pas répéter
+     */
+    public PromptOptimizationModels.ClientBrief clientBrief(String agentId, List<String> previousBriefs,
+                                                            AIModels.AIProvider provider) {
+        if (!properties.isEnabled()) {
+            throw new IllegalStateException("L'atelier d'optimisation des prompts est désactivé.");
+        }
+        AgentDefinition agent = resolveAgent(agentId);
+        AIModels.AIProvider agentProvider = requireRealProvider(provider, "Agent C (projet du client)");
+        FinancialSummary summary = financialAnalysis.analyze();
+        BigDecimal ceiling = projectCeiling(agent, summary);
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("agent", Map.of(
+                "id", agent.getTheme() == null ? "" : agent.getTheme(),
+                "libelle", agent.getLibelle() == null ? "" : agent.getLibelle()));
+        // Le prompt de l'agent sert de CADRE : le projet doit tomber dans son périmètre (produits, cas d'usage).
+        // Les marqueurs de zone sont retirés, comme pour tout prompt envoyé à un LLM.
+        String agentPrompt = agentPromptStore.read(agent.getTheme());
+        payload.put("agentPrompt", agentPrompt == null ? "" : AgentFiles.stripZoneMarkers(agentPrompt));
+        // Les TROIS chiffres du dossier, puis le PLAFOND que le backend en déduit : un petit modèle calcule mal,
+        // on lui donne donc la limite déjà calculée (et on la vérifie derrière, quoi qu'il réponde).
+        payload.put("clientFigures", clientFigures(summary));
+        payload.put("budgetCoherent", Map.of(
+                "plafondProjet", ceiling,
+                "devise", "EUR",
+                "regle", "Le montant à financer doit rester SOUS ce plafond, cohérent avec l'épargne disponible, "
+                        + "le solde du compte courant et la mensualité de crédit déjà remboursée."));
+        payload.put("previousBriefs", cleanBriefs(previousBriefs));
+
+        PromptOptimizationModels.ClientBrief brief = aiServiceFactory.get(agentProvider)
+                .clientBrief(payload, agentProvider);
+        if (!brief.usable()) {
+            throw new IllegalStateException("L'agent C n'a proposé aucun projet exploitable pour l'agent « "
+                    + agent.getLibelle() + " » : réessayez, ou écrivez le brief vous-même.");
+        }
+        requireCredibleAmount(brief, agent, summary, ceiling);
+        log.info("Agent C : projet proposé pour l'agent « {} » : {} (montant {} €, plafond {} €) — {}",
+                agent.getLibelle(), abbreviate(brief.brief()), amount(brief.montantProjet()),
+                amount(ceiling), brief.reason());
+        return brief;
+    }
+
+    /** Motifs de montants dans un texte français : « 15 000 € », « 15000 € », « 1 500,50 euros », « €EUR ». */
+    private static final Pattern MONEY_PATTERN =
+            Pattern.compile("(\\d[\\d\\u00A0\\u202F .,]*)\\s*(?:€|euros?|EUR)", Pattern.CASE_INSENSITIVE);
+
+    /**
+     * Plafond de montant à financer, déduit des chiffres du dossier — <b>jamais</b> d'un jugement du modèle.
+     * <p>
+     * L'épargne disponible est la SEULE capacité connue du client (aucun revenu ne figure au dossier) : on
+     * l'autorise à financer jusqu'à deux fois son épargne, avec un plancher pour qu'un dossier sans épargne
+     * puisse quand même porter un petit projet à la consommation. Le crédit immobilier et l'assurance
+     * emprunteur immobilier sont EXCEPTÉS : un achat immobilier de plusieurs centaines de milliers d'euros est
+     * légitime avec quelques milliers d'euros d'épargne ; seul un garde-fou de vraisemblance s'applique.
+     */
+    private static BigDecimal projectCeiling(AgentDefinition agent, FinancialSummary summary) {
+        String theme = agent.getTheme() == null ? "" : agent.getTheme().toLowerCase(java.util.Locale.ROOT);
+        if (theme.startsWith("credit_immo") || theme.startsWith("assurance_emprunteur")) {
+            return new BigDecimal("1000000");
+        }
+        BigDecimal savings = summary == null ? BigDecimal.ZERO : BigDecimal.valueOf(summary.savingsBalance());
+        return savings.multiply(new BigDecimal("2")).max(new BigDecimal("30000"));
+    }
+
+    /**
+     * Refuse un projet dont le montant n'est pas crédible pour le dossier (« achat d'un château » signalé par
+     * l'utilisateur). Le montant DÉCLARÉ par le modèle fait foi ; à défaut, les montants cités dans le brief
+     * sont contrôlés — le prompt interdit en effet d'y mentionner un autre chiffre que celui du projet.
+     */
+    private static void requireCredibleAmount(PromptOptimizationModels.ClientBrief brief, AgentDefinition agent,
+                                              FinancialSummary summary, BigDecimal ceiling) {
+        BigDecimal declared = brief.montantProjet();
+        BigDecimal found = declared != null && declared.signum() > 0 ? declared : largestAmountIn(brief.brief());
+        if (found == null || found.compareTo(ceiling) <= 0) {
+            return;
+        }
+        BigDecimal savings = summary == null ? BigDecimal.ZERO : BigDecimal.valueOf(summary.savingsBalance());
+        throw new IllegalStateException("Projet refusé pour l'agent « " + agent.getLibelle() + " » : "
+                + amount(found) + " € à financer alors que l'épargne du client est de " + amount(savings)
+                + " € et que le plafond admis pour ce dossier est de " + amount(ceiling)
+                + " €. Relancez « Générer projet » : l'agent C doit rester dans l'ordre de grandeur du dossier.");
+    }
+
+    /** Plus grand montant cité dans un texte (null si aucun) — borne le projet annoncé dans le brief. */
+    private static BigDecimal largestAmountIn(String text) {
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        BigDecimal largest = null;
+        Matcher matcher = MONEY_PATTERN.matcher(text);
+        while (matcher.find()) {
+            BigDecimal value = parseAmount(matcher.group(1));
+            if (value != null && (largest == null || value.compareTo(largest) > 0)) {
+                largest = value;
+            }
+        }
+        return largest;
+    }
+
+    /** « 15 000,50 » / « 15.000 » / « 15000 » → nombre décimal ; null si illisible. */
+    private static BigDecimal parseAmount(String raw) {
+        String digits = raw.replaceAll("[\\s\\u00A0\\u202F]", "")
+                .replace(".", "")
+                .replace(',', '.')
+                .replaceAll("[^0-9.]", "");
+        if (digits.isEmpty()) {
+            return null;
+        }
+        try {
+            return new BigDecimal(digits);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private static String amount(BigDecimal value) {
+        return value == null ? "—" : value.stripTrailingZeros().toPlainString();
+    }
+
+    /**
+     * Briefs précédents normalisés : vides retirés, longueur bornée et liste plafonnée (le contexte envoyé au
+     * modèle reste volontairement court — il n'a besoin que du PROJET de chacun, pas du brief entier).
+     */
+    private static List<String> cleanBriefs(List<String> previousBriefs) {
+        if (previousBriefs == null) {
+            return List.of();
+        }
+        return previousBriefs.stream()
+                .filter(brief -> brief != null && !brief.isBlank())
+                .map(String::strip)
+                .map(brief -> brief.length() <= 600 ? brief : brief.substring(0, 600) + "…")
+                .limit(10)
+                .toList();
+    }
+
+    /**
      * Les TROIS chiffres que le client connaît (demande explicite) : solde du compte courant, épargne totale et
      * mensualité de crédit en cours. Aucune autre donnée du dossier n'est transmise à l'agent C.
      */
@@ -185,28 +334,41 @@ public class PromptOptimizationService {
      * @param editorProvider     fournisseur de l'Agent A (éditeur) — {@code null} ⇒ celui du coach
      * @param threadId           FIL DE CONVERSATION à poursuivre — {@code null} ⇒ un nouveau fil est ouvert
      *                           (aucune mémoire). Le fil fournit l'historique transmis au Coach.
+     * @param fromCampaignId     CYCLE SOURCE dont on hérite la zone de départ (chaînage des cycles du mode
+     *                           automatique de l'Agent C) — {@code null} ⇒ la zone part du prompt de production.
+     * @param fromVersion        Version RETENUE du cycle source (sa zone devient la zone de départ).
      */
     public record StartRequest(String agentId, String question, int iterations, String zoneKey,
                               AIModels.AIProvider provider, AIModels.AIProvider controllerProvider,
-                              AIModels.AIProvider editorProvider, String threadId) {
+                              AIModels.AIProvider editorProvider, String threadId,
+                              String fromCampaignId, String fromVersion) {
 
         /** Raccourci historique : les trois étapes utilisent le même fournisseur. */
         public StartRequest(String agentId, String question, int iterations, String zoneKey,
                             AIModels.AIProvider provider) {
-            this(agentId, question, iterations, zoneKey, provider, provider, provider, null);
+            this(agentId, question, iterations, zoneKey, provider, provider, provider, null, null, null);
         }
 
         /** Raccourci : un fournisseur pour les trois étapes, et un fil de conversation à poursuivre. */
         public StartRequest(String agentId, String question, int iterations, String zoneKey,
                             AIModels.AIProvider provider, String threadId) {
-            this(agentId, question, iterations, zoneKey, provider, provider, provider, threadId);
+            this(agentId, question, iterations, zoneKey, provider, provider, provider, threadId, null, null);
         }
 
         /** Raccourci : fournisseurs par étape, sans fil de conversation. */
         public StartRequest(String agentId, String question, int iterations, String zoneKey,
                             AIModels.AIProvider provider, AIModels.AIProvider controllerProvider,
                             AIModels.AIProvider editorProvider) {
-            this(agentId, question, iterations, zoneKey, provider, controllerProvider, editorProvider, null);
+            this(agentId, question, iterations, zoneKey, provider, controllerProvider, editorProvider, null,
+                    null, null);
+        }
+
+        /** Raccourci : les quatre fournisseurs/ fil, sans chaînage. */
+        public StartRequest(String agentId, String question, int iterations, String zoneKey,
+                            AIModels.AIProvider provider, AIModels.AIProvider controllerProvider,
+                            AIModels.AIProvider editorProvider, String threadId) {
+            this(agentId, question, iterations, zoneKey, provider, controllerProvider, editorProvider, threadId,
+                    null, null);
         }
     }
 
@@ -280,6 +442,14 @@ public class PromptOptimizationService {
         // Les fichiers restent sur disque (rien n'est supprimé), mais ils ne sont plus utilisés.
         closePreviousCampaigns(campaignId);
 
+        // ZONE DE DÉPART du cycle — et CHAÎNAGE éventuel sur la version retenue d'un cycle précédent
+        // (§20.10 quater). Validée AVANT tout appel IA : une demande de chaînage incohérente (cycle ou version
+        // inconnus, zone d'un autre agent, prompt de production modifié depuis) doit être refusée sans coûter
+        // ni classification, ni contexte. Les parties figées viennent du SNAPSHOT source (identiques à celles du
+        // fichier tant que personne n'a promu entre-temps : la promotion re-vérifie cette égalité).
+        PromptZoneService.Zone zone = zoneService.parse(AgentFiles.readPromptOrDefault(zoneInfo.zoneFile(), ""));
+        PromptZoneService.Zone start = inheritZone(request, zone, zoneInfo);
+
         List<ConversationModels.Message> history = previousThread == null ? List.of() : previousThread.history();
         // La question renvoie souvent au projet de l'échange précédent (« et si je prends 48 mois ? ») :
         // le classifieur reçoit la description du projet de la campagne précédente, comme dans le chat.
@@ -302,16 +472,15 @@ public class PromptOptimizationService {
         CoachContext context = contextBuilder.build(question, classification, project, history, agent.getTheme());
         String template = AgentFiles.readPromptOrDefault("generic.txt", "");
         String principal = AgentFiles.readPromptOrDefault(AgentFiles.PRINCIPAL_PROMPT_FILE, "");
-        PromptZoneService.Zone zone = zoneService.parse(AgentFiles.readPromptOrDefault(zoneInfo.zoneFile(), ""));
         String frozenPrompt = AgentFiles.composeSystemPrompt(template, principal,
-                zone.prefix() + zone.editableSection() + zone.suffix());
+                start.prefix() + start.editableSection() + start.suffix());
 
         String providerName = provider.name();
         String snapshotId = "snap-" + campaignId.substring(campaignId.length() - 6);
         PromptOptimizationModels.Snapshot snapshot = new PromptOptimizationModels.Snapshot(snapshotId, campaignId,
                 question, agent.getTheme(), AgentFiles.libelleFor(agent.getTheme()),
                 zoneInfo.zoneKey(), zoneInfo.zoneFile(), PromptOptimizationModels.versionName(0),
-                zone.prefix(), zone.editableSection(), zone.suffix(),
+                start.prefix(), start.editableSection(), start.suffix(), startSource(request),
                 frozenPrompt, template, principal,
                 classification, context.financialSummary(), context.catalog(),
                 context.allowedCatalogPaths() == null ? List.of() : List.copyOf(context.allowedCatalogPaths()),
@@ -344,6 +513,55 @@ public class PromptOptimizationService {
                 campaignId, agent.getTheme(), zoneInfo.zoneFile(), request.iterations(), provider,
                 controllerProvider.name(), editorProvider.name(), thread.threadId(), history.size());
         return running;
+    }
+
+    /**
+     * Zone de DÉPART du cycle : celle du prompt de production, ou celle d'une version RETENUE d'un cycle
+     * précédent quand l'appelant demande un chaînage (`fromCampaignId` + `fromVersion`).
+     * <p>
+     * Le fichier de production n'est JAMAIS modifié : on compose une zone à partir des parties figées du
+     * <b>snapshot source</b> (identiques à celles du fichier au moment de ce cycle-là) et de la section retenue.
+     * Si le fichier a changé depuis (promotion, édition manuelle), le chaînage est <b>refusé</b> : composer un
+     * prompt hybride ferait échouer la promotion finale — mieux vaut le dire tout de suite.
+     */
+    private PromptZoneService.Zone inheritZone(StartRequest request, PromptZoneService.Zone fromProduction,
+                                               ZoneInfo zoneInfo) {
+        String version = request.fromVersion() == null ? "" : request.fromVersion().trim();
+        if (version.isEmpty()) {
+            return fromProduction;
+        }
+        String sourceId = request.fromCampaignId() == null ? "" : request.fromCampaignId().trim();
+        if (sourceId.isEmpty()) {
+            throw new IllegalArgumentException("Chaînage incomplet : le cycle source est obligatoire avec une version.");
+        }
+        PromptOptimizationModels.Campaign source = store.require(sourceId);
+        if (!source.zoneFile().equals(zoneInfo.zoneFile())) {
+            throw new IllegalArgumentException("Le cycle " + sourceId + " optimise « " + source.zoneFile()
+                    + " » et non « " + zoneInfo.zoneFile() + " » : impossible d'enchaîner sur sa version retenue.");
+        }
+        if (source.isActive()) {
+            throw new IllegalStateException("Le cycle " + sourceId + " tourne encore : terminez-le avant "
+                    + "d'enchaîner un nouveau cycle sur sa version retenue.");
+        }
+        String section = store.editableSectionOf(sourceId, version).orElseThrow(() -> new IllegalArgumentException(
+                "Version inconnue dans le cycle " + sourceId + " : " + version));
+        PromptOptimizationModels.Snapshot sourceSnapshot = store.snapshot(sourceId).orElseThrow(
+                () -> new IllegalStateException("Snapshot introuvable pour le cycle " + sourceId));
+        if (!fromProduction.prefix().equals(sourceSnapshot.fixedPrefix())
+                || !fromProduction.suffix().equals(sourceSnapshot.fixedSuffix())) {
+            throw new IllegalStateException("Le prompt de « " + zoneInfo.zoneFile() + " » a été modifié depuis le "
+                    + "cycle " + sourceId + " : impossible d'enchaîner sur sa version retenue (rien n'a été écrit). "
+                    + "Promouvez d'abord cette version, ou relancez un cycle normal.");
+        }
+        return new PromptZoneService.Zone(true, sourceSnapshot.fixedPrefix(), section, sourceSnapshot.fixedSuffix(),
+                null);
+    }
+
+    /** Origine de la zone de départ, telle qu'elle est FIGÉE dans le snapshot ({@code <campagne>:<version>}). */
+    private static String startSource(StartRequest request) {
+        String version = request.fromVersion() == null ? "" : request.fromVersion().trim();
+        String sourceId = request.fromCampaignId() == null ? "" : request.fromCampaignId().trim();
+        return version.isEmpty() || sourceId.isEmpty() ? "" : sourceId + ":" + version;
     }
 
     // --- Itération -------------------------------------------------------------------------------
@@ -702,6 +920,39 @@ public class PromptOptimizationService {
      * — c'est ce qui ajoute 1 appel IA à la campagne).
      */
     public PromotionResult promoteVersion(String campaignId, String version) {
+        return decideVersion(campaignId, version, true);
+    }
+
+    /**
+     * ACCEPTATION d'une version SANS toucher au prompt de production (« retenir pour la conversation »).
+     * <p>
+     * Demandée explicitement pour le <b>mode automatique de l'Agent C</b> : le scénario doit pouvoir
+     * s'enchaîner (la réponse de la version acceptée entre dans la conversation, donc le client a une mémoire)
+     * <b>sans écraser le prompt de production à chaque cycle</b>. La décision d'écrire reste humaine, à la fin,
+     * après comparaison début ↔ fin. Rien n'est sauvegardé ni réécrit : aucune version de prompt n'est perdue.
+     */
+    public PromotionResult acceptVersion(String campaignId, String version) {
+        return decideVersion(campaignId, version, false);
+    }
+
+    /**
+     * Décision de version : ACCEPTÉE pour la conversation, avec ou sans écriture du prompt de production.
+     * <p>
+     * {@code writeProduction = true} ⇒ PROMOTION : le prompt actuel est sauvegardé avant remplacement
+     * (retour arrière possible), puis le fichier de la zone est réécrit en ne changeant QUE la zone.
+     * {@code false} ⇒ ACCEPTATION : le fil de conversation est alimenté, la campagne est close, mais le
+     * fichier de production n'est ni sauvegardé ni réécrit.
+     * <p>
+     * Cas particulier INDISPENSABLE : quand l'Agent A n'a proposé aucune modification, la version acceptée est
+     * identique au prompt en production. La campagne est alors simplement ACCEPTÉE, <b>sans aucune écriture</b>
+     * (ni sauvegarde, ni réécriture) : c'est ce qui permet d'enchaîner la conversation au lieu de rester bloqué
+     * sur une campagne qui ne produira jamais de version.
+     * <p>
+     * MÉMOIRE : la réponse enregistrée dans le fil de conversation est celle <b>produite par la version
+     * acceptée</b> (réutilisée si une itération a déjà répondu avec elle, sinon RÉGÉNÉRÉE par un appel au Coach
+     * — c'est ce qui ajoute 1 appel IA à la campagne).
+     */
+    private PromotionResult decideVersion(String campaignId, String version, boolean writeProduction) {
         return store.withCampaignLock(campaignId, () -> {
             PromptOptimizationModels.Campaign campaign = store.require(campaignId);
             if (campaign.isActive()) {
@@ -712,28 +963,34 @@ public class PromptOptimizationService {
             String section = store.editableSectionOf(campaignId, version).orElseThrow(
                     () -> new IllegalArgumentException("Version inconnue : " + version));
             String key = promotionKey(campaign, snapshot);
-            if (AgentPromptStore.PRINCIPAL_KEY.equals(key)) {
-                // L'agent principal est TRANSVERSE : il s'applique à tous les agents.
-                for (PromptOptimizationModels.Campaign other : store.list()) {
-                    if (other.campaignId().equals(campaignId)) {
-                        continue;
-                    }
-                    if (other.isActive() || PromptOptimizationModels.campaignPaused(other.status())) {
-                        throw new IllegalStateException("L'agent principal est transverse : terminez la campagne "
-                                + other.campaignId() + " avant de le promouvoir.");
-                    }
-                }
-            } else {
-                ensureNoOtherActiveCampaign(campaignId, campaign.agentId());
-            }
             String currentContent = AgentFiles.readPromptOrDefault(snapshot.zoneFile(), "");
             PromptZoneService.Zone zone = zoneService.parse(currentContent);
-            if (!zone.valid()) {
-                throw new IllegalStateException("Le prompt cible n'a plus de zone éditable valide : " + zone.error());
-            }
-            if (!zone.prefix().equals(snapshot.fixedPrefix()) || !zone.suffix().equals(snapshot.fixedSuffix())) {
-                throw new IllegalStateException("Le prompt de l'agent a été modifié depuis le snapshot de la "
-                        + "campagne : la promotion est refusée pour éviter d'écraser une modification externe.");
+            String updatedContent = "";
+            boolean unchanged = true;
+            if (writeProduction) {
+                if (AgentPromptStore.PRINCIPAL_KEY.equals(key)) {
+                    // L'agent principal est TRANSVERSE : il s'applique à tous les agents.
+                    for (PromptOptimizationModels.Campaign other : store.list()) {
+                        if (other.campaignId().equals(campaignId)) {
+                            continue;
+                        }
+                        if (other.isActive() || PromptOptimizationModels.campaignPaused(other.status())) {
+                            throw new IllegalStateException("L'agent principal est transverse : terminez la campagne "
+                                    + other.campaignId() + " avant de le promouvoir.");
+                        }
+                    }
+                } else {
+                    ensureNoOtherActiveCampaign(campaignId, campaign.agentId());
+                }
+                if (!zone.valid()) {
+                    throw new IllegalStateException("Le prompt cible n'a plus de zone éditable valide : "
+                            + zone.error());
+                }
+                if (!zone.prefix().equals(snapshot.fixedPrefix())
+                        || !zone.suffix().equals(snapshot.fixedSuffix())) {
+                    throw new IllegalStateException("Le prompt de l'agent a été modifié depuis le snapshot de la "
+                            + "campagne : la promotion est refusée pour éviter d'écraser une modification externe.");
+                }
             }
             String rejection = validateSection(section);
             if (rejection != null) {
@@ -744,20 +1001,25 @@ public class PromptOptimizationService {
             // indispensable : sans cela, l'humain resterait bloqué et ne pourrait pas enchaîner la conversation.
             // Dans ce cas le contenu recomposé est IDENTIQUE au fichier en production : on n'écrit RIEN (ni
             // sauvegarde, ni réécriture) — il n'y a donc rien à écraser.
-            String updatedContent = preserveLineEndings(currentContent, zoneService.compose(zone, section));
-            boolean unchanged = updatedContent.equals(currentContent);
             String backupId = "";
             String backupFile = "";
-            if (unchanged) {
-                log.info("Campagne {} acceptée SANS modification du prompt {} (version {}) : aucune écriture",
-                        campaignId, key, version);
+            if (writeProduction) {
+                updatedContent = preserveLineEndings(currentContent, zoneService.compose(zone, section));
+                unchanged = updatedContent.equals(currentContent);
+                if (unchanged) {
+                    log.info("Campagne {} acceptée SANS modification du prompt {} (version {}) : aucune écriture",
+                            campaignId, key, version);
+                } else {
+                    AgentPromptHistoryStore.PromptBackup backup = historyStore.backup(key, snapshot.zoneFile(),
+                            currentContent, "promotion de " + version + " (campagne " + campaignId + ")");
+                    agentPromptStore.write(key, updatedContent);
+                    backupId = backup.backupId();
+                    backupFile = backup.backupFile();
+                    log.info("Version {} promue pour l'agent {} (campagne {})", version, key, campaignId);
+                }
             } else {
-                AgentPromptHistoryStore.PromptBackup backup = historyStore.backup(key, snapshot.zoneFile(),
-                        currentContent, "promotion de " + version + " (campagne " + campaignId + ")");
-                agentPromptStore.write(key, updatedContent);
-                backupId = backup.backupId();
-                backupFile = backup.backupFile();
-                log.info("Version {} promue pour l'agent {} (campagne {})", version, key, campaignId);
+                log.info("Version {} ACCEPTÉE pour la conversation (campagne {}), sans modification du prompt de "
+                        + "production {}", version, campaignId, snapshot.zoneFile());
             }
             // MÉMOIRE DE L'ATELIER : c'est la RÉPONSE DE LA VERSION ACCEPTÉE qui entre dans la conversation —
             // celle que le client recevrait avec le prompt désormais en production.
@@ -798,11 +1060,14 @@ public class PromptOptimizationService {
                                     + "conversation de l'atelier."
                             : " La réponse produite par cette version rejoint la conversation de l'atelier.")
                     : "";
-            return new PromotionResult(promoted, backupId, backupFile, (unchanged
-                    ? "Aucune modification n'a été proposée : le prompt de « " + key + " » reste identique "
-                            + "(version " + version + " acceptée, aucune écriture)."
-                    : "La version " + version + " remplace la zone du prompt de « " + key
-                            + " ». Le prompt précédent est conservé dans l'historique (" + backupFile + ").")
+            return new PromotionResult(promoted, backupId, backupFile, (!writeProduction
+                    ? "Version " + version + " ACCEPTÉE pour la conversation : le prompt de production de « "
+                            + key + " » n'a PAS été modifié. Utilisez « Promouvoir » pour l'appliquer."
+                    : unchanged
+                            ? "Aucune modification n'a été proposée : le prompt de « " + key + " » reste identique "
+                                    + "(version " + version + " acceptée, aucune écriture)."
+                            : "La version " + version + " remplace la zone du prompt de « " + key
+                                    + " ». Le prompt précédent est conservé dans l'historique (" + backupFile + ")")
                     + conversation);
         });
     }
@@ -935,6 +1200,40 @@ public class PromptOptimizationService {
         PromptOptimizationModels.Snapshot snapshot = snapshot(campaignId);
         String section = store.editableSectionOf(campaignId, version).orElse("");
         return composePrompt(snapshot, section);
+    }
+
+    /**
+     * Cette version est-elle DÉJÀ celle du fichier de production ?
+     * <p>
+     * Sert à l'IHM : ne proposer « Promouvoir » que sur une version qui n'est pas encore en production, et
+     * afficher « à promouvoir » après une ACCEPTATION SANS ÉCRITURE (le mode automatique de l'Agent C
+     * n'écrase plus le prompt : l'humain décide à la fin).
+     * <p>
+     * La comparaison porte sur la <b>zone éditable</b> du fichier — marqueurs et parties figées exclus, comme
+     * dans une version — et elle est NORMALISÉE (fins de ligne et espaces de bord) : le fichier de production
+     * est en CRLF alors que les versions sont stockées en LF, une comparaison brute serait toujours fausse.
+     */
+    public boolean appliedInProduction(String campaignId, String version) {
+        if (version == null || version.isBlank()) {
+            return false;
+        }
+        PromptOptimizationModels.Campaign campaign = campaign(campaignId);
+        String production = AgentFiles.readPromptOrDefault(campaign.zoneFile(), "");
+        if (production.isBlank()) {
+            return false;
+        }
+        String section = store.editableSectionOf(campaignId, version).orElse(null);
+        if (section == null) {
+            return false;
+        }
+        PromptZoneService.Zone zone = zoneService.parse(production);
+        return zone.valid()
+                && normalizeNewlines(zone.editableSection()).equals(normalizeNewlines(section));
+    }
+
+    /** Comparaison de deux versions d'un même prompt, insensible aux fins de ligne et aux espaces de bord. */
+    private static String normalizeNewlines(String text) {
+        return text.replace("\r\n", "\n").strip();
     }
 
     /** Zones optimisables de tous les agents (sélecteur de l'IHM). */
@@ -1358,8 +1657,9 @@ public class PromptOptimizationService {
         PromptOptimizationModels.Snapshot completed = new PromptOptimizationModels.Snapshot(snapshot.snapshotId(),
                 snapshot.campaignId(), snapshot.question(), snapshot.agentTheme(), snapshot.agentLibelle(),
                 snapshot.zoneKey(), snapshot.zoneFile(), snapshot.promptVersion(), snapshot.fixedPrefix(),
-                snapshot.initialEditableSection(), snapshot.fixedSuffix(), snapshot.frozenSystemPrompt(),
-                snapshot.frozenTemplate(), snapshot.frozenPrincipal(), snapshot.classification(),
+                snapshot.initialEditableSection(), snapshot.fixedSuffix(), snapshot.baseZoneSource(),
+                snapshot.frozenSystemPrompt(), snapshot.frozenTemplate(), snapshot.frozenPrincipal(),
+                snapshot.classification(),
                 snapshot.financialSummary(), snapshot.catalog(), snapshot.allowedCatalogPaths(), additional,
                 snapshot.history(), snapshot.debug(), snapshot.provider(), snapshot.model(), snapshot.promptHash(),
                 snapshotHash(snapshot.question(), snapshot.frozenSystemPrompt(), additional, snapshot.provider()),

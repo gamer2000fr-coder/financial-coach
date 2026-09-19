@@ -109,4 +109,11 @@ public interface AIService {
      * dossier et la conversation déjà échangée.
      */
     PromptOptimizationModels.ClientTurn clientTurn(Map<String, Object> context, AIModels.AIProvider provider);
+
+    /**
+     * Appel IA de CONCEPTION DU PROJET du client simulé (« Agent C », {@code agent/prompt_client_brief.txt}) :
+     * il invente le CLIENT et la raison pour laquelle il vient voir sa banque, dans le périmètre de l'agent de
+     * coach sélectionné, et évite les projets qu'on lui présente dans {@code previousBriefs}.
+     */
+    PromptOptimizationModels.ClientBrief clientBrief(Map<String, Object> context, AIModels.AIProvider provider);
 }

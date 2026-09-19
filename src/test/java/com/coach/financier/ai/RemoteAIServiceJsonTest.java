@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
+import java.util.Map;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -26,6 +28,41 @@ class RemoteAIServiceJsonTest {
         assertEquals("{\"status\":\"ANSWER\"}", RemoteAIService.stripCodeFence("{\"status\":\"ANSWER\"}"));
         assertEquals("{\"status\":\"ANSWER\"}", RemoteAIService.stripCodeFence("  {\"status\":\"ANSWER\"}  "));
         assertEquals("", RemoteAIService.stripCodeFence(null));
+    }
+
+    /**
+     * Un modèle qui répond du TEXTE au lieu de l'objet JSON attendu (constaté avec un modèle local sur un
+     * contexte de plusieurs dizaines de milliers de jetons) ne doit pas faire échouer l'échange : le texte est
+     * utilisé TEL QUEL comme réponse au client. Un JSON mal formé garde, lui, son erreur explicite.
+     */
+    @Test
+    void recognizesAPlainTextAnswerWhereJsonWasExpected() {
+        assertTrue(RemoteAIService.isPlainTextAnswer(
+                "Votre projet de rénovation de cuisine relève d'un financement à la consommation."));
+        assertTrue(RemoteAIService.isPlainTextAnswer("  Bonjour, voici mon analyse.  "));
+        assertFalse(RemoteAIService.isPlainTextAnswer("{\"status\":\"ANSWER\",\"answer\":\"Bonjour\"}"),
+                "un objet JSON, même hors contrat, garde son erreur détaillée");
+        assertFalse(RemoteAIService.isPlainTextAnswer("[{\"a\":1}]"));
+        assertFalse(RemoteAIService.isPlainTextAnswer("{ ceci n'est pas du JSON }"),
+                "JSON invalide : le diagnostic explicite est plus utile qu'un repli silencieux");
+        assertFalse(RemoteAIService.isPlainTextAnswer("   "));
+        assertFalse(RemoteAIService.isPlainTextAnswer(null));
+    }
+
+    /** Le rappel de FORMAT est placé à la FIN du message utilisateur (dernière consigne lue par le modèle). */
+    @Test
+    void appendsAJsonFormatReminderAtTheEndOfTheUserMessage() {
+        RemoteAIService probe = new RemoteAIService(new ObjectMapper(), "http://localhost:1", "cle",
+                "modele", "Test", 1024) { };
+
+        @SuppressWarnings("unchecked")
+        var messages = (java.util.List<Map<String, Object>>) probe.requestBody("system", "user").get("messages");
+
+        assertEquals("system", messages.get(0).get("role"));
+        String user = String.valueOf(messages.get(1).get("content"));
+        assertTrue(user.startsWith("user"), user);
+        assertTrue(user.endsWith(RemoteAIService.JSON_FORMAT_REMINDER), user);
+        assertTrue(user.contains("objet JSON valide"), user);
     }
 
     /**

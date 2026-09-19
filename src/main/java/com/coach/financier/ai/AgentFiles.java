@@ -38,6 +38,11 @@ public final class AgentFiles {
     public static final String PROMPT_EDITOR_PROMPT_FILE = "prompt_editor.txt";
     /** Fichier du prompt du CLIENT SIMULÉ de l'atelier d'optimisation (« Agent C »). */
     public static final String PROMPT_CLIENT_PROMPT_FILE = "prompt_client.txt";
+    /**
+     * Fichier du prompt de CONCEPTION DU PROJET du client simulé (« Agent C ») : il invente le client et la
+     * raison de sa visite, dans le périmètre de l'agent de coach sélectionné (« Générer projet »).
+     */
+    public static final String PROMPT_CLIENT_BRIEF_PROMPT_FILE = "prompt_client_brief.txt";
     /** Marqueur d'OUVERTURE de la zone éditable (atelier d'optimisation des prompts). */
     public static final String ZONE_START = "[[[";
     /** Marqueur de FERMETURE de la zone éditable (atelier d'optimisation des prompts). */
@@ -219,7 +224,13 @@ public final class AgentFiles {
     /**
      * Prompt système du CLIENT SIMULÉ de l'atelier d'optimisation (« Agent C »,
      * {@code ./agent/prompt_client.txt} puis classpath) : il JOUE LE CLIENT qui parle au Coach (une seule
-     * question par tour, aucune donnée inventée, aucune posture de conseiller) et peut clore la conversation.
+     * question par tour, aucune donnée inventée, aucune posture de conseiller).
+     * <p>
+     * Il ne doit clore le scénario <b>que</b> s'il a obtenu sa réponse (ou n'a plus rien à demander) : sa
+     * DERNIÈRE question autorisée (`turnNumber` = `depth`) est <b>POSÉE</b> normalement — c'est l'atelier qui
+     * arrête la boucle après elle. Conclure à cause du compteur de profondeur faisait perdre la dernière
+     * question (profondeur 3 ⇒ 2 questions). Contrat verrouillé par
+     * {@code AgentFilesPromptTest.theSimulatedClientAsksItsLastAllowedQuestion}.
      */
     public static String promptClientSystemPrompt() {
         return readPromptOrDefault(PROMPT_CLIENT_PROMPT_FILE, FALLBACK_PROMPT_CLIENT_PROMPT);
@@ -232,6 +243,23 @@ public final class AgentFiles {
             + "uniquement clientBrief et clientFigures, une seule question courte par tour, en tenant compte "
             + "de previousExchanges (ne répète jamais une question déjà posée). Réponds UNIQUEMENT en JSON : "
             + "{question, endConversation, reason}.";
+
+    /**
+     * Prompt système de CONCEPTION DU PROJET du client simulé (« Agent C »,
+     * {@code ./agent/prompt_client_brief.txt} puis classpath) : il invente le profil du client ET son projet,
+     * dans le périmètre de l'agent de coach sélectionné, en évitant les projets déjà proposés.
+     */
+    public static String promptClientBriefSystemPrompt() {
+        return readPromptOrDefault(PROMPT_CLIENT_BRIEF_PROMPT_FILE, FALLBACK_PROMPT_CLIENT_BRIEF_PROMPT);
+    }
+
+    /** Filet de sécurité MINIMAL si {@code prompt_client_brief.txt} est absent (le vrai fichier vit dans ./agent). */
+    private static final String FALLBACK_PROMPT_CLIENT_BRIEF_PROMPT =
+            "Tu conçois le scénario d'un client de banque : invente le client (qui il est) et son projet (la "
+            + "raison de sa visite) pour tester l'agent de coach décrit dans `agent`. Le projet doit relever de "
+            + "son périmètre, rester plausible avec `clientFigures`, ne chiffrer que le PROJET (jamais revenus, "
+            + "charges ni apport) et différer franchement de `previousBriefs`. Réponds UNIQUEMENT en JSON : "
+            + "{brief, reason}, brief en 3 à 5 phrases en français à la troisième personne.";
 
     /** Filet de sécurité MINIMAL si {@code prompt_controller.txt} est absent (le vrai prompt vit dans ./agent). */
     private static final String FALLBACK_PROMPT_CONTROLLER_PROMPT =

@@ -75,7 +75,7 @@ class PromptOptimizationStoreTest {
         return new PromptOptimizationModels.Snapshot("snap-1", id,
                 "Je veux financer une voiture à 15000 euros", "credit_conso", "Crédit à la consommation",
                 PromptOptimizationModels.ZONE_AGENT, "credit-conso.txt", "V0",
-                "PARTIE PROTÉGÉE\n", "Règles de l'agent crédit conso.", "\nFIN DU PROMPT",
+                "PARTIE PROTÉGÉE\n", "Règles de l'agent crédit conso.", "\nFIN DU PROMPT", "",
                 "PROMPT SYSTÈME FIGÉ", "GABARIT [agent_principal] [agent]", "RÈGLES DE L'AGENT PRINCIPAL",
                 new IntentClassification(), summary(),
                 List.of(Map.of("path", "/data/catalogue/credit_conso.json", "description", "Crédit conso")),

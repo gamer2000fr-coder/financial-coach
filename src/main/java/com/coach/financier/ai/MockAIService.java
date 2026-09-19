@@ -187,7 +187,8 @@ public class MockAIService implements AIService {
 
     /** Message unique expliquant pourquoi l'atelier exige un fournisseur IA réel. */
     public static final String NO_REAL_PROVIDER_MESSAGE =
-            "L'atelier d'optimisation des prompts nécessite un fournisseur IA réel (GPT ou DEEPSEEK) : "
+            "L'atelier d'optimisation des prompts nécessite un fournisseur IA réel (GPT, DEEPSEEK ou "
+            + "LOCAL — modèle servi localement) : "
             + "le mode démo ne produit pas de réponse dépendant du prompt.";
 
     /**
@@ -212,6 +213,17 @@ public class MockAIService implements AIService {
      */
     @Override
     public com.coach.financier.model.PromptOptimizationModels.ClientTurn clientTurn(
+            Map<String, Object> context, AIModels.AIProvider provider) {
+        throw new IllegalStateException(NO_REAL_PROVIDER_MESSAGE);
+    }
+
+    /**
+     * CONCEPTION DU PROJET par l'Agent C (« Générer projet ») : en mode démo, inventer un client et son projet
+     * demanderait un modèle réel — refus explicite, comme les autres rôles de l'atelier. Un projet déterministe
+     * n'aurait aucune valeur ici : c'est justement la variété des scénarios qui teste le prompt.
+     */
+    @Override
+    public com.coach.financier.model.PromptOptimizationModels.ClientBrief clientBrief(
             Map<String, Object> context, AIModels.AIProvider provider) {
         throw new IllegalStateException(NO_REAL_PROVIDER_MESSAGE);
     }

@@ -869,6 +869,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .plab-tag { display: inline-block; background: #ececec; color: #444; border-radius: 4px; padding: 2px 7px; font-size: 11.5px; margin-right: 5px; }
 .plab-tag.ok { background: #e6f6ec; color: #15803d; }
 .plab-tag.ko { background: #fdecec; color: #b91c1c; }
+.plab-tag.warn { background: #fff4e5; color: #b45309; }
 .plab-panel { margin-top: 12px; border-top: 1px solid #eee; padding-top: 8px; }
 .plab-pre {
   background: #fbfbfb; border: 1px solid #e7e7e7; border-radius: 8px; padding: 12px;

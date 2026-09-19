@@ -1,0 +1,9 @@
+{
+  "satisfiedCompliant" : 5,
+  "satisfiedAnomaly" : 2,
+  "unsatisfiedCompliant" : 1,
+  "unsatisfiedAnomaly" : 0,
+  "unsatisfiedCompliantShare" : 1.0,
+  "unsatisfiedAnomalyShare" : 0.0,
+  "unratedWithAnomaly" : 2
+}

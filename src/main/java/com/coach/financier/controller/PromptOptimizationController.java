@@ -52,15 +52,28 @@ public class PromptOptimizationController {
      * {@code threadId} = FIL DE CONVERSATION à poursuivre. Omis, un nouveau fil est ouvert : le cycle
      * démarre sans mémoire (comportement historique). Fourni, l'historique complet du fil est transmis au
      * Coach : c'est ce qui permet d'enchaîner les cycles comme une VRAIE conversation.
+     * <p>
+     * {@code fromCampaignId} + {@code fromVersion} = CHAÎNAGE : la zone de départ du cycle est celle de la
+     * version RETENUE de ce cycle-là, et non celle du prompt de production (mode automatique de l'Agent C :
+     * les cycles s'accumulent sans qu'aucune écriture n'ait lieu).
      */
     public record StartCampaignRequest(String agentId, String question, Integer iterations, String zoneKey,
                                        AIModels.AIProvider provider, AIModels.AIProvider controllerProvider,
-                                       AIModels.AIProvider editorProvider, String threadId) {
+                                       AIModels.AIProvider editorProvider, String threadId,
+                                       String fromCampaignId, String fromVersion) {
     }
 
     /** Corps d'une demande de question au CLIENT simulé (Agent C). */
     public record ClientQuestionRequest(String threadId, String brief, Integer turnNumber, Integer depth,
                                         AIModels.AIProvider provider) {
+    }
+
+    /**
+     * Corps d'une demande de PROJET au CLIENT simulé (Agent C) : l'agent de coach visé, le fournisseur, et
+     * les briefs déjà proposés (pour qu'il en cherche un FRANCHEMENT différent au clic suivant).
+     */
+    public record ClientBriefRequest(String agentId, AIModels.AIProvider provider,
+                                     List<String> previousBriefs) {
     }
 
     /** Corps de correction du contenu d'un tour de la conversation. */
@@ -113,7 +126,8 @@ public class PromptOptimizationController {
         int iterations = request.iterations() == null ? 1 : request.iterations();
         PromptOptimizationModels.Campaign campaign = service.start(new PromptOptimizationService.StartRequest(
                 request.agentId(), request.question(), iterations, request.zoneKey(), request.provider(),
-                request.controllerProvider(), request.editorProvider(), request.threadId()));
+                request.controllerProvider(), request.editorProvider(), request.threadId(),
+                request.fromCampaignId(), request.fromVersion()));
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("campaign", campaign);
         body.put("thread", service.threadOfCampaign(campaign.campaignId()));
@@ -173,6 +187,18 @@ public class PromptOptimizationController {
     public PromptOptimizationService.PromotionResult promote(@PathVariable String campaignId,
                                                              @RequestBody VersionRequest request) {
         return service.promoteVersion(campaignId, request == null ? null : request.version());
+    }
+
+    /**
+     * ACCEPTATION d'une version POUR LA CONVERSATION, sans écrire le prompt de production : c'est le mode
+     * automatique de l'Agent C. La réponse de la version acceptée entre dans le fil (le client garde sa
+     * mémoire), la campagne est close — mais le fichier de production reste intact. La décision d'écrire
+     * reste HUMAINE, à la fin du scénario, après comparaison début ↔ fin.
+     */
+    @PostMapping("/campaigns/{campaignId}/accept")
+    public PromptOptimizationService.PromotionResult accept(@PathVariable String campaignId,
+                                                            @RequestBody VersionRequest request) {
+        return service.acceptVersion(campaignId, request == null ? null : request.version());
     }
 
     /** Refuse la campagne : rien n'est supprimé, aucune version n'est promue. */
@@ -267,6 +293,17 @@ public class PromptOptimizationController {
                 request.depth() == null ? 1 : request.depth(), request.provider());
     }
 
+    /**
+     * PROJET inventé par l'Agent C pour le champ « Brief du client » (bouton « Générer projet ») : le client
+     * et la raison de sa visite sont proposés dans le périmètre de l'agent sélectionné. Chaque appui doit
+     * donner un projet différent — l'IHM transmet donc ceux déjà proposés. Rien n'est écrit : le brief proposé
+     * reste modifiable par l'humain avant de lancer le scénario.
+     */
+    @PostMapping("/client/brief")
+    public PromptOptimizationModels.ClientBrief clientBrief(@RequestBody ClientBriefRequest request) {
+        return service.clientBrief(request.agentId(), request.previousBriefs(), request.provider());
+    }
+
     // --- Aides ----------------------------------------------------------------------------------------
 
     private List<Map<String, Object>> versionViewsInternal(String campaignId) {
@@ -279,8 +316,15 @@ public class PromptOptimizationController {
             view.put("promptHash", version.promptHash());
             view.put("iterationNumber", version.iterationNumber());
             view.put("promoted", version.version().equals(campaign.promotedVersion()));
+            // Une version ACCEPTÉE mais non écrite (mode automatique de l'Agent C) reste PROMOUVABLE : c'est
+            // `appliedInProduction` qui décide si le bouton « Promouvoir » a encore un sens.
+            boolean applied = service.appliedInProduction(campaignId, version.version());
+            view.put("applied", applied);
+            // « production » = version de RÉFÉRENCE du cycle ET rien de promu ET c'est bien la zone du fichier.
+            // Le chaînage des cycles (mode automatique) hérite la zone d'un cycle précédent : sa V0 n'est donc
+            // PAS le prompt de production — elle est seulement la référence de CE cycle (« référence » à l'écran).
             view.put("production", version.version().equals(campaign.basePromptVersion())
-                    && campaign.promotedVersion().isEmpty());
+                    && campaign.promotedVersion().isEmpty() && applied);
             view.put("prompt", service.promptFor(campaignId, version.version()));
             views.add(view);
         }
@@ -308,6 +352,9 @@ public class PromptOptimizationController {
         view.put("fixedPrefix", snapshot.fixedPrefix());
         view.put("initialEditableSection", snapshot.initialEditableSection());
         view.put("fixedSuffix", snapshot.fixedSuffix());
+        // Origine de la zone de départ : vide = prompt de production, sinon « <campagne>:<version> » (chaînage
+        // des cycles du mode automatique — la zone testée n'est alors PAS celle de la production).
+        view.put("baseZoneSource", snapshot.baseZoneSource());
         return view;
     }
 

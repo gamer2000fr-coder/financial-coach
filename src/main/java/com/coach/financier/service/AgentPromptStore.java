@@ -43,6 +43,8 @@ public class AgentPromptStore {
     public static final String PROMPT_EDITOR_KEY = "prompt_editor";
     /** CLIENT SIMULÉ de l'ATELIER d'optimisation des prompts (« Agent C »). */
     public static final String PROMPT_CLIENT_KEY = "prompt_client";
+    /** CONCEPTION DU PROJET du client simulé de l'atelier (bouton « Générer projet »). */
+    public static final String PROMPT_CLIENT_BRIEF_KEY = "prompt_client_brief";
     private static final String GENERIC_THEME = "generic";
 
     /**
@@ -76,6 +78,8 @@ public class AgentPromptStore {
                 AgentFiles.PROMPT_EDITOR_PROMPT_FILE));
         result.add(entry(PROMPT_CLIENT_KEY, "Atelier prompts — client simulé (Agent C)",
                 AgentFiles.PROMPT_CLIENT_PROMPT_FILE));
+        result.add(entry(PROMPT_CLIENT_BRIEF_KEY, "Atelier prompts — projet du client (Agent C, « Générer projet »)",
+                AgentFiles.PROMPT_CLIENT_BRIEF_PROMPT_FILE));
         for (AgentDefinition agent : agents) {
             if (GENERIC_THEME.equalsIgnoreCase(agent.getTheme())) {
                 continue;

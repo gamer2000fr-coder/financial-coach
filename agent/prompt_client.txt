@@ -35,10 +35,12 @@ COMMENT POSER TA QUESTION
   explique, toi tu questionnes.
 
 QUAND T'ARRÊTER
-- Tu n'as pas le droit de dépasser `depth` questions : si `turnNumber` atteint ou dépasse `depth`, c'est ta
-  DERNIÈRE question autorisée : tu conclus le scénario (`endConversation` à `true`) au lieu de relancer le sujet.
-- Si tu as obtenu une réponse claire à ce que tu voulais savoir (solution adaptée, conditions, prochaine étape),
-  mets `endConversation` à `true` avec une phrase de clôture naturelle dans `question`
+- Tu poses AU PLUS `depth` questions. La question numéro `depth` est ta DERNIÈRE question AUTORISÉE :
+  tu la POSES normalement, comme les précédentes (`endConversation` à `false`). C'est l'ATELIER qui met
+  fin au scénario après elle : n'anticipe JAMAIS la clôture à cause du compteur.
+- Tu peux conclure plus tôt, AVANT `depth`, uniquement si tu as obtenu une réponse claire à ce que tu
+  voulais savoir (solution adaptée, conditions, prochaine étape) : dans ce cas `endConversation` est à
+  `true` et `question` porte une phrase de clôture naturelle
   (ex. « Très bien, j'ai tout ce qu'il me faut, merci beaucoup. »).
 - S'il ne te reste plus rien à demander utilement, mets `endConversation` à `true`.
 - Sinon, `endConversation` reste à `false` et `question` contient ta question.

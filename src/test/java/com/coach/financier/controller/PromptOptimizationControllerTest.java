@@ -96,6 +96,23 @@ class PromptOptimizationControllerTest {
     }
 
     /** « Retenir » a été retiré de l'atelier : la promotion est la SEULE décision sur une version. */
+    /**
+     * CHAÎNAGE : le corps de la requête transporte bien le cycle source et sa version (« la zone de départ du
+     * cycle est celle de la version retenue de ce cycle-là »). Le refus arrive AVANT tout appel IA — un cycle
+     * source inconnu est donc détectable ici sans fournisseur ni réseau, et l'IHM reçoit un message lisible.
+     */
+    @Test
+    void aChainedCycleReportsAnUnknownSourceCycleWithoutCallingAnyProvider() throws Exception {
+        Map<String, Object> body = postBody("/api/prompt-optimization/campaigns", """
+                {"agentId":"credit_conso","question":"%s","iterations":1,"provider":"LOCAL",
+                 "fromCampaignId":"po-inexistante","fromVersion":"V1"}
+                """.formatted(QUESTION), 400);
+
+        assertEquals("BAD_REQUEST", body.get("error"));
+        assertTrue(String.valueOf(body.get("message")).contains("Campagne inconnue"),
+                "le chaînage est validé avant tout appel IA : " + body.get("message"));
+    }
+
     @Test
     void noLongerExposesTheRetainEndpoints() throws Exception {
         mockMvc.perform(post("/api/prompt-optimization/campaigns/po-inexistante/retain")
@@ -104,6 +121,19 @@ class PromptOptimizationControllerTest {
         mockMvc.perform(post("/api/prompt-optimization/campaigns/po-inexistante/unretain")
                         .contentType(MediaType.APPLICATION_JSON).content("{\"version\":\"V1\"}"))
                 .andExpect(status().isNotFound());
+    }
+
+    /**
+     * La route d'ACCEPTATION sans écriture existe (400 « campagne inconnue », et non 404 comme une route
+     * disparue) : c'est celle qu'utilise le mode automatique de l'Agent C pour enchaîner les cycles du client
+     * SANS écrire le prompt de production.
+     */
+    @Test
+    void theAcceptRouteExistsAndReportsAnUnknownCampaign() throws Exception {
+        Map<String, Object> body = postBody("/api/prompt-optimization/campaigns/po-inexistante/accept",
+                "{\"version\":\"V1\"}", 400);
+        assertEquals("BAD_REQUEST", body.get("error"));
+        assertTrue(body.get("message") instanceof String);
     }
 
     @Test
@@ -183,5 +213,27 @@ class PromptOptimizationControllerTest {
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
         assertEquals("BAD_REQUEST", objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {
         }).get("error"));
+    }
+
+    // --- Agent C : projet du client (« Générer projet ») ----------------------------------------------
+
+    /**
+     * Les refus de « Générer projet » arrivent AVANT tout appel au fournisseur : ils sont donc vérifiables
+     * ici sans réseau ni clé API — et ce sont exactement les messages que l'IHM affiche.
+     */
+    @Test
+    void theGeneratedProjectRefusesTheDemoProviderAndAnUnknownAgent() throws Exception {
+        Map<String, Object> demo = postBody("/api/prompt-optimization/client/brief", """
+                {"agentId":"credit_conso","provider":"MOCK"}
+                """, 400);
+        assertEquals("BAD_REQUEST", demo.get("error"));
+        assertTrue(String.valueOf(demo.get("message")).contains("fournisseur IA réel"),
+                "le mode démo ne peut pas inventer de projet : " + demo.get("message"));
+
+        Map<String, Object> unknown = postBody("/api/prompt-optimization/client/brief", """
+                {"agentId":"agent-inconnu","provider":"DEEPSEEK"}
+                """, 400);
+        assertTrue(String.valueOf(unknown.get("message")).contains("Agent inconnu"),
+                "l'IHM affiche un message lisible, jamais un identifiant brut");
     }
 }

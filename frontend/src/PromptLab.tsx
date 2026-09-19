@@ -22,8 +22,10 @@ import {
   X,
 } from 'lucide-react'
 import {
+  acceptPromptVersion,
   fetchPromptCampaign,
   fetchClientQuestion,
+  fetchGeneratedClientBrief,
   fetchPromptComparison,
   fetchPromptOptimizationAgents,
   fetchPromptThreadComparison,
@@ -86,6 +88,7 @@ function humanize(code: string): string {
 function providerLabel(code: string): string {
   if (code === 'DEEPSEEK') return 'DeepSeek'
   if (code === 'GPT') return 'OpenAI'
+  if (code === 'LOCAL') return 'Local (LM Studio)'
   if (code === 'MOCK') return 'Mode démo'
   return code || '—'
 }
@@ -165,6 +168,47 @@ const NO_DEDICATED_ZONE_AGENTS = ['generic']
  */
 const ZONE_KEY: PromptZoneKey = 'agent'
 
+/**
+ * REMISE À ZÉRO de la mémoire de l'atelier, PAR AGENT (bouton « Nouvelle conversation »).
+ * <p>
+ * Le fil de conversation vit sur le SERVEUR : il est repris au chargement de la page (le plus récent de
+ * l'agent sélectionné). Sans mémoire de l'abandon, un simple F5 faisait donc réapparaître une conversation
+ * volontairement abandonnée — constaté par l'utilisateur. On horodate l'abandon dans `localStorage` : les
+ * fils modifiés **avant** cet instant ne sont plus repris, ceux créés **après** le sont toujours (la reprise
+ * au rechargement reste donc utile).
+ */
+const MEMORY_CLEARED_STORAGE_KEY = 'financial-coach-plab-memory-cleared'
+
+/** Instant (ms) de la dernière remise à zéro de la mémoire pour un agent ; 0 = jamais remise à zéro. */
+function memoryClearedAt(agentId: string): number {
+  if (typeof window === 'undefined' || !agentId) return 0
+  try {
+    const raw = window.localStorage.getItem(MEMORY_CLEARED_STORAGE_KEY)
+    const marks = raw ? (JSON.parse(raw) as Record<string, string>) : {}
+    const value = marks[agentId]
+    return value ? Date.parse(value) || 0 : 0
+  } catch {
+    return 0
+  }
+}
+
+/**
+ * Mémorise l'abandon de la conversation courante pour un agent. Aucun échec n'est possible côté IHM : si
+ * `localStorage` est indisponible (navigation privée, quota), la remise à zéro reste valable pour la session
+ * en cours.
+ */
+function markMemoryCleared(agentId: string): void {
+  if (typeof window === 'undefined' || !agentId) return
+  try {
+    const raw = window.localStorage.getItem(MEMORY_CLEARED_STORAGE_KEY)
+    const marks = raw ? (JSON.parse(raw) as Record<string, string>) : {}
+    marks[agentId] = new Date().toISOString()
+    window.localStorage.setItem(MEMORY_CLEARED_STORAGE_KEY, JSON.stringify(marks))
+  } catch {
+    // Stockage indisponible : la remise à zéro vaut pour la session en cours.
+  }
+}
+
 /** Agents réellement sélectionnables pour une campagne. */
 function selectableZones(agents: PromptOptimizationAgents | null): PromptZoneInfo[] {
   return (agents?.zones ?? []).filter((zone) => !NO_DEDICATED_ZONE_AGENTS.includes(zone.agentId))
@@ -180,6 +224,19 @@ function selectableZones(agents: PromptOptimizationAgents | null): PromptZoneInf
 type OpenPanel = { version: string; iteration: number | null }
 
 /**
+ * Version CANDIDATE à la promotion depuis le bilan de conversation : la dernière version RETENUE par la
+ * conversation qui n'est pas (encore) celle du prompt de production.
+ * <p>
+ * Elle peut différer de la « version finale » du bilan : quand les derniers cycles n'ont rien changé (l'Agent A
+ * n'a rien proposé, la version retenue est donc identique au fichier), c'est une version d'un cycle ANTÉRIEUR
+ * qui porte l'amélioration jamais écrite — c'est celle-là que l'humain veut pouvoir adopter à la fin.
+ */
+type PromotionTarget = VersionRef & { editableSection: string; prompt: string }
+
+/** Référence d'une version dans une campagne : ce qu'il faut pour la promouvoir ou en hériter la zone. */
+type VersionRef = { campaignId: string; version: string }
+
+/**
  * ATELIER d'amélioration itérative des prompts (`#/prompt-lab`).
  * <p>
  * La boucle est PILOTÉE PAR L'IHM : GO démarre la campagne puis enchaîne une requête = une itération
@@ -193,6 +250,11 @@ export default function PromptLab() {
   const [comparison, setComparison] = useState<PromptComparison | null>(null)
   /** BILAN début ↔ fin de la conversation (bouton « comparer le prompt initial et le prompt final »). */
   const [threadComparison, setThreadComparison] = useState<ConversationComparison | null>(null)
+  /** La version FINALE du bilan est-elle DÉJÀ celle du fichier de production ? (message du bilan) */
+  const [threadComparisonApplied, setThreadComparisonApplied] = useState(false)
+  /** Version à PROMOUVOIR d'après le bilan (dernière version retenue qui n'est pas en production). */
+  const [threadTarget, setThreadTarget] = useState<PromotionTarget | null>(null)
+  const threadRef = useRef<PromptThread | null>(null)
   const [agentId, setAgentId] = useState('')
   const [question, setQuestion] = useState('')
   const [iterations, setIterations] = useState(3)
@@ -224,6 +286,13 @@ export default function PromptLab() {
   const [clientMode, setClientMode] = useState(false)
   /** Brief du client : ce qu'il est et ce qu'il veut (remplace la question de test quand le mode est actif). */
   const [clientBrief, setClientBrief] = useState('')
+  /**
+   * Briefs DÉJÀ proposés par l'Agent C (« Générer projet ») : transmis au modèle au clic suivant pour qu'il
+   * cherche un projet franchement différent, jamais une variante du même scénario.
+   */
+  const [clientBriefs, setClientBriefs] = useState<string[]>([])
+  /** Un projet est en cours de rédaction par l'agent C (le bouton indique l'attente). */
+  const [briefGenerating, setBriefGenerating] = useState(false)
   /** PROFONDEUR : nombre maximum de questions que le client simulé posera au cours du scénario. */
   const [clientDepth, setClientDepth] = useState(3)
   const [clientProvider, setClientProvider] = useState<AIProvider>('DEEPSEEK')
@@ -295,6 +364,9 @@ export default function PromptLab() {
    * CONVERSATION REPRISE au chargement de la page : le fil le plus récent de l'agent sélectionné. Une page
    * rechargée ne perd donc plus la conversation — seul le DÉTAIL de la campagne précédente n'est plus
    * affiché (l'IHM ne propose pas de reprendre une campagne).
+   * <p>
+   * Un fil ABANDONNÉ (« Nouvelle conversation ») n'est jamais repris, même après un F5 : les fils modifiés
+   * avant l'abandon sont ignorés ; un fil créé depuis l'abandon l'est normalement.
    */
   useEffect(() => {
     if (!agentId || restoredAgentsRef.current.includes(agentId)) return
@@ -303,7 +375,9 @@ export default function PromptLab() {
     fetchPromptThreads()
       .then((threads) => {
         if (!active) return
-        const mine = threads.find((item) => item.agentId === agentId && item.turns.length > 0)
+        const clearedAt = memoryClearedAt(agentId)
+        const mine = threads.find((item) => item.agentId === agentId && item.turns.length > 0
+          && Date.parse(item.updatedAt) > clearedAt)
         if (mine) {
           setThread(mine)
         }
@@ -321,6 +395,14 @@ export default function PromptLab() {
     const node = threadScrollRef.current
     if (node) node.scrollTop = node.scrollHeight
   }, [thread?.turns.length, campaign?.campaignId])
+
+  /**
+   * Le fil courant est aussi gardé dans une REF : la fin d'un scénario automatique doit ouvrir le bilan du fil
+   * qui vient d'être créé, alors que l'état `thread` capturé au clic sur GO est encore l'ancien.
+   */
+  useEffect(() => {
+    threadRef.current = thread
+  }, [thread])
 
   /**
    * L'IHM ne propose PAS de reprendre une campagne passée (l'historique n'est pas consulté) : seul l'état de
@@ -395,11 +477,6 @@ export default function PromptLab() {
    */
   const canDecide = Boolean(campaign && campaign.status !== 'RUNNING' && campaign.status !== 'STOP_REQUESTED')
   /**
-   * Fenêtre de DÉCISION : les boutons de promotion ne sont proposés que tant qu'aucune version n'a été
-   * acceptée (après, la campagne est close : tout reste consultable mais plus promouvable).
-   */
-  const canPromote = Boolean(canDecide && campaign && !campaign.promotedVersion)
-  /**
    * Itérations ENCORE disponibles sur le plafond CUMULÉ (demandées + ajoutées) : une reprise ne peut jamais
    * dépasser `maxIterations`. Valeur réellement appliquée = saisie bornée à ce reste.
    */
@@ -413,9 +490,13 @@ export default function PromptLab() {
   const producedNewVersion = (iteration: PromptIteration) =>
     iteration.resultingVersion !== iteration.promptVersion
 
-  /** Version encore PROMOUVABLE : connue, ni en production, ni déjà promue. */
+  /**
+   * Une version est PROMOUVABLE si elle n'est pas DÉJÀ celle du fichier de production. Depuis que le mode
+   * automatique de l'Agent C ACCEPTE sans écrire, la promotion reste possible après l'acceptation : c'est
+   * l'état réel du fichier qui décide, plus le statut de la campagne.
+   */
   const promotableVersion = (version: string): boolean => Boolean(detail
-    && detail.versions.some((item) => item.version === version && !item.production && !item.promoted))
+    && detail.versions.some((item) => item.version === version && !item.production && !item.applied))
 
   /**
    * Itération qui a RÉELLEMENT répondu avec cette version ({@code promptVersion}, réponse non vide).
@@ -450,8 +531,12 @@ export default function PromptLab() {
   /** Nombre de questions du client DÉJÀ traitées (une réponse de l'IA par question). */
   const clientAsked = threadExchanges
   const clientDepthReached = clientAsked >= clientDepth
-  /** Numéro de la question que le client va poser (1 = la première). */
-  const clientTurnNumber = clientAsked + (clientQuestion !== null ? 1 : 0) + 1
+  /**
+   * Numéro de la question AFFICHÉE (celle du bloc « Question du client (Agent C) ») : les questions déjà traitées
+   * plus une. Le `+ 1` supplémentaire qui figurait ici comptait la question en cours DEUX fois (la première
+   * question s'affichait « n°2 »).
+   */
+  const clientTurnNumber = clientAsked + 1
 
   /** Question suivante du client : il reçoit le brief, les TROIS chiffres du dossier et la conversation. */
   async function askClient(turnNumber: number, threadId: string | null): Promise<string | null> {
@@ -474,9 +559,11 @@ export default function PromptLab() {
 
   /**
    * UN cycle d'optimisation sur la question du client. Le fil est transmis pour que le cycle reparte avec TOUT
-   * l'historique ; le prompt testé est celui en production (celui qui vient d'être promu), comme dans le chat.
+   * l'historique ; le prompt testé est celui qui vient d'être retenu — celui en production, ou celui hérité du
+   * cycle précédent quand `base` est fourni (chaînage du mode automatique : les cycles s'accumulent sans
+   * qu'aucune écriture n'ait eu lieu).
    */
-  async function startCycle(questionText: string, threadId: string | null) {
+  async function startCycle(questionText: string, threadId: string | null, base: VersionRef | null) {
     const started = await startPromptCampaign({
       agentId,
       question: questionText,
@@ -486,6 +573,8 @@ export default function PromptLab() {
       controllerProvider,
       editorProvider,
       threadId,
+      fromCampaignId: base?.campaignId ?? null,
+      fromVersion: base?.version ?? null,
     })
     setThread(started.thread)
     setEditingTurn(null)
@@ -496,19 +585,25 @@ export default function PromptLab() {
   }
 
   /**
-   * PROMOTION AUTOMATIQUE : la dernière version du cycle part en production, sa réponse entre dans la
-   * conversation (c'est elle que le client lira pour poser sa question suivante). S'il n'y a aucune
-   * modification à promouvoir, la version de référence est acceptée telle quelle (aucune écriture).
+   * ACCEPTATION AUTOMATIQUE (mode Agent C) : la dernière version du cycle est acceptée POUR LA CONVERSATION —
+   * sa réponse entre dans le fil, le client garde sa mémoire — mais le PROMPT DE PRODUCTION N'EST PAS ÉCRIT.
+   * L'écriture reste une décision humaine, prise à la fin du scénario : bouton « PROMOUVOIR » du bilan
+   * « Comparaison de la conversation — début ↔ fin ». Aucune modification à accepter : la version de référence
+   * est acceptée telle quelle (aucune écriture non plus).
    */
-  async function promoteCycle(campaignId: string) {
+  async function acceptCycle(campaignId: string): Promise<VersionRef | null> {
     const current = await fetchPromptCampaign(campaignId)
     setDetail(current)
     const state = current.campaign
-    if (state.promotedVersion || state.status === 'REJECTED' || state.status === 'CANCELLED') return
+    if (state.promotedVersion) {
+      return { campaignId, version: state.promotedVersion }
+    }
+    if (state.status === 'REJECTED' || state.status === 'CANCELLED') return null
     const version = state.currentCandidateVersion || state.basePromptVersion
-    const result = await promotePromptVersion(campaignId, version)
-    setNotice(`Promotion automatique : ${result.message}`)
+    const result = await acceptPromptVersion(campaignId, version)
+    setNotice(`Cycle accepté pour la conversation : ${result.message}`)
     await refresh(campaignId)
+    return { campaignId, version }
   }
 
   /**
@@ -520,6 +615,11 @@ export default function PromptLab() {
     let question = pending?.trim() ?? ''
     let asked = clientAsked
     let currentThreadId = thread?.threadId ?? null
+    // CHAÎNAGE DES CYCLES (mode automatique) : le premier cycle hérite la zone de la dernière version RETENUE du
+    // fil qui n'est pas en production, et chaque cycle suivant hérite de celle qu'il vient de retenir — le bilan
+    // « début ↔ fin » est donc réellement CUMULATIF. En mode manuel, l'humain promeut : le cycle repart du
+    // prompt de production, qui contient déjà sa décision (aucun chaînage).
+    let base: VersionRef | null = autoPromote ? await promotionTargetOf() : null
     for (;;) {
       if (clientStopRef.current) break
       if (!question) {
@@ -538,7 +638,7 @@ export default function PromptLab() {
         question = posee
       }
       setClientQuestion(null)
-      const started = await startCycle(question, currentThreadId)
+      const started = await startCycle(question, currentThreadId, base)
       question = ''
       if (!started) break
       currentThreadId = started.threadId
@@ -550,7 +650,9 @@ export default function PromptLab() {
         break
       }
       if (clientStopRef.current) break
-      await promoteCycle(started.campaignId)
+      const retenue = await acceptCycle(started.campaignId)
+      // Le cycle suivant part de la version qui vient d'être retenue : les améliorations s'ACCUMULENT.
+      if (retenue) base = retenue
     }
   }
 
@@ -566,6 +668,14 @@ export default function PromptLab() {
     setError(null)
     try {
       await clientStep(pending)
+      // FIN DU SCÉNARIO EN MODE AUTOMATIQUE : rien n'a été écrit dans le prompt de production (chaque cycle a
+      // seulement été ACCEPTÉ pour la conversation). On affiche donc le bilan début ↔ fin, avec le bouton
+      // « PROMOUVOIR » : c'est l'humain qui décide, en connaissance de cause, à la toute fin.
+      if (autoPromote && threadRef.current) {
+        await showThreadComparison(threadRef.current.threadId)
+        setNotice('Scénario terminé : le prompt de production n\'a PAS été modifié. Comparez le prompt initial et le '
+          + 'prompt final ci-dessous, puis « PROMOUVOIR » la version retenue — ou non.')
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Scénario interrompu.')
     } finally {
@@ -583,6 +693,7 @@ export default function PromptLab() {
   async function handleStart() {
     await guard(async () => {
       setThreadComparison(null)
+      setThreadTarget(null)
       const started = await startPromptCampaign({
         agentId,
         question: question.trim(),
@@ -621,6 +732,7 @@ export default function PromptLab() {
       setNextQuestion('')
       setEditingTurn(null)
       setThreadComparison(null)
+      setThreadTarget(null)
       setNotice(`Nouveau cycle ${started.campaign.campaignId} démarré avec ${threadExchanges} échange(s) d'historique.`)
       await drive(started.campaign.campaignId)
     })
@@ -632,7 +744,43 @@ export default function PromptLab() {
     setNextQuestion('')
     setEditingTurn(null)
     setThreadComparison(null)
-    setNotice("Nouvelle conversation : le prochain cycle démarrera sans historique (aucune mémoire).")
+    setThreadTarget(null)
+    // Nouveau scénario : le projet précédent n'a plus à être évité, on repart d'une page blanche.
+    setClientBriefs([])
+    // La remise à zéro est MÉMORISÉE : sans cela, un simple F5 faisait réapparaître le fil abandonné
+    // (il est repris depuis le serveur au chargement). Un fil créé après cet instant sera, lui, repris.
+    markMemoryCleared(agentId)
+    setNotice("Nouvelle conversation : le prochain cycle démarrera sans historique (aucune mémoire). La conversation abandonnée ne sera plus rechargée, même après un rafraîchissement de la page.")
+  }
+
+  /**
+   * « GÉNÉRER PROJET » (Agent C) : l'agent cherche lui-même un client et un projet correspondant à l'agent de
+   * coach sélectionné (crédit à la consommation, épargne, assurance…) et l'écrit dans le champ « Brief du
+   * client ». Un nouvel appui propose un projet DIFFÉRENT : les propositions précédentes sont transmises au
+   * modèle. Rien n'est écrit côté backend : le texte reste modifiable, et le brief reste FIGÉ ensuite pour tout
+   * le scénario (il n'est relu qu'au démarrage du scénario).
+   */
+  async function handleGenerateProject() {
+    if (briefGenerating || clientRunning || !agentId) return
+    setBriefGenerating(true)
+    setError(null)
+    try {
+      const proposal = await fetchGeneratedClientBrief({
+        agentId,
+        provider: clientProvider,
+        previousBriefs: [...clientBriefs, ...(clientBrief.trim() ? [clientBrief.trim()] : [])],
+      })
+      setClientBrief(proposal.brief)
+      setClientBriefs((previous) => [...previous, proposal.brief])
+      const montant = typeof proposal.montantProjet === 'number'
+        ? `${proposal.montantProjet.toLocaleString('fr-FR')} € à financer — `
+        : ''
+      setNotice(`Projet proposé par l’agent C (${providerLabel(clientProvider)}) : ${montant}${proposal.reason || 'relisez-le et modifiez-le si besoin, puis lancez le scénario.'}`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Projet impossible à générer.')
+    } finally {
+      setBriefGenerating(false)
+    }
   }
 
   /**
@@ -763,16 +911,88 @@ export default function PromptLab() {
   }
 
   /**
-   * BILAN de la CONVERSATION : le prompt du premier cycle face au prompt en vigueur à la fin (dernière version
-   * promue). La comparaison d'une campagne ne montre qu'une question ; celle-ci montre tout le scénario — c'est
-   * la lecture « qu'est-ce que cette conversation a changé au prompt ? » demandée à la fin de la conversation.
+   * BILAN de la CONVERSATION : le prompt du premier cycle face au prompt retenu à la fin. La comparaison d'une
+   * campagne ne montre qu'une question ; celle-ci montre tout le scénario — c'est la lecture « qu'est-ce que
+   * cette conversation a changé au prompt ? » demandée à la fin, et le point de décision depuis que le mode
+   * automatique n'écrit plus rien : on regarde, puis on promeut (ou pas).
    */
-  async function handleThreadCompare() {
-    const current = thread
-    if (!current) return
+  async function showThreadComparison(threadId: string) {
     await guard(async () => {
-      setThreadComparison(await fetchPromptThreadComparison(current.threadId))
+      const bilan = await fetchPromptThreadComparison(threadId)
+      setThreadComparison(bilan)
+      setThreadTarget(await promotionTargetOf())
+      setThreadComparisonApplied(await versionApplied(bilan.currentCampaignId, bilan.currentVersion))
     })
+  }
+
+  /**
+   * Dernière version RETENUE par la conversation qui n'est PAS encore celle du prompt de production, du cycle le
+   * plus récent au plus ancien.
+   * <p>
+   * C'est la version à promouvoir à la fin d'un scénario : une version acceptée sans écriture reste promouvable
+   * (le fil a gardé sa réponse), même si un cycle ULTÉRIEUR n'a rien proposé — sans cette recherche, le bilan
+   * affichait « déjà appliquée » et ne proposait plus aucun bouton alors qu'une amélioration attendait.
+   */
+  async function promotionTargetOf(): Promise<PromotionTarget | null> {
+    const current = threadRef.current
+    if (!current) return null
+    for (const campaignId of [...current.campaignIds].reverse()) {
+      try {
+        const state = await fetchPromptCampaign(campaignId)
+        const version = state.campaign.promotedVersion
+        if (!version) continue
+        const view = state.versions.find((item) => item.version === version)
+        if (!view || view.applied) continue
+        return { campaignId, version, editableSection: view.editableSection, prompt: view.prompt }
+      } catch {
+        // Campagne illisible : on essaie la précédente (au pire, aucun bouton n'est proposé).
+      }
+    }
+    return null
+  }
+
+  /** La version d'une campagne est-elle DÉJÀ appliquée au prompt de production ? */
+  async function versionApplied(campaignId: string, version: string): Promise<boolean> {
+    try {
+      const state = await fetchPromptCampaign(campaignId)
+      return state.versions.find((item) => item.version === version)?.applied ?? false
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * Version visée par le bilan : la version RETENUE à promouvoir si elle existe, sinon la version finale (déjà en
+   * production → simple accusé de réception).
+   */
+  function threadPanelTarget(): PromotionTarget | null {
+    if (threadTarget) return threadTarget
+    if (!threadComparison) return null
+    return {
+      campaignId: threadComparison.currentCampaignId,
+      version: threadComparison.currentVersion,
+      editableSection: threadComparison.currentEditableSection,
+      prompt: threadComparison.currentPrompt,
+    }
+  }
+
+  /** DÉCISION FINALE : l'humain promeut la version du bilan (seule action qui écrit le prompt de production). */
+  async function handlePromoteThreadVersion() {
+    const cible = threadPanelTarget()
+    if (!cible) return
+    await guard(async () => {
+      const result = await promotePromptVersion(cible.campaignId, cible.version)
+      setNotice(`Promotion : ${result.message}`)
+      setThreadTarget(null)
+      setThreadComparisonApplied(true)
+      await refresh(cible.campaignId)
+    })
+  }
+
+  async function handleThreadCompare() {
+    const current = threadRef.current
+    if (!current) return
+    await showThreadComparison(current.threadId)
   }
 
   /** Bouton unique du bilan de conversation (mode manuel et mode Agent C). */
@@ -788,6 +1008,119 @@ export default function PromptLab() {
       >
         <Braces size={15} /> COMPARER LE PROMPT INITIAL ET LE PROMPT FINAL
       </button>
+    )
+  }
+
+  /**
+   * BILAN « Comparaison de la conversation — début ↔ fin » : c'est le POINT DE DÉCISION du mode automatique,
+   * puisqu'aucun cycle n'a rien écrit dans le prompt de production.
+   * <p>
+   * La « fin » affichée est la dernière version RETENUE par la conversation qui n'est PAS encore dans le prompt
+   * de production (voir `threadPanelTarget`) : quand les derniers cycles n'ont rien proposé, c'est une version
+   * d'un cycle ANTÉRIEUR — celle qu'on juge utile d'adopter — au lieu d'un « rien à promouvoir » trompeur.
+   */
+  function threadComparisonPanel() {
+    const bilan = threadComparison
+    const cible = threadPanelTarget()
+    if (!bilan || !cible) return null
+    const debut = bilan.baseEditableSection
+    const fin = cible.editableSection
+    const estVersionFinale = cible.campaignId === bilan.currentCampaignId
+      && cible.version === bilan.currentVersion
+    const rienAPromouvoir = !threadTarget
+    // Les deux prompts complets peuvent venir de la MÊME campagne (dernière version retenue) : on ne répète
+    // alors pas le second bloc.
+    const finalDiffere = bilan.currentVersion !== cible.version
+      || bilan.currentCampaignId !== cible.campaignId
+    return (
+      <section className="mkt-card">
+        <h2><Braces size={16} /> Comparaison de la conversation — début ↔ fin</h2>
+        <p className="plab-hint">
+          Prompt <b>initial {bilan.baseVersion}</b> (au premier échange) → version <b>{cible.version}</b> retenue par
+          le cycle <span className="plab-mono">{cible.campaignId}</span>.{' '}
+          {estVersionFinale
+            ? bilan.summary
+            : "Les derniers cycles n'ont proposé aucune modification : la zone retenue à la fin est donc déjà "
+              + "celle du prompt de production, et la version à promouvoir est celle du cycle ci-dessus."}
+        </p>
+        <p className="plab-hint">
+          Agent <b>{bilan.agentLibelle}</b> ·{' '}
+          {bilan.zoneKey === 'principal'
+            ? <>zone transverse <code>agent/principal.txt</code></>
+            : <>zone de l'agent <code>agent/{bilan.zoneFile}</code></>}
+          {' · '}{bilan.cycleCount} cycle(s) · {bilan.iterationCount} itération(s) ·
+          {' '}{bilan.promotionCount} version(s) retenue(s)
+        </p>
+        {/* DÉCISION HUMAINE, À LA FIN DU SCÉNARIO : comparer puis promouvoir (ou pas). */}
+        <div className="plab-actions">
+          {rienAPromouvoir && threadComparisonApplied ? (
+            <span className="plab-tag ok">
+              ✓ Rien à promouvoir : le prompt de production contient déjà la version retenue par la conversation
+            </span>
+          ) : (
+            <button
+              type="button"
+              className="plab-primary"
+              disabled={busy}
+              onClick={() => handlePromoteThreadVersion()}
+              title="Écrit cette version dans le prompt de production (le prompt précédent est sauvegardé)."
+            >
+              <ThumbsUp size={15} /> PROMOUVOIR {cible.version} EN PRODUCTION
+            </button>
+          )}
+          <small className="plab-snippet">
+            Rien n'est écrit avant ce clic : les cycles enchaînés ont seulement été acceptés pour la conversation,
+            le prompt de production est resté celui qu'on compare ci-dessous.
+          </small>
+        </div>
+        <div className="plab-two">
+          <div className="plab-box">
+            <strong>VERSION INITIALE {bilan.baseVersion} — début de la conversation</strong>
+            <p className="plab-hint">Cycle <span className="plab-mono">{bilan.baseCampaignId}</span></p>
+            <pre className="plab-pre">{debut || '(zone vide)'}</pre>
+          </div>
+          <div className="plab-box">
+            <strong>
+              VERSION RETENUE {cible.version} — {rienAPromouvoir ? 'déjà en production' : 'à promouvoir'}
+              {estVersionFinale ? '' : ' (choisie par un cycle antérieur)'}
+            </strong>
+            <p className="plab-hint">Cycle <span className="plab-mono">{cible.campaignId}</span></p>
+            <pre className="plab-pre">{fin || '(zone vide)'}</pre>
+          </div>
+        </div>
+        {debut === fin ? (
+          <p className="plab-hint">
+            Aucune ligne de la zone n'a changé pendant cette conversation : le bilan est donc un prompt identique.
+          </p>
+        ) : (
+          <>
+            <h3>Changements de la zone {bilan.baseVersion} → {cible.version}</h3>
+            <div className="plab-diff">
+              {compactDiff(diffLines(debut, fin)).map((line, index) => (
+                <div key={index} className={`plab-diff-line ${line.type}`}>
+                  <span className="plab-diff-sign">
+                    {line.type === 'add' ? '+' : line.type === 'remove' ? '−' : ' '}
+                  </span>
+                  <span>{line.text}</span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+        <details className="plab-help">
+          <summary>Voir les prompts complets (parties protégées incluses)</summary>
+          <strong>PROMPT INITIAL {bilan.baseVersion}</strong>
+          <pre className="plab-pre">{bilan.basePrompt}</pre>
+          <strong>PROMPT RETENU {cible.version} (cycle {cible.campaignId})</strong>
+          <pre className="plab-pre">{cible.prompt}</pre>
+          {finalDiffere && (
+            <>
+              <strong>DERNIÈRE VERSION {bilan.currentVersion} (cycle {bilan.currentCampaignId})</strong>
+              <pre className="plab-pre">{bilan.currentPrompt}</pre>
+            </>
+          )}
+        </details>
+      </section>
     )
   }
 
@@ -810,6 +1143,7 @@ export default function PromptLab() {
     setPromotionVersion(null)
     setEditingTurn(null)
     setThreadComparison(null)
+    setThreadTarget(null)
     setNotice(null)
     setError(null)
   }
@@ -971,6 +1305,7 @@ export default function PromptLab() {
             <select value={provider} disabled={busy || Boolean(campaign)} onChange={(event) => setProvider(event.target.value as AIProvider)}>
               <option value="DEEPSEEK">DeepSeek</option>
               <option value="GPT">OpenAI</option>
+              <option value="LOCAL">Local (LM Studio)</option>
             </select>
             <small>Modèle qui répond au client (la question de test)</small>
           </label>
@@ -979,6 +1314,7 @@ export default function PromptLab() {
             <select value={controllerProvider} disabled={busy || Boolean(campaign)} onChange={(event) => setControllerProvider(event.target.value as AIProvider)}>
               <option value="DEEPSEEK">DeepSeek</option>
               <option value="GPT">OpenAI</option>
+              <option value="LOCAL">Local (LM Studio)</option>
             </select>
             <small>Modèle qui diagnostique la réponse</small>
           </label>
@@ -987,6 +1323,7 @@ export default function PromptLab() {
             <select value={editorProvider} disabled={busy || Boolean(campaign)} onChange={(event) => setEditorProvider(event.target.value as AIProvider)}>
               <option value="DEEPSEEK">DeepSeek</option>
               <option value="GPT">OpenAI</option>
+              <option value="LOCAL">Local (LM Studio)</option>
             </select>
             <small>Modèle qui réécrit la zone du prompt</small>
           </label>
@@ -1013,6 +1350,7 @@ export default function PromptLab() {
                 >
                   <option value="DEEPSEEK">DeepSeek</option>
                   <option value="GPT">OpenAI</option>
+                  <option value="LOCAL">Local (LM Studio)</option>
                 </select>
                 <small>Modèle qui joue le client (il ne conseille jamais)</small>
               </label>
@@ -1040,10 +1378,34 @@ export default function PromptLab() {
               onChange={(event) => setAutoPromote(event.target.checked)}
             />
             <span>
-              <b>Promotion automatique</b> — décoché : <b>vous</b> validez chaque cycle. Coché : la dernière
-              version du cycle est promue automatiquement et le client enchaîne sa question suivante.
+              <b>Enchaînement automatique</b> — décoché : <b>vous</b> validez chaque cycle. Coché : la dernière
+              version du cycle est <b>acceptée pour la conversation</b> (sa réponse entre dans la mémoire du
+              client) et le client enchaîne sa question suivante — <b>sans écrire le prompt de production</b>.
+              À la fin, le bilan « Comparaison de la conversation — début ↔ fin » s'affiche avec le bouton
+              <b> PROMOUVOIR</b> : c'est vous qui décidez ce qui part en production.
             </span>
           </label>
+        )}
+        {clientMode && (
+          <div className="plab-actions">
+            <button
+              type="button"
+              disabled={briefGenerating || clientRunning || busy || !agentId || !agents?.enabled}
+              onClick={handleGenerateProject}
+              title="L'agent C cherche lui-même un client et un projet correspondant à l'agent sélectionné. Un nouvel appui en propose un différent."
+            >
+              <Sparkles size={15} />
+              {briefGenerating
+                ? 'RECHERCHE D’UN PROJET…'
+                : clientBriefs.length > 0
+                  ? 'GÉNÉRER UN AUTRE PROJET'
+                  : 'GÉNÉRER PROJET'}
+            </button>
+            <small className="plab-snippet">
+              L’agent C invente le client et la raison de sa visite dans le périmètre de l’agent choisi
+              {clientBriefs.length > 0 ? ` — ${clientBriefs.length} projet(s) déjà proposé(s), il en cherchera un autre` : ''}.
+            </small>
+          </div>
         )}
         <label className="plab-field">
           <span>
@@ -1075,6 +1437,17 @@ export default function PromptLab() {
                 ? <>Prompt actuellement en production : <code>agent/{selectedZone.zoneFile}</code> · zone modifiable détectée <Braces size={13} /> (mêmes parties protégées pour toutes les versions)</>
                 : <>Agent non optimisable : {selectedZone.error}</>}
             </p>
+            {/* CHAÎNAGE : la zone testée peut venir de la version RETENUE d'un cycle précédent (mode automatique) —
+                le prompt de production, lui, n'a pas été écrit. Sans ce repère, la version V0 du cycle semble
+                étrangement différente de la production. */}
+            {detail?.snapshot?.baseZoneSource && (
+              <p className="plab-hint">
+                <span className="plab-tag warn">zone héritée</span> Zone de départ de ce cycle : <b>Celle de la version
+                retenue</b> <span className="plab-mono">{detail.snapshot.baseZoneSource.split(':')[1]}</span> du cycle{' '}
+                <span className="plab-mono">{detail.snapshot.baseZoneSource.split(':')[0]}</span> — le prompt de
+                production <b>n'a pas été modifié</b> (il diffère donc de la version de référence V0 de ce cycle).
+              </p>
+            )}
             <details className="plab-help">
               <summary>Qu'est-ce que la « zone optimisée » ?</summary>
               <p className="plab-hint">
@@ -1164,7 +1537,7 @@ export default function PromptLab() {
                       <div className="avatar assistant-avatar"><Sparkles size={17} /></div>
                       <div className="message-bubble assistant">
                         <div className="message-meta">
-                          <span>Réponse de l'IA — version {turn.version || '—'} promue</span>
+                          <span>Réponse de l'IA — version {turn.version || '—'} acceptée</span>
                         </div>
                         {editingTurn?.index === index ? (
                           <>
@@ -1194,7 +1567,7 @@ export default function PromptLab() {
                                 : '(réponse vide)'}
                             </div>
                             <div className="plab-thread-meta">
-                              <span className="plab-tag ok">★ {turn.version || 'version'} promue</span>
+                              <span className="plab-tag ok">★ {turn.version || 'version'} — version acceptée</span>
                               <span className="plab-mono">cycle {turn.campaignId}</span>
                               <button
                                 type="button"
@@ -1305,8 +1678,8 @@ export default function PromptLab() {
                     <span className="plab-tag ok"><Users size={13} /> Agent C — client simulé</span>
                     <span className="plab-hint">
                       Question {Math.min(clientAsked + 1, clientDepth)} / profondeur {clientDepth} ·
-                      {' '}{autoPromote ? 'promotion automatique' : 'promotion par vous'} ·
-                      {' '}fournisseur {clientProvider === 'DEEPSEEK' ? 'DeepSeek' : 'OpenAI'}
+                      {' '}{autoPromote ? 'enchaînement automatique, acceptation sans écriture' : 'validation par vous'} ·
+                      {' '}fournisseur {providerLabel(clientProvider)}
                     </span>
                   </div>
                   <div className="plab-actions">
@@ -1348,64 +1721,9 @@ export default function PromptLab() {
         </section>
       )}
 
-      {/* 1ter) BILAN de la conversation : le prompt du DÉBUT face au prompt EN VIGUEUR à la fin. La comparaison
+      {/* 1ter) BILAN de la conversation : le prompt du DÉBUT face au prompt RETENU à la fin. La comparaison
           d'une campagne ne montre qu'une question ; celle-ci montre tout le scénario, cycle après cycle. */}
-      {threadComparison && (
-        <section className="mkt-card">
-          <h2><Braces size={16} /> Comparaison de la conversation — début ↔ fin</h2>
-          <p className="plab-hint">
-            Prompt <b>initial {threadComparison.baseVersion}</b> (au premier échange) → prompt{' '}
-            <b>final {threadComparison.currentVersion}</b> (version en vigueur à la fin). {threadComparison.summary}
-          </p>
-          <p className="plab-hint">
-            Agent <b>{threadComparison.agentLibelle}</b> ·{' '}
-            {threadComparison.zoneKey === 'principal'
-              ? <>zone transverse <code>agent/principal.txt</code></>
-              : <>zone de l'agent <code>agent/{threadComparison.zoneFile}</code></>}
-            {' · '}{threadComparison.cycleCount} cycle(s) · {threadComparison.iterationCount} itération(s) ·
-            {' '}{threadComparison.promotionCount} promotion(s)
-          </p>
-          <div className="plab-two">
-            <div className="plab-box">
-              <strong>VERSION INITIALE {threadComparison.baseVersion} — début de la conversation</strong>
-              <p className="plab-hint">Cycle <span className="plab-mono">{threadComparison.baseCampaignId}</span></p>
-              <pre className="plab-pre">{threadComparison.baseEditableSection || '(zone vide)'}</pre>
-            </div>
-            <div className="plab-box">
-              <strong>VERSION FINALE {threadComparison.currentVersion} — version en vigueur</strong>
-              <p className="plab-hint">Cycle <span className="plab-mono">{threadComparison.currentCampaignId}</span></p>
-              <pre className="plab-pre">{threadComparison.currentEditableSection || '(zone vide)'}</pre>
-            </div>
-          </div>
-          {threadComparison.baseEditableSection === threadComparison.currentEditableSection ? (
-            <p className="plab-hint">
-              Aucune ligne de la zone n'a changé pendant cette conversation : le bilan est donc un prompt identique.
-            </p>
-          ) : (
-            <>
-              <h3>Changements de la zone {threadComparison.baseVersion} → {threadComparison.currentVersion}</h3>
-              <div className="plab-diff">
-                {compactDiff(diffLines(threadComparison.baseEditableSection, threadComparison.currentEditableSection))
-                  .map((line, index) => (
-                    <div key={index} className={`plab-diff-line ${line.type}`}>
-                      <span className="plab-diff-sign">
-                        {line.type === 'add' ? '+' : line.type === 'remove' ? '−' : ' '}
-                      </span>
-                      <span>{line.text}</span>
-                    </div>
-                  ))}
-              </div>
-            </>
-          )}
-          <details className="plab-help">
-            <summary>Voir les prompts complets (parties protégées incluses)</summary>
-            <strong>PROMPT INITIAL {threadComparison.baseVersion}</strong>
-            <pre className="plab-pre">{threadComparison.basePrompt}</pre>
-            <strong>PROMPT FINAL {threadComparison.currentVersion}</strong>
-            <pre className="plab-pre">{threadComparison.currentPrompt}</pre>
-          </details>
-        </section>
-      )}
+      {threadComparison && threadComparisonPanel()}
 
       {campaign && detail && (
         <>
@@ -1449,7 +1767,14 @@ export default function PromptLab() {
                   Fournisseurs : IA coach <b>{providerLabel(campaign.provider)}</b> · Agent B <b>{providerLabel(campaign.controllerProvider)}</b>
                   {' '}· Agent A <b>{providerLabel(campaign.editorProvider)}</b>
                 </p>
-                {campaign.promotedVersion && <p className="plab-ok">★ Promue en production : {campaign.promotedVersion}</p>}
+                {campaign.promotedVersion && (
+                  <p className="plab-ok">
+                    ★ Version acceptée pour la conversation : {campaign.promotedVersion}
+                    {detail.versions.find((item) => item.version === campaign.promotedVersion)?.applied
+                      ? ' — présente dans le prompt de production.'
+                      : ' — le prompt de production n\'a PAS été modifié (utilisez « Promouvoir », ou le bilan de la conversation).'}
+                  </p>
+                )}
               </div>
             </div>
           </section>
@@ -1594,8 +1919,11 @@ export default function PromptLab() {
                       <td className="plab-mono">{version.promptHash.slice(0, 10)}…</td>
                       <td className="plab-snippet">{version.editableSection.slice(0, 90)}…</td>
                       <td>
-                        {version.production && <span className="plab-tag">production</span>}
-                        {version.promoted && <span className="plab-tag ok">★ promue</span>}
+                        {version.applied && <span className="plab-tag ok">★ en production</span>}
+                        {version.production && !version.applied && <span className="plab-tag">référence</span>}
+                        {version.promoted && !version.applied && (
+                          <span className="plab-tag warn">★ acceptée (à promouvoir)</span>
+                        )}
                       </td>
                       <td>
                         <button type="button" onClick={() => togglePanel(openPrompt, setOpenPrompt, version.version, null)}>
@@ -1606,7 +1934,7 @@ export default function PromptLab() {
                             <Braces size={14} /> Changements
                           </button>
                         )}
-                        {!version.production && !version.promoted && canPromote && (
+                        {!version.production && !version.applied && canDecide && (
                           <button type="button" onClick={() => setPromotionVersion({ version: version.version, iteration: null })} disabled={busy}>
                             <ThumbsUp size={14} /> Promouvoir
                           </button>
@@ -1726,7 +2054,7 @@ export default function PromptLab() {
                       </button>
                     </>
                   )}
-                  {canPromote && promotableVersion(iteration.promptVersion) && (
+                  {canDecide && promotableVersion(iteration.promptVersion) && (
                     <button
                       type="button"
                       onClick={() => setPromotionVersion({ version: iteration.promptVersion, iteration: iteration.iterationNumber })}

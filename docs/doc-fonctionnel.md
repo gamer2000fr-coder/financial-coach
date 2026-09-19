@@ -36,11 +36,11 @@ Empêcher structurellement l'IA de recommander ou de mentionner un produit banca
 | F7 | Synthèse financière | Indicateurs agrégés (revenus, dépenses, épargne, crédits) |
 | F8 | Logs des appels IA | Observabilité : statut, données envoyées, prompt, filtrage |
 | F9 | Agents IA éditables | Page « Agents » : éditer les prompts (générique, agent principal, agents spécialisés) sans redémarrage |
-| F10 | Modes de réponse | GPT / DeepSeek (LLM réel) ou « Mode démo » (Mock, sans clé) |
+| F10 | Modes de réponse | GPT / DeepSeek (LLM distant) · **Local (LM Studio…)** — modèle servi sur la machine, sans clé API — ou « Mode démo » (Mock, sans réseau) |
 | F11 | Cascade produit | Règles de recommandation produit (« arbres de décision ») jointes au contexte |
 | F12 | Sélection d'agent | Routage du message vers l'agent spécialisé du thème (produit, épargne, assurance…) |
 | F13 | Réglages avancés | Interrupteur « Avancé » : fournisseur IA, audio, garde-fou hors-sujet, accès Logs/Agents |
-| F14 | Audio | Micro 🎤 (dictée, Web Speech API) et lecture vocale 🔊 / synthèse des réponses |
+| F14 | Audio | Micro 🎤 (dictée, Web Speech API) et lecture vocale 🔊 / synthèse des réponses. **Mode mains libres** : en veille, on dit le mot-clé (« Chloé » par défaut) puis sa question ; un **carillon** (façon Siri) signale que le mot-clé est reconnu et que l'écoute commence |
 | F15 | Rendu Markdown | Gras / italique / code des réponses IA affichés proprement |
 | F16 | Fin de conversation | Clôture → **un seul email automatique : au conseiller**, avec le **brouillon d'email client en pièce jointe** (jamais envoyé au client) |
 | F17 | Marketing Intelligence | Analyse des conversations (intérêts, refus, cross-sell, besoins non couverts) + rapport IA, sans base de données |
@@ -53,7 +53,7 @@ Empêcher structurellement l'IA de recommander ou de mentionner un produit banca
 
 | Route | Page | Contenu |
 |---|---|---|
-| `#/` | **Chat coach** | Conversation + panneau « Vue d'ensemble » (solde, revenus, dépenses, crédits, taux). Interrupteur « Avancé » : fournisseur IA (GPT/DeepSeek/Mock), Audio, garde-fou hors-sujet, case **« Suivi conseiller »** (**cochée par défaut**, un décochage volontaire est mémorisé), accès Logs / Agents / Marketing (nouveaux onglets). Bouton d'en-tête : « Terminer la conversation » (suivi activé) ou « Nouvelle conversation » (suivi désactivé) |
+| `#/` | **Chat coach** | Conversation + panneau « Vue d'ensemble » (solde, revenus, dépenses, crédits, taux). Interrupteur « Avancé » : fournisseur IA (**GPT / DeepSeek / Local (LM Studio) / Mock**), Audio, garde-fou hors-sujet, case **« Suivi conseiller »** (**cochée par défaut**, un décochage volontaire est mémorisé), accès Logs / Agents / Marketing (nouveaux onglets). Bouton d'en-tête : « Terminer la conversation » (suivi activé) ou « Nouvelle conversation » (suivi désactivé) |
 | `#/logs` | **Logs des appels IA** | Traces : statut, session, agent utilisé, message client, caractères, données envoyées/demandées, boutons « Voir le prompt », « Voir le filtrage », « Voir la réponse », « Historique » |
 | `#/agents` | **Agents IA** | Édition des prompts par agent : générique (défaut), agent principal, agent de suivi, agent analyste marketing, 6 agents spécialisés. Injecté à chaque appel |
 | `#/marketing` | **Marketing Intelligence** | KPI, top produits, projets, « recommandé vs intérêt », refus, cross-sell, besoins non couverts, infos manquantes, rapport IA du jour, export CSV |
@@ -320,7 +320,8 @@ conserve donc un **fil de conversation** :
 - l'**Agent B lit tout l'historique pour comprendre le contexte, mais ne juge que le dernier échange** : les
   réponses déjà validées ne sont jamais réévaluées ; les contrôles de continuité (information déjà donnée, réponse
   qui ignore l'échange précédent, redite inutile) portent sur l'échange courant ;
-- l'humain garde la main : « **Nouvelle conversation** » repart sans mémoire, et le fil le plus récent de l'agent
+- l'humain garde la main : « **Nouvelle conversation** » repart sans mémoire (**même après un rafraîchissement de la
+  page** : l'abandon est mémorisé), et le fil le plus récent de l'agent
   est rechargé à l'ouverture de la page (le rechargement du navigateur ne fait plus perdre l'échange en cours).
 
 Ce que l'humain voit dans la page :
@@ -331,12 +332,16 @@ Ce que l'humain voit dans la page :
 - **Par itération** : la réponse du Coach, l'analyse de l'Agent B (points à améliorer, sévérité, origine), les changements demandés à l'Agent A, le prompt de la version, un **diff de la seule zone éditable** — les boutons « Voir le prompt produit / Changements » n'apparaissent que si l'Agent A a réellement modifié la zone (sinon un repère « sans modification → aucune nouvelle version » l'explique) — et un bouton **`Promouvoir`** qui valide **le prompt dont la réponse vient d'être lue** (la version proposée, jamais utilisée, se promeut depuis le tableau des versions : sa réponse est alors générée) ;
 - **Actions** : `GO`, `STOP` (arrêt gracieux), `REPRENDRE`, « Ajouter mon avis », « Ajouter mon avis et continuer (+n) », **« Continuer sans avis (+n) »** (prolonger un cycle terminé sans écrire d'avis), `COMPARER`, « Promouvoir » (avec confirmation explicite), **« ACCEPTER SANS CHANGEMENT »** (visible quand l'Agent A n'a rien proposé : action **directe**, sans confirmation, qui accepte la campagne **sans réécrire le prompt** et fait entrer la réponse de l'IA dans la conversation), « Refuser la campagne » ;
 - **Avis humains** : visuellement distincts du diagnostic automatique, avec leur statut (appliqué / en attente) ;
-- **Bilan de la conversation** : à la fin de la conversation, le bouton **« COMPARER LE PROMPT INITIAL ET LE
-  PROMPT FINAL »** montre ce que **tout le scénario** a changé au prompt — le prompt du **premier** échange face à
-  celui **en vigueur à la fin** (dernière version promue), les deux zones avec leur cycle d'origine, le **diff** de
-  la zone, les deux prompts complets, et le rappel des cycles / itérations / promotions. Quand aucune version n'a
-  été promue, le bilan est un prompt **identique** — l'IHM le dit explicitement au lieu de laisser croire à un
-  échec ; c'est le complément de **`COMPARER`**, qui ne montre qu'une campagne (une question).
+- **Bilan de la conversation** : **ouvert automatiquement à la fin d'un scénario Agent C en mode automatique**, ou
+  demandé par le bouton **« COMPARER LE PROMPT INITIAL ET LE PROMPT FINAL »**, il montre ce que **tout le scénario**
+  a changé au prompt — le prompt du **premier** échange face à celui **en vigueur à la fin** (dernière version
+  acceptée), les deux zones avec leur cycle d'origine, le **diff** de la zone, les deux prompts complets, et le
+  rappel des cycles / itérations / versions retenues. Il porte le bouton **PROMOUVOIR … EN PRODUCTION** qui vise la
+  **version retenue qui n'est pas encore en production** — y compris quand les derniers cycles n'ont rien proposé
+  (c'est alors celle d'un cycle antérieur, explicité à l'écran) — et il est remplacé par « ✓ Rien à promouvoir » si
+  tout ce que la conversation a retenu est déjà en production. Quand aucune version n'a été retenue, le bilan est un
+  prompt **identique** — l'IHM le dit explicitement au lieu de laisser croire à un échec ; c'est le complément de
+  **`COMPARER`**, qui ne montre qu'une campagne (une question).
 - **Conversation de l'atelier** : les échanges déjà validés (comme dans la page coach), la question en cours
   (« en attente de promotion »), la réponse de l'IA de chaque version promue (corrigeable) et un champ
   « question suivante » qui relance un cycle **avec tout l'historique** — plus « Nouvelle conversation » pour
@@ -352,18 +357,34 @@ un vrai client qui poursuit l'échange.
 - **Brief du client** : le champ « question de test » devient le brief (ex. « tu as un projet de rénovation de la
   cuisine, les travaux coûtent environ 15 000 €, tu as besoin de savoir si ta situation financière le permet et
   quelle solution est la plus adaptée »). Il est **figé** pour tout le scénario : le client ne sort jamais de son
-  cadre.
-- **Trois chiffres, pas un de plus** : l'Agent C ne connaît que le **solde du compte courant**, l'**épargne
+  cadre.- **Bouton « GÉNÉRER PROJET »** : au lieu d'écrire le brief soi-même, l'Agent C l'invente — il propose **qui est le
+  client** et **pourquoi il vient** (véhicule en panne, travaux, impôt à honorer…), en lien avec l'agent
+  sélectionné (crédit conso, épargne, assurance…). Chaque nouvel appui propose un **autre** projet. Le texte est
+  écrit dans le champ « Brief du client » : on le relit, on le corrige si besoin, ou on l'ignore. Le brief décrit
+  le **projet seul** (2 à 3 phrases) : ni le client (le Coach connaît son client et son dossier), ni les
+  **modalités de financement** (durée, mensualité cible, apport), ni la **synthèse du dossier** (solde, épargne,
+  mensualité de crédit en cours) : il dit ce qui est arrivé, le projet, son objet, le montant et ce que le client
+  veut savoir. Le projet reste
+  **cohérent avec le dossier réel** : le modèle reçoit le solde du compte courant, l'épargne et la mensualité de
+  crédit en cours, plus un **plafond de montant** calculé par la banque — une proposition hors de portée du
+  client (un montant à six chiffres avec quelques milliers d'euros d'épargne) est **refusée** et expliquée.- **Trois chiffres, pas un de plus** : l'Agent C ne connaît que le **solde du compte courant**, l'**épargne
   disponible** et la **mensualité de crédit en cours**. Il ne donne **jamais** de conseil, ne cite aucun autre
   chiffre et, si le Coach lui réclame une donnée qu'il n'a pas (revenus, charges, apport…), il répond simplement
   qu'il ne l'a pas — il n'invente rien.
 - **Profondeur** : le nombre **maximum** de questions que le client posera (ex. 10). La borne est tenue par
-  l'interface : le scénario ne la dépasse jamais, et le client peut décider lui-même de conclure (il affiche alors
-  sa phrase de clôture).
+  l'interface : le scénario ne la dépasse jamais, la **dernière question autorisée** (numéro = profondeur) est
+  **posée normalement**, et le client peut décider lui-même de conclure **plus tôt** s'il a obtenu ce qu'il
+  voulait savoir (il affiche alors sa phrase de clôture).
 - **Qui promeut ?** Les **deux** possibilités restent disponibles, au choix par **case à cocher** : **décochée**
   (défaut) = vous validez chaque cycle (promouvoir une version, ou « accepter sans changement ») puis vous cliquez
-  **CONTINUER** ; **cochée** = la dernière version du cycle est **promue automatiquement** et le client enchaîne
-  seul sa question suivante.
+  **CONTINUER** ; **cochée (« Enchaînement automatique »)** = la dernière version du cycle est **acceptée pour la
+  conversation** — sa réponse entre dans la mémoire du client, qui enchaîne seul sa question suivante — **sans
+  écrire le prompt de production**. À la fin du scénario, l'interface ouvre **automatiquement** le bilan
+  « Comparaison de la conversation — début ↔ fin », qui porte le bouton **PROMOUVOIR** : vous comparez le prompt du
+  début et celui de la fin, puis vous décidez ce qui part en production. La promotion reste donc, dans tous les
+  cas, **une décision humaine**. Les cycles **s'enchaînent sur la version retenue** (le cycle 2 teste le prompt
+  enrichi du cycle 1, etc.) : le bilan est **cumulatif** et **un seul clic** adopte **tout** le travail du
+  scénario ; l'atelier signale « **zone héritée** » quand la zone testée vient d'un cycle précédent.
 - **Modèle dédié** : une liste déroulante propre à l'Agent C (DeepSeek / OpenAI) — le client peut être joué par un
   autre modèle que le Coach.
 - **STOP / CONTINUER** : `STOP` arrête le scénario **sans rien perdre** (le cycle en cours se termine, la campagne
@@ -371,7 +392,7 @@ un vrai client qui poursuit l'échange.
 - La question du client **apparaît dans la conversation** (« Question du client (Agent C) — n°2 / profondeur 10 »)
   et reste **corrigeable** avant de lancer le cycle : l'humain garde la main sur ce qui sera testé.
 - **Rien de plus n'est enregistré** : ni fiche d'évaluation, ni question intermédiaire — seuls la **conversation**
-  (les échanges validés par une promotion) et le **prompt promu** sont écrits.
+  (les échanges acceptés) et le **prompt promu** sont écrits.
 
 Règles fonctionnelles fortes :
 
@@ -379,7 +400,7 @@ Règles fonctionnelles fortes :
 2. L'Agent A **ne peut pas** sortir de la zone et ne peut pas modifier les parties protégées : le backend rejette et **conserve** la version précédente ;
 3. Un agent **sans zone** (prompt non marqué) n'est **pas** optimisable : l'atelier ne devine jamais la zone ;
 4. `STOP` n'interrompt **jamais** brutalement un appel IA : la réponse en cours est enregistrée, puis la campagne passe en pause ;
-5. **Aucune promotion automatique par défaut** : le passage en production est une action humaine, confirmée, et le prompt précédent est sauvegardé (retour arrière possible). Seul le mode **Agent C** peut la rendre automatique — par une case à cocher **explicite** (« Promotion automatique », décochée par défaut) qui conserve les **deux** possibilités ;
+5. **Aucune écriture de prompt sans décision humaine** : le passage en production est une action humaine, confirmée, et le prompt précédent est sauvegardé (retour arrière possible). Le mode **Agent C** peut enchaîner les cycles seul — par une case à cocher **explicite** (« Enchaînement automatique », décochée par défaut) — mais il **accepte** les versions *pour la conversation* **sans toucher au prompt de production** : à la fin, le bilan début ↔ fin et son bouton **PROMOUVOIR** laissent la décision à l'humain ;
 6. **On n'est jamais bloqué** : si l'Agent A n'a proposé **aucune** modification, aucune version nouvelle n'existe — « **ACCEPTER SANS CHANGEMENT** » accepte alors la campagne **sans réécrire le prompt** (le backend vérifie que le contenu est identique : ni sauvegarde, ni écriture) et **sans demander de confirmation** (il n'y a rien à écraser) : la réponse de l'IA entre dans la conversation et l'échange peut continuer ;
 7. Aucun code ni règle métier n'est modifié par l'atelier : il ne change **qu'un texte de prompt**.
 
@@ -520,7 +541,7 @@ Toutes les données sont **fictives** et servent uniquement la démonstration.
 49. `STOP` n'interrompt pas un appel IA en cours : la réponse est enregistrée puis la campagne passe en pause ; la reprise continue la campagne sans repartir de zéro ;
 50. Rien n'est supprimé : itérations, versions, diagnostics, avis et décisions restent consultables après la fin de la campagne ;
 51. La **promotion** est une action humaine confirmée ; le prompt précédent est **sauvegardé** dans un historique et un retour arrière explicite est possible ;
-52. Aucune version n'est promue automatiquement, même lorsque l'Agent B est satisfait ;
+52. Le mode automatique de l'Agent C **n'écrit jamais** le prompt de production : il **accepte** les versions pour la conversation (la mémoire du client en dépend) et c'est le bilan début ↔ fin, à la fin du scénario, qui propose la **promotion** — décision humaine ; une version acceptée mais non écrite est signalée comme telle (« ★ acceptée (à promouvoir) ») ;
 53. L'atelier nécessite un fournisseur IA **réel** : en mode MOCK il refuse de démarrer (message explicite nommant l'étape) ;
 54. Aucun code, seuil, règle métier ou catalogue n'est modifié par l'atelier : seul un fichier de **prompt** peut changer, et uniquement après promotion ;
 55. Le **routage des modèles** (coach / Agent B / Agent A) est figé avec la campagne et visible dans l'IHM : une reprise rejoue les mêmes modèles ;
@@ -529,7 +550,7 @@ Toutes les données sont **fictives** et servent uniquement la démonstration.
 ---
 
 ## 8. Limites connues (POC)
-- Fournisseur par défaut **côté backend** : Mode démo (MOCK) — classification enrichie réelle uniquement avec GPT/DeepSeek configuré ; l'écran choisit DeepSeek par défaut ;
+- Fournisseur par défaut **côté backend** : Mode démo (MOCK) — classification enrichie réelle uniquement avec GPT/DeepSeek (ou un modèle **local**) configuré ; l'écran choisit DeepSeek par défaut ;
 - Clés API **externalisées** via variables d'environnement (`OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, …) — aucune clé en dur ;
 - Logs et conversations **en mémoire** (perdus au redémarrage) → une clôture après redémarrage ne produit aucun dossier (`NO_CONVERSATION`) ;
 - Un seul « projet courant » géré (le remplacement est accepté pour le POC) ;

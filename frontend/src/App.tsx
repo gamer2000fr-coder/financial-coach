@@ -23,6 +23,7 @@ import {
   X,
 } from 'lucide-react'
 import { API_BASE_URL, closeConversation, fetchFinancialSummary, sendChat, sendConversationFeedback } from './api'
+import { playWakeCue } from './audioCue'
 import FeedbackPopup from './FeedbackPopup'
 import { renderMessageContent, stripMarkdown } from './messageFormat'
 import type { QualityFeedbackRequest } from './types.quality'
@@ -70,6 +71,7 @@ const suggestions = [
 const providerLabels: Record<AIProvider, string> = {
   GPT: 'GPT / OpenAI',
   DEEPSEEK: 'DeepSeek',
+  LOCAL: 'Local (LM Studio)',
   MOCK: 'Mode démo',
 }
 
@@ -175,7 +177,8 @@ function formatPeriod(start: string, end: string): string {
 function App() {
   const [provider, setProvider] = useState<AIProvider>(() => {
     const stored = localStorage.getItem(PROVIDER_STORAGE_KEY)
-    return stored === 'GPT' || stored === 'DEEPSEEK' || stored === 'MOCK' ? stored : 'DEEPSEEK'
+    return stored === 'GPT' || stored === 'DEEPSEEK' || stored === 'LOCAL' || stored === 'MOCK'
+      ? stored : 'DEEPSEEK'
   })
   const [sessionId, setSessionId] = useState(() => localStorage.getItem(SESSION_STORAGE_KEY) ?? newSessionId())
   const [messages, setMessages] = useState<ChatMessage[]>(loadInitialMessages)
@@ -531,6 +534,9 @@ function App() {
               // Barge-in : le mot-clé interrompt immédiatement la lecture vocale en cours,
               // puis on écoute la nouvelle question.
               stopSpeaking()
+              // Repère SONORE (façon Siri) : le mot-clé est reconnu, l'écoute commence. Sans lui,
+              // l'utilisateur ne peut pas savoir si « Chloé » a été entendu et parle dans le vide.
+              playWakeCue()
               autoPhaseRef.current = 'listening'
               autoBufferRef.current = hit.rest || ''
               setAutoState('listening')
@@ -792,6 +798,7 @@ function App() {
                 >
                   <option value="GPT">GPT / OpenAI</option>
                   <option value="DEEPSEEK">DeepSeek</option>
+                  <option value="LOCAL">Local (LM Studio)</option>
                   <option value="MOCK">Mode démo</option>
                 </select>
                 <ChevronDown size={14} />

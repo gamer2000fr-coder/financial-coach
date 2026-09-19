@@ -59,6 +59,14 @@ export interface StartCampaignInput {
    * Coach. Omis, un nouveau fil est ouvert (le cycle démarre sans mémoire).
    */
   threadId?: string | null
+  /**
+   * CYCLE SOURCE dont on hérite la ZONE DE DÉPART (chaînage des cycles du mode automatique de l'Agent C) : la
+   * zone testée devient celle de la version RETENUE de ce cycle au lieu de celle du prompt de production — les
+   * cycles s'accumulent alors sans qu'aucune écriture n'ait eu lieu.
+   */
+  fromCampaignId?: string | null
+  /** Version RETENUE du cycle source (sa zone devient la zone de départ du nouveau cycle). */
+  fromVersion?: string | null
 }
 
 /**
@@ -111,6 +119,27 @@ export interface ClientQuestionInput {
   turnNumber: number
   depth: number
   provider: AIProvider
+}
+
+/**
+ * Projet INVENTÉ par le client simulé (Agent C) pour le champ « Brief du client » : qui il est et pourquoi il
+ * vient voir sa banque. `montantProjet` est le montant à financer proposé (contrôlé par le backend contre le
+ * plafond de cohérence du dossier). `reason` reste interne à l'atelier (jamais montré au Coach ni au client).
+ */
+export interface GeneratedClientBrief {
+  brief: string
+  montantProjet?: number | null
+  reason: string
+}
+
+/**
+ * Demande de projet à l'Agent C : l'agent de coach visé (le projet doit relever de son périmètre) et les
+ * briefs DÉJÀ proposés, pour qu'un nouvel appui en cherche un franchement différent.
+ */
+export interface GeneratedClientBriefInput {
+  agentId: string
+  provider: AIProvider
+  previousBriefs: string[]
 }
 
 /** Problème relevé par le contrôleur (Agent B). */
@@ -210,7 +239,14 @@ export interface PromptVersionView {
   editableSection: string
   promptHash: string
   iterationNumber: number
+  /** Version ACCEPTÉE pour la conversation (elle a produit la réponse entrée dans le fil). */
   promoted: boolean
+  /**
+   * Version DÉJÀ appliquée au fichier de production. Distinct de `promoted` : une version peut être acceptée
+   * pour la conversation (mode automatique de l'Agent C) sans que le prompt de production soit écrasé — c'est
+   * ce qui laisse le bouton « Promouvoir » utile à la fin du scénario.
+   */
+  applied?: boolean
   production: boolean
   prompt: string
 }
@@ -245,6 +281,11 @@ export interface PromptSnapshotView {
   fixedPrefix: string
   initialEditableSection: string
   fixedSuffix: string
+  /**
+   * Origine de la zone de DÉPART : vide = prompt de production ; sinon « <campagne>:<version> » quand le cycle a
+   * été enchaîné sur la version retenue d'un cycle précédent (la zone testée n'est alors PAS en production).
+   */
+  baseZoneSource?: string
 }
 
 export interface PromptCampaignDetail {

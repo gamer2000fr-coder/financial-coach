@@ -1,0 +1,21 @@
+[ {
+  "theme" : "HARD_TO_UNDERSTAND",
+  "label" : "Les explications étaient difficiles à comprendre",
+  "count" : 3,
+  "share" : 0.5
+}, {
+  "theme" : "OTHER",
+  "label" : "Autre",
+  "count" : 1,
+  "share" : 0.1667
+}, {
+  "theme" : "MISSING_INFORMATION",
+  "label" : "Il manquait des informations",
+  "count" : 1,
+  "share" : 0.1667
+}, {
+  "theme" : "PRODUCT_NOT_RELEVANT",
+  "label" : "Les produits proposés ne correspondaient pas à mon besoin",
+  "count" : 1,
+  "share" : 0.1667
+} ]

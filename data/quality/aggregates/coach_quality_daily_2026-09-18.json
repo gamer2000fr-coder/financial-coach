@@ -1,0 +1,248 @@
+{
+  "dateFrom" : "2026-09-18",
+  "dateTo" : "2026-09-18",
+  "satisfaction" : {
+    "conversationsClosed" : 9,
+    "feedbackCount" : 8,
+    "participationRate" : 0.8889,
+    "averageRating" : 4.25,
+    "positiveCount" : 7,
+    "negativeCount" : 1,
+    "neutralCount" : 0,
+    "positiveRate" : 0.875,
+    "negativeRate" : 0.125,
+    "previousFeedbackCount" : 6,
+    "previousAverageRating" : 4.3333,
+    "averageRatingEvolutionPercent" : -1.9223,
+    "positiveRateEvolutionPercent" : 31.2434,
+    "sufficientSample" : false
+  },
+  "conformity" : {
+    "checksRun" : 54,
+    "anomalies" : 5,
+    "highAnomalies" : 1,
+    "mediumAnomalies" : 1,
+    "lowAnomalies" : 3
+  },
+  "ratingDistribution" : [ {
+    "rating" : 5,
+    "count" : 5,
+    "share" : 0.625
+  }, {
+    "rating" : 4,
+    "count" : 2,
+    "share" : 0.25
+  }, {
+    "rating" : 3,
+    "count" : 0,
+    "share" : 0.0
+  }, {
+    "rating" : 2,
+    "count" : 0,
+    "share" : 0.0
+  }, {
+    "rating" : 1,
+    "count" : 1,
+    "share" : 0.125
+  } ],
+  "feedbackCategories" : [ {
+    "reason" : "ACTION_NOT_POSSIBLE",
+    "label" : "Je n'ai pas pu réaliser l'action souhaitée",
+    "count" : 1,
+    "share" : 1.0,
+    "previousCount" : null,
+    "evolutionPercent" : null
+  }, {
+    "reason" : "MISSING_INFORMATION",
+    "label" : "Il manquait des informations",
+    "count" : 0,
+    "share" : 0.0,
+    "previousCount" : 2,
+    "evolutionPercent" : -100.0
+  } ],
+  "commentThemes" : [ {
+    "theme" : "HARD_TO_UNDERSTAND",
+    "label" : "Les explications étaient difficiles à comprendre",
+    "count" : 3,
+    "share" : 0.5
+  }, {
+    "theme" : "OTHER",
+    "label" : "Autre",
+    "count" : 1,
+    "share" : 0.1667
+  }, {
+    "theme" : "MISSING_INFORMATION",
+    "label" : "Il manquait des informations",
+    "count" : 1,
+    "share" : 0.1667
+  }, {
+    "theme" : "PRODUCT_NOT_RELEVANT",
+    "label" : "Les produits proposés ne correspondaient pas à mon besoin",
+    "count" : 1,
+    "share" : 0.1667
+  } ],
+  "qualityChecks" : [ {
+    "checkType" : "EXCESSIVE_REPETITION",
+    "label" : "Répétition excessive",
+    "severity" : "LOW",
+    "checksRun" : 9,
+    "detected" : 3,
+    "detectionRate" : 0.3333,
+    "previousDetected" : 4,
+    "evolutionPercent" : -25.0
+  }, {
+    "checkType" : "CREDIT_SIMULATION_VIOLATION",
+    "label" : "Simulation de crédit interdite",
+    "severity" : "HIGH",
+    "checksRun" : 9,
+    "detected" : 1,
+    "detectionRate" : 0.1111,
+    "previousDetected" : 0,
+    "evolutionPercent" : null
+  }, {
+    "checkType" : "UNANSWERED_REQUEST",
+    "label" : "Demande non résolue",
+    "severity" : "MEDIUM",
+    "checksRun" : 9,
+    "detected" : 1,
+    "detectionRate" : 0.1111,
+    "previousDetected" : 0,
+    "evolutionPercent" : null
+  }, {
+    "checkType" : "INVENTED_URL",
+    "label" : "URL inventée",
+    "severity" : "HIGH",
+    "checksRun" : 9,
+    "detected" : 0,
+    "detectionRate" : 0.0,
+    "previousDetected" : 0,
+    "evolutionPercent" : null
+  }, {
+    "checkType" : "MISSING_DATA_NOT_RETRIEVED",
+    "label" : "Donnée demandée non récupérée",
+    "severity" : "MEDIUM",
+    "checksRun" : 9,
+    "detected" : 0,
+    "detectionRate" : 0.0,
+    "previousDetected" : 0,
+    "evolutionPercent" : null
+  }, {
+    "checkType" : "PRODUCT_MISMATCH",
+    "label" : "Produit incompatible",
+    "severity" : "HIGH",
+    "checksRun" : 9,
+    "detected" : 0,
+    "detectionRate" : 0.0,
+    "previousDetected" : 1,
+    "evolutionPercent" : -100.0
+  } ],
+  "implementedChecks" : [ "CREDIT_SIMULATION_VIOLATION", "PRODUCT_MISMATCH", "INVENTED_URL", "UNANSWERED_REQUEST", "MISSING_DATA_NOT_RETRIEVED", "EXCESSIVE_REPETITION" ],
+  "notImplementedChecks" : [ "UNNECESSARY_ADVISOR_REDIRECT", "UNSUPPORTED_PRODUCT_CLAIM", "INVENTED_DATA", "CONVERSATION_CONTEXT_LOST" ],
+  "satisfactionVsCompliance" : {
+    "satisfiedCompliant" : 5,
+    "satisfiedAnomaly" : 2,
+    "unsatisfiedCompliant" : 1,
+    "unsatisfiedAnomaly" : 0,
+    "unsatisfiedCompliantShare" : 1.0,
+    "unsatisfiedAnomalyShare" : 0.0,
+    "unratedWithAnomaly" : 2
+  },
+  "series" : [ {
+    "date" : "2026-09-18",
+    "feedbackCount" : 8,
+    "averageRating" : 4.25,
+    "positiveCount" : 7,
+    "negativeCount" : 1,
+    "anomalies" : 5
+  } ],
+  "trends" : [ {
+    "entityType" : "REASON",
+    "entityId" : "MISSING_INFORMATION",
+    "entityName" : "Il manquait des informations",
+    "current" : 0,
+    "previous" : 2,
+    "evolutionPercent" : -100.0
+  }, {
+    "entityType" : "CHECK",
+    "entityId" : "PRODUCT_MISMATCH",
+    "entityName" : "Produit incompatible",
+    "current" : 0,
+    "previous" : 1,
+    "evolutionPercent" : -100.0
+  }, {
+    "entityType" : "OVERVIEW",
+    "entityId" : "feedback",
+    "entityName" : "Avis reçus",
+    "current" : 8,
+    "previous" : 6,
+    "evolutionPercent" : 33.3333
+  }, {
+    "entityType" : "CHECK",
+    "entityId" : "EXCESSIVE_REPETITION",
+    "entityName" : "Répétition excessive",
+    "current" : 3,
+    "previous" : 4,
+    "evolutionPercent" : -25.0
+  }, {
+    "entityType" : "OVERVIEW",
+    "entityId" : "anomalies",
+    "entityName" : "Anomalies détectées",
+    "current" : 5,
+    "previous" : 5,
+    "evolutionPercent" : 0.0
+  }, {
+    "entityType" : "REASON",
+    "entityId" : "ACTION_NOT_POSSIBLE",
+    "entityName" : "Je n'ai pas pu réaliser l'action souhaitée",
+    "current" : 1,
+    "previous" : 0,
+    "evolutionPercent" : null
+  }, {
+    "entityType" : "CHECK",
+    "entityId" : "CREDIT_SIMULATION_VIOLATION",
+    "entityName" : "Simulation de crédit interdite",
+    "current" : 1,
+    "previous" : 0,
+    "evolutionPercent" : null
+  }, {
+    "entityType" : "CHECK",
+    "entityId" : "INVENTED_URL",
+    "entityName" : "URL inventée",
+    "current" : 0,
+    "previous" : 0,
+    "evolutionPercent" : null
+  }, {
+    "entityType" : "CHECK",
+    "entityId" : "UNANSWERED_REQUEST",
+    "entityName" : "Demande non résolue",
+    "current" : 1,
+    "previous" : 0,
+    "evolutionPercent" : null
+  }, {
+    "entityType" : "CHECK",
+    "entityId" : "MISSING_DATA_NOT_RETRIEVED",
+    "entityName" : "Donnée demandée non récupérée",
+    "current" : 0,
+    "previous" : 0,
+    "evolutionPercent" : null
+  } ],
+  "anonymizedComments" : [ {
+    "commentRef" : "fb-acf1afa4-6803-3bd7-bdb0-ed1fb14ae25f",
+    "text" : "test 1"
+  }, {
+    "commentRef" : "fb-fb760343-3ed7-342d-86ba-d0b634415231",
+    "text" : "Échanges utiles et clairs, merci."
+  }, {
+    "commentRef" : "fb-a44f4e6c-d645-3ed6-8463-d1d1c2cf6ba2",
+    "text" : "Échanges utiles et clairs, merci."
+  }, {
+    "commentRef" : "fb-39f0ce57-0dc6-34d6-8e4f-6dbb7e6cee6a",
+    "text" : "Échanges utiles et clairs, merci."
+  }, {
+    "commentRef" : "fb-1760e8ac-9c16-36f7-8700-63f82cbcc094",
+    "text" : "Il manquait des informations sur l'offre proposée."
+  } ],
+  "invalidLines" : 0,
+  "demo" : true,
+  "generatedAt" : "2026-09-18T21:45:28.550100100Z"
+}

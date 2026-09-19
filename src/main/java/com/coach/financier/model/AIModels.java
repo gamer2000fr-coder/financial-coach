@@ -8,9 +8,15 @@ import java.util.Map;
 public final class AIModels {
     private AIModels() {}
 
+    /**
+     * Fournisseurs IA disponibles. {@code LOCAL} désigne un serveur LOCAL compatible OpenAI
+     * (LM Studio, Ollama, llama.cpp…) : aucune clé API n'est requise et le modèle est celui chargé côté
+     * serveur ({@code app.ai.local.model}).
+     */
     public enum AIProvider {
         GPT,
         DEEPSEEK,
+        LOCAL,
         MOCK
     }
 

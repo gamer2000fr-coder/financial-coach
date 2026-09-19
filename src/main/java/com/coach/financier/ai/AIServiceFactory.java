@@ -13,13 +13,16 @@ public class AIServiceFactory {
 
     private final OpenAIService openAIService;
     private final DeepSeekService deepSeekService;
+    private final LocalAIService localAIService;
     private final MockAIService mockAIService;
 
     public AIServiceFactory(OpenAIService openAIService,
                             DeepSeekService deepSeekService,
+                            LocalAIService localAIService,
                             MockAIService mockAIService) {
         this.openAIService = openAIService;
         this.deepSeekService = deepSeekService;
+        this.localAIService = localAIService;
         this.mockAIService = mockAIService;
     }
 
@@ -28,6 +31,7 @@ public class AIServiceFactory {
         return switch (effective) {
             case GPT -> openAIService;
             case DEEPSEEK -> deepSeekService;
+            case LOCAL -> localAIService;
             case MOCK -> mockAIService;
         };
     }

@@ -1,4 +1,8 @@
-export type AIProvider = 'GPT' | 'DEEPSEEK' | 'MOCK'
+/**
+ * Fournisseurs IA : `LOCAL` = serveur compatible OpenAI lancé sur la machine (LM Studio, Ollama…),
+ * sans clé API ; `MOCK` = mode démo (aucun appel réseau).
+ */
+export type AIProvider = 'GPT' | 'DEEPSEEK' | 'LOCAL' | 'MOCK'
 
 export type RequestCategory =
   | 'PURCHASE_PROJECT'

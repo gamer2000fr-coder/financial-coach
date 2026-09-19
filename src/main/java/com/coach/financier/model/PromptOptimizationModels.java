@@ -1,5 +1,6 @@
 package com.coach.financier.model;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -214,7 +215,7 @@ public final class PromptOptimizationModels {
             {"INVENTED_DATA", "Donnée inventée"},
             {"INVENTED_PRODUCT", "Produit inventé"},
             {"INVENTED_URL", "URL inventée"},
-            {"PRODUCT_MISMATCH", "Produit non adapté"},
+            {"PRODUCT_MISMATCH", "Produit hors périmètre du projet"},
             {"RULE_VIOLATION", "Règle non respectée"},
             {"POOR_PEDAGOGY", "Pédagogie insuffisante"},
             {"UNPROFESSIONAL_TONE", "Ton inadapté"},
@@ -534,11 +535,16 @@ public final class PromptOptimizationModels {
      * {@code frozenTemplate} (gabarit {@code generic.txt}) et {@code frozenPrincipal}
      * ({@code principal.txt}) sont les AUTRES entrées de la composition du prompt système : les figer
      * garantit qu'une reprise de campagne ne dépend jamais de l'état du disque (§7).
+     * <p>
+     * {@code baseZoneSource} dit D'OÙ VIENT la zone de départ : vide quand le cycle part du prompt de production,
+     * ou {@code <campaignId>:<version>} quand il enchaîne sur la version RETENUE d'un cycle précédent (les cycles
+     * s'accumulent alors sans qu'aucune écriture n'ait eu lieu — cf. §20.10 quater).
      */
     public record Snapshot(String snapshotId, String campaignId,
                            String question, String agentTheme, String agentLibelle,
                            String zoneKey, String zoneFile, String promptVersion,
                            String fixedPrefix, String initialEditableSection, String fixedSuffix,
+                           String baseZoneSource,
                            String frozenSystemPrompt, String frozenTemplate, String frozenPrincipal,
                            IntentClassification classification, FinancialSummary financialSummary,
                            Object catalog, List<String> allowedCatalogPaths,
@@ -556,6 +562,9 @@ public final class PromptOptimizationModels {
             fixedPrefix = fixedPrefix == null ? "" : fixedPrefix;
             initialEditableSection = initialEditableSection == null ? "" : initialEditableSection;
             fixedSuffix = fixedSuffix == null ? "" : fixedSuffix;
+            // Origine de la zone de DÉPART : vide = prompt de production ; sinon « <campagne>:<version> » quand le
+            // cycle a été enchaîné sur la version RETENUE d'un cycle précédent (mode automatique de l'Agent C).
+            baseZoneSource = baseZoneSource == null ? "" : baseZoneSource;
             frozenSystemPrompt = frozenSystemPrompt == null ? "" : frozenSystemPrompt;
             frozenTemplate = frozenTemplate == null ? "" : frozenTemplate;
             frozenPrincipal = frozenPrincipal == null ? "" : frozenPrincipal;
@@ -605,6 +614,29 @@ public final class PromptOptimizationModels {
         /** Le client n'a plus rien à demander : la conversation du scénario est terminée. */
         public boolean finished() {
             return endConversation || question.isBlank();
+        }
+    }
+
+    /**
+     * Projet INVENTÉ par le client simulé (« Agent C ») pour alimenter le brief de l'atelier : QUI est le client
+     * et POURQUOI il vient voir sa banque. {@code reason} reste interne à l'atelier (jamais montré au Coach ni
+     * au client) : il explique pourquoi ce projet teste bien l'agent sélectionné.
+     * <p>
+     * {@code montantProjet} est le montant à financer déclaré par le modèle (en euros). Il est CONTRÔLÉ par le
+     * backend contre le plafond de cohérence du dossier : c'est ce qui empêche de proposer un projet hors de
+     * portée du client (« achat d'un château » avec quelques milliers d'euros d'épargne). {@code null} si le
+     * modèle ne l'a pas fourni.
+     */
+    public record ClientBrief(String brief, BigDecimal montantProjet, String reason) {
+
+        public ClientBrief {
+            brief = brief == null ? "" : brief.strip();
+            reason = reason == null ? "" : reason.strip();
+        }
+
+        /** Un brief VIDE n'est pas un scénario exploitable : l'appelant refuse la proposition. */
+        public boolean usable() {
+            return !brief.isBlank();
         }
     }
 
@@ -765,7 +797,7 @@ public final class PromptOptimizationModels {
 
     /**
      * BILAN d'une conversation de l'atelier : le prompt AU DÉBUT de la conversation face au prompt EN VIGUEUR
-     * à la fin (dernière version réellement promue).
+     * à la fin (dernière version réellement retenue pour la conversation).
      * <p>
      * La comparaison d'une CAMPAGNE ne montre qu'un cycle (une question) ; celle-ci montre tout le chemin
      * parcouru, cycle après cycle : c'est le seul moyen de lire ce que la conversation a réellement changé au
@@ -803,10 +835,11 @@ public final class PromptOptimizationModels {
             summary = identical
                     ? "Le prompt est identique au début et à la fin de la conversation"
                       + (promotionCount == 0
-                            ? " : aucune version n'a été promue pendant ce scénario."
-                            : " : les versions promues n'ont pas modifié la zone éditable.")
+                            ? " : aucune version n'a été retenue pendant ce scénario."
+                            : " : les versions retenues n'ont pas modifié la zone éditable.")
                     : "Conversation en " + cycleCount + " cycle(s) et " + iterationCount + " itération(s) — "
-                      + promotionCount + " promotion(s) : la zone éditable a été modifiée pendant la conversation ("
+                      + promotionCount + " version(s) retenue(s) pour la conversation : la zone éditable a été "
+                      + "modifiée pendant la conversation ("
                       + baseEditableSection.length() + " → " + currentEditableSection.length()
                       + " caractères).";
         }

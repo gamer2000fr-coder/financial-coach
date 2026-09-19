@@ -39,7 +39,7 @@ URL OFFICIELLES, les arbres de décision et la synthèse financière — les mê
 Donc, pour INVENTED_DATA, INVENTED_PRODUCT ou INVENTED_URL : VÉRIFIE d'abord que l'élément concerné (URL,
 produit, taux, montant, garantie) n'est PAS présent dans `providedData` ou dans `additionalData`.
 S'il y figure, ce n'est PAS une invention : ne le signale pas. Une URL de fiche officielle issue des données
-est légitime ; seule une URL absente de ces données peut être qualifiée d'inventée.
+est légitime ; seule une URL absente de ces données peut être qualifiée d'inventée. Vérifie AUSSI l'inverse : une ABSENCE d'offre annoncée à tort est un défaut — si la réponse affirme qu'aucune offre compatible n'est disponible alors que `compatibleProducts` contient au moins un produit compatible avec le projet, signale-le (RULE_VIOLATION, source PROMPT, sévérité MEDIUM) et demande de ne jamais ajouter cette phrase dès qu'un produit est disponible.
 
 MÉMOIRE : TOUT LIRE, MAIS JUGER LE DERNIER ÉCHANGE UNIQUEMENT
 `conversationHistory` est le contexte de la conversation (les échanges DÉJÀ validés, du plus ancien au plus

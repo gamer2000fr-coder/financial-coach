@@ -1,0 +1,80 @@
+{
+  "reportDate" : "2026-09-18",
+  "period" : {
+    "from" : "2026-09-18",
+    "to" : "2026-09-18"
+  },
+  "executiveSummary" : {
+    "status" : "ATTENTION",
+    "summary" : "8 avis reçu(s) sur 9 conversation(s) terminée(s), note moyenne 4.25 / 5, avis positifs 87.5 %, avis négatifs 12.5 %. Le volume d'avis reste limité : ces observations sont préliminaires."
+  },
+  "satisfactionAnalysis" : {
+    "summary" : "8 avis reçu(s) sur 9 conversation(s) terminée(s), note moyenne 4.25 / 5, avis positifs 87.5 %, avis négatifs 12.5 %. Le volume d'avis reste limité : ces observations sont préliminaires.",
+    "positivePoints" : [ "La satisfaction moyenne est élevée (4.25 / 5).", "87.5 % des avis sont positifs (4 ou 5 étoiles)." ],
+    "mainIrritants" : [ "Je n'ai pas pu réaliser l'action souhaitée (1 avis)", "Il manquait des informations (0 avis, évolution -100.0 %)", "Les explications étaient difficiles à comprendre — 3 commentaire(s)", "Autre — 1 commentaire(s)", "Il manquait des informations — 1 commentaire(s)" ]
+  },
+  "qualityAndCompliance" : {
+    "summary" : "54 contrôle(s) exécuté(s), 5 anomalie(s) dont 1 de sévérité HIGH.",
+    "mainIssues" : [ "Répétition excessive : 3 détection(s) sur 9 contrôle(s) exécuté(s) (sévérité LOW)", "Demande non résolue : 1 détection(s) sur 9 contrôle(s) exécuté(s) (sévérité MEDIUM)" ],
+    "criticalIssues" : [ "Simulation de crédit interdite : 1 détection(s) sur 9 contrôle(s) exécuté(s) (sévérité HIGH)" ]
+  },
+  "satisfactionVsCompliance" : {
+    "summary" : "Croisement sur les avis reçus : 5 client(s) satisfait(s) avec Coach conforme, 2 satisfait(s) avec anomalie, 1 insatisfait(s) avec Coach CONFORME, 0 insatisfait(s) avec anomalie réelle.",
+    "notableCases" : [ "Insatisfaction client alors que le Coach a correctement appliqué les règles : l'amélioration doit porter sur la pédagogie et l'explication de la règle, pas sur la règle elle-même.", "Anomalie(s) non ressentie(s) par le client (2) : à corriger même si la satisfaction est bonne." ]
+  },
+  "ruleFriction" : [ ],
+  "trends" : [ {
+    "type" : "DEGRADING",
+    "topic" : "Il manquait des informations",
+    "observation" : "0 vs 2 (-100.0 %) sur la période précédente."
+  }, {
+    "type" : "DEGRADING",
+    "topic" : "Produit incompatible",
+    "observation" : "0 vs 1 (-100.0 %) sur la période précédente."
+  }, {
+    "type" : "STABLE",
+    "topic" : "Avis reçus",
+    "observation" : "8 vs 6 (33.3333 %) sur la période précédente."
+  }, {
+    "type" : "DEGRADING",
+    "topic" : "Répétition excessive",
+    "observation" : "3 vs 4 (-25.0 %) sur la période précédente."
+  }, {
+    "type" : "STABLE",
+    "topic" : "Anomalies détectées",
+    "observation" : "5 vs 5 (0.0 %) sur la période précédente."
+  } ],
+  "priorityImprovements" : [ {
+    "priority" : "HIGH",
+    "title" : "Corriger les anomalies critiques détectées",
+    "observation" : "Simulation de crédit interdite : 1 détection(s) sur 9 contrôle(s) exécuté(s) (sévérité HIGH)",
+    "recommendation" : "Analyser chaque anomalie HIGH (vérifier les messages concernés) puis corriger la règle ou la formulation fautive.",
+    "expectedBenefit" : "Réduction des anomalies critiques et sécurisation de la conformité."
+  }, {
+    "priority" : "MEDIUM",
+    "title" : "Traiter le principal irritant client",
+    "observation" : "Je n'ai pas pu réaliser l'action souhaitée (1 avis)",
+    "recommendation" : "Tester une réponse plus concise et moins répétitive sur les questions de suivi, sans modifier les garde-fous métier.",
+    "expectedBenefit" : "Meilleure lisibilité perçue et satisfaction en hausse."
+  }, {
+    "priority" : "MEDIUM",
+    "title" : "Mieux expliquer les règles qui frustrent",
+    "observation" : "1 client(s) insatisfait(s) alors que le Coach était conforme.",
+    "recommendation" : "Expliquer pourquoi la simulation de crédit est réalisée dans l'outil officiel et fournir immédiatement le lien correspondant.",
+    "expectedBenefit" : "Frustration réduite sans affaiblir la conformité."
+  } ],
+  "alerts" : [ {
+    "level" : "IMPORTANT",
+    "title" : "Anomalies critiques détectées",
+    "description" : "1 type(s) d'anomalie de sévérité HIGH sur la période."
+  }, {
+    "level" : "WATCH",
+    "title" : "Échantillon d'avis limité",
+    "description" : "Le volume d'avis est faible : les observations doivent être confirmées sur plusieurs périodes."
+  } ],
+  "finalAssessment" : "Rapport généré en mode démo à partir des statistiques agrégées : satisfaction client et conformité du Coach restent deux dimensions distinctes, aucune anomalie n'est déduite d'une mauvaise note.",
+  "generatedAt" : "2026-09-18T21:45:28.565758500Z",
+  "model" : "MOCK",
+  "aiGenerated" : true,
+  "error" : null
+}

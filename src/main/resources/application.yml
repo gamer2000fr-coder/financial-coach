@@ -163,6 +163,30 @@ app:
       # Mesuré : une valeur plus haute est acceptée mais reste plafonnée par le modèle — l'augmenter
       # n'apporte donc rien ici ; avec un autre modèle, l'ajuster explicitement.
       max-tokens: ${DEEPSEEK_MAX_TOKENS:8192}
+    # Serveur LOCAL compatible OpenAI (LM Studio, Ollama, llama.cpp…) : aucun compte, aucune clé API.
+    # LM Studio : activer le serveur (Developer ▸ Start Server, port 1234 par défaut) et charger le modèle
+    # AVEC UN CONTEXTE SUFFISANT (4 096 par défaut est trop petit : une conversation du coach envoie
+    # facilement 6 000 à 15 000 jetons). L'identifiant du modèle est celui de GET /v1/models.
+    local:
+      base-url: ${LOCAL_BASE_URL:http://localhost:1234/v1}
+      # Laissez VIDE : un serveur local n'exige pas de clé (aucun en-tête Authorization n'est envoyé).
+      api-key: ${LOCAL_API_KEY:}
+      model: ${LOCAL_MODEL:gemma-4-12b-it}
+      # Les modèles locaux « raisonneurs » (Qwen3…) consomment des jetons AVANT la réponse : garder de la marge.
+      max-tokens: ${LOCAL_MAX_TOKENS:8192}
+      # none  = AUCUN response_format (défaut) : mesuré comme le plus fiable — les prompts exigent déjà du JSON
+      #         (petits contextes : l'Agent C répond un JSON correct).
+      # schema = contrainte de forme json_schema permissive : LM Studio l'accepte, mais un modèle local
+      #          « lâché » dans un contexte long a alors tendance à renvoyer un objet VIDE (mesuré).
+      # (json_object est refusé par LM Studio : 400 « must be 'json_schema' or 'text' ».)
+      json-mode: ${LOCAL_JSON_MODE:none}
+      # Délai de LECTURE d'une réponse (secondes) : c'est LUI qui coupe un appel qui « n'avance pas ».
+      # Un modèle local est BEAUCOUP plus lent qu'une API distante : les 300 s des fournisseurs distants
+      # ne suffisent pas pour une réponse du Coach, et un modèle « raisonneur » peut même mettre > 15 min.
+      # Par défaut 1800 s (30 min) — largement au-dessus du besoin, sans être infini : sans délai, un
+      # serveur muet bloquerait la requête HTTP indéfiniment. En cas de dépassement, l'IHM affiche
+      # « Délai de lecture dépassé après N s … » avec ce réglage à modifier.
+      read-timeout-seconds: ${LOCAL_READ_TIMEOUT_SECONDS:1800}
     synthesis-file: ${SYNTHESIS_FILE:./data/synthese_financier.json}
 
 logging:

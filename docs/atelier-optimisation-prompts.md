@@ -51,7 +51,7 @@ prompt ou d'une autre conversation. L'atelier transforme cette intuition en **ex
 | `service/CoachContextBuilder.java` | Construction du contexte, **extraite** de `ChatController` |
 | `service/PromptOptimizationStore.java` | Persistance des campagnes (JSON/JSONL atomiques, verrou) |
 | `service/PromptOptimizationService.java` | Machine à états, itérations, avis humain, promotion, fils de conversation, **question au client simulé (Agent C)** |
-| `ai/RemoteAIService.java` · `ai/AIService.java` · `ai/MockAIService.java` | Appels IA des Agents A / B **et C** (mode MOCK refusé) |
+| `ai/RemoteAIService.java` · `ai/AIService.java` · `ai/MockAIService.java` · `ai/LocalAIService.java` | Appels IA des Agents A / B **et C** (mode MOCK refusé ; serveur **local** LM Studio accepté) |
 | `service/AgentPromptHistoryStore.java` | Sauvegardes de prompts avant promotion (rollback) |
 | `controller/PromptOptimizationController.java` | API REST `/api/prompt-optimization/**` |
 
@@ -130,7 +130,7 @@ Choix structurants :
 |---|---|---|
 | GET | `/api/prompt-optimization/agents` | Agents + zones optimisables, `maxIterations`, **`hardMaxIterations`** (50), `enabled`, `demoMode`, tables de libellés |
 | GET | `/api/prompt-optimization/campaigns` | Campagnes connues (**non utilisée par l'IHM**, qui ne propose pas de reprendre une campagne passée) |
-| POST | `/api/prompt-optimization/campaigns` | Démarre une campagne `{agentId, question, iterations, zoneKey, provider, controllerProvider, editorProvider, threadId}` (les fournisseurs B/A sont facultatifs et retombent sur `provider` ; `threadId` poursuit une conversation) → `{campaign, thread}` |
+| POST | `/api/prompt-optimization/campaigns` | Démarre une campagne `{agentId, question, iterations, zoneKey, provider, controllerProvider, editorProvider, threadId, fromCampaignId, fromVersion}` (les fournisseurs B/A sont facultatifs et retombent sur `provider` ; `threadId` poursuit une conversation ; `fromCampaignId` + `fromVersion` = **chaînage** de la zone de départ, cf. §5.4) → `{campaign, thread}` |
 | GET | `/api/prompt-optimization/campaigns/{id}` | Vue complète en **un** appel : campagne + snapshot + itérations + versions + avis + **fil de conversation** |
 | POST | `/api/prompt-optimization/campaigns/{id}/iterate` | **Une** itération (Coach → Agent B → Agent A → validation → persistance) |
 | POST | `/api/prompt-optimization/campaigns/{id}/stop` | Arrêt gracieux |
@@ -144,8 +144,9 @@ Choix structurants :
 | GET | `/api/prompt-optimization/threads` | **Fils de conversation** connus, du plus récemment modifié au plus ancien |
 | GET | `/api/prompt-optimization/threads/{threadId}` | Conversation complète d'un fil (tours validés, dans l'ordre) |
 | PUT | `/api/prompt-optimization/threads/{threadId}/turns/{index}` | Corrige le contenu d'un tour `{content}` (l'humain garde la main sur ce qui sera rejoué) |
-| GET | `/api/prompt-optimization/threads/{threadId}/comparison` | **Bilan de la conversation** : prompt du PREMIER cycle face au prompt en vigueur à la fin (dernière version promue) |
+| GET | `/api/prompt-optimization/threads/{threadId}/comparison` | **Bilan de la conversation** : prompt du PREMIER cycle face à la dernière version RETENUE à la fin (et la version à promouvoir = la dernière retenue non appliquée, cf. §5.3) |
 | POST | `/api/prompt-optimization/client/question` | **Agent C (client simulé)** : `{threadId, brief, turnNumber, depth, provider}` → la question suivante du client `{"question", "endConversation", "reason"}` (le fil fournit la conversation déjà échangée) |
+| POST | `/api/prompt-optimization/client/brief` | **Agent C (projet du client)** : `{agentId, provider, previousBriefs}` → un projet inventé pour l'agent visé `{"brief", "montantProjet", "reason"}` (refusé si le montant dépasse le plafond de cohérence du dossier) |
 
 Erreurs : `400 BAD_REQUEST` (`IllegalArgumentException`) et `409 CONFLICT` (`IllegalStateException`), corps
 `{"error": "...", "message": "..."}` — c'est exactement ce que lit `apiFetch` côté IHM.
@@ -173,7 +174,10 @@ question 2 → itérations → …) au lieu d'une question isolée.
   avec un message explicite.
 - IHM : bloc **« Conversation de l'atelier »** (mêmes bulles que la page coach) avec la question en attente
   (avant promotion), la réponse de l'IA par version promue (corrigeable), un champ « question suivante » et
-  « Nouvelle conversation ». Le fil le plus récent de l'agent sélectionné est **rechargé à l'ouverture de la page**.
+  « Nouvelle conversation ». Le fil le plus récent de l'agent sélectionné est **rechargé à l'ouverture de la page** —
+  mais **jamais** un fil volontairement abandonné : « Nouvelle conversation » horodate l'abandon par agent
+  (`localStorage`), et les fils modifiés **avant** cet instant ne sont plus repris (même après un F5), tandis qu'un
+  fil créé **après** l'est normalement.
   Les réponses sont **mises en forme exactement comme dans la page coach** (`frontend/src/messageFormat.tsx`,
   module partagé) : `**gras**`, `*italique*`, `` `code` ``, liens `[URL|nom|url]` cliquables (http(s) uniquement),
   retours à la ligne conservés — aucun HTML brut, donc aucune injection possible.
@@ -185,12 +189,48 @@ question 2 → itérations → …) au lieu d'une question isolée.
 Un **troisième agent** joue le **CLIENT** : au lieu d'écrire soi-même chaque question, on décrit un client
 (« brief ») et c'est l'IA qui mène la conversation, exactement comme dans la page coach.
 
+- **PARITÉ DES DONNÉES (Coach ↔ Agent B ↔ Agent A)** — vérifiée : les agents internes reçoivent le **même
+  prompt** que le Coach (`coachPrompt`, marqueurs de zone exclus), la **même classification figée**, le
+  **catalogue** qu'il pouvait demander (`availableData`) et surtout le **CONTENU des fichiers réellement
+  joints** (`providedData`), et pas seulement leurs descriptions. C'est ce qui permet au contrôleur de
+  distinguer un produit **inventé** d'un produit **existant mais hors périmètre du projet** : dans l'IHM,
+  `INVENTED_PRODUCT` = « Produit inventé » (absent des données) et `PRODUCT_MISMATCH` =
+  « Produit hors périmètre du projet » (présent au catalogue, mais non prévu pour ce projet par l'arbre de
+  décision — c'est un vrai défaut de la réponse, pas un manque de données).
+
+- **« GÉNÉRER PROJET »** : plutôt que de décrire le client soi-même, l'Agent C le fait — il invente un client et
+  son projet (la raison de sa visite) **dans le périmètre de l'agent sélectionné** (crédit conso, épargne,
+  assurance…). Un **nouvel appui propose un projet différent** : les briefs déjà proposés sont transmis au modèle
+  avec interdiction de les reprendre. Rien n'est écrit côté backend : le texte atterrit dans le champ « Brief du
+  client », où l'humain le relit, le modifie ou l'ignore.
+- **Brief = le PROJET seul (2 à 3 phrases)** : ni description du client (prénom, âge, situation familiale ou
+  professionnelle, logement — le Coach connaît son client et son dossier : âge, statut étudiant, éligibilité,
+  comptes), ni **modalité de financement** (durée, mensualité cible, apport, épargne mobilisée : le client ne les
+  a pas encore décidées, c'est ce qu'il vient chercher), ni les **chiffres du dossier** (solde, épargne,
+  mensualité de crédit en cours, taux d'endettement, capacité d'épargne). Le brief dit : ce qui est arrivé, le
+  projet et son objet, le montant, et ce que le client veut savoir — plus un élément concret qui crée une
+  contrainte utile au test (véhicule immobilisé, devis reçu, refus passé). Les chiffres reçus par l'Agent C
+  restent des **repères de calibrage internes** (montant crédible, apport ≤ épargne), jamais du texte recopié.
+- **Cohérence avec le dossier (garde-fou « pas n'importe quoi »)** : le modèle reçoit les **trois chiffres** du
+  dossier (compte courant, épargne, mensualité de crédit en cours) **et** `budgetCoherent.plafondProjet`, un
+  plafond **calculé par le backend** (jamais laissé à l'arithmétique d'un modèle) : `max(30 000 €, 2 × épargne)`,
+  sauf agents **crédit immobilier** et **assurance emprunteur** (plafond large : un achat à six chiffres y est
+  légitime). Le projet déclaré au-dessus du plafond est **refusé** (message nommant montant, épargne et plafond)
+  — que le montant soit déclaré (`montantProjet`) ou seulement cité dans le brief. C'est ce qui écarte les
+  propositions hors dossier du type « achat d'un château » avec quelques milliers d'euros d'épargne.
 - **Qui promeut ?** Une **case à cocher** conserve les **deux modes** : décochée (défaut) c'est **l'humain** qui
-  valide chaque cycle (promouvoir / accepter sans changement, comme aujourd'hui) ; cochée, la **promotion
-  automatique** promeut la dernière version du cycle et le client enchaîne sa question suivante.
-- **Profondeur** : un champ borne le nombre **maximum de questions** du client (ex. 10). À la profondeur atteinte,
-  la boucle s'arrête (l'IHM ne demande plus rien au client) — l'agent reçoit `turnNumber` et `depth` pour
-  conclure avant, mais **la borne est tenue par l'IHM**, jamais par le modèle.
+  valide chaque cycle (accepter/adopter une version, comme aujourd'hui) ; cochée (« **Enchaînement
+  automatique** »), la dernière version du cycle est **acceptée pour la conversation** — donc
+  **sans écrire le prompt de production** — et le client enchaîne sa question suivante. À la fin, le bilan
+  « Comparaison de la conversation — début ↔ fin » s'ouvre et propose **PROMOUVOIR** la **version retenue** qui n'est
+  pas encore en production (même si les derniers cycles n'ont rien proposé).
+- **Profondeur** : un champ borne le nombre **de questions** du client (ex. 10). La question numéro `depth` est la
+  **dernière question AUTORISÉE** : elle est **POSÉE** normalement (`endConversation` à `false`), c'est l'IHM qui
+  arrête la boucle **après** elle — le client peut seulement conclure **plus tôt** s'il a obtenu ce qu'il voulait
+  (l'agent reçoit `turnNumber` et `depth`, mais **la borne est tenue par l'IHM**, jamais par le modèle).
+  ⚠️ Le prompt demandait auparavant de conclure dès `turnNumber == depth` : la dernière question était consommée
+  par une phrase de clôture et le scénario s'arrêtait **une question trop tôt** (constaté en réel : 3 → 2 questions,
+  5 → 4). Test de contrat : `AgentFilesPromptTest.theSimulatedClientAsksItsLastAllowedQuestion`.
 - **Boutons STOP / CONTINUER** : `STOP` arrête la boucle et la **campagne en cours** (arrêt gracieux : l'itération
   en cours va au bout, puis la campagne passe en pause) ; `CONTINUER` demande la question suivante au client.
 - **Les SEULS chiffres transmis à l'Agent C** : solde du **compte courant**, **épargne** disponible, **mensualité
@@ -221,12 +261,21 @@ Un **troisième agent** joue le **CLIENT** : au lieu d'écrire soi-même chaque 
 c'est le seul moyen de lire ce que **tout le scénario** a réellement changé au prompt.
 
 - **Début de la conversation** = la version de référence du **premier cycle** du fil ; **fin** = la **dernière version
-  réellement PROMUE** (une campagne refusée ou non décidée ne compte pas). Si aucune version n'a été promue, le bilan
-  est un prompt **identique** — c'est une information, jamais une erreur (« aucune version n'a été promue pendant ce
+  réellement RETENUE** (une campagne refusée ou non décidée ne compte pas). Si aucune version n'a été retenue, le bilan
+  est un prompt **identique** — c'est une information, jamais une erreur (« aucune version n'a été retenue pendant ce
   scénario »).
-- Le panneau affiche les **deux zones éditables** (début et fin) avec le **cycle d'origine** de chacune, le **diff
-  compact** de la zone, les **deux prompts complets** (dépliables, parties protégées incluses) et les compteurs
-  (**cycles**, **itérations**, **promotions**).
+- **Version « à promouvoir »** : c'est la dernière version **retenue** de la conversation qui n'est **pas encore dans
+  le prompt de production** (`applied = false`), cycle le plus récent d'abord. Elle peut différer de la « fin »
+  affichée par le backend : quand les **derniers cycles n'ont rien proposé** (l'Agent A n'a pas modifié la zone), la
+  version retenue du dernier cycle est identique au fichier, alors qu'un cycle ANTÉRIEUR porte l'amélioration jamais
+  écrite. Sans cette recherche, le bilan affichait « **✓ Version finale déjà appliquée au prompt de production** » et
+  ne proposait **aucun bouton** alors qu'il restait quelque chose à adopter (constaté en réel : 3 cycles, cycle 1 →
+  V2, cycles 2-3 sans proposition).
+- Le panneau affiche les **deux zones éditables** (début et version visée) avec le **cycle d'origine** de chacune, le
+  **diff compact** de la zone, les **prompts complets** (dépliables, parties protégées incluses) et les compteurs
+  (**cycles**, **itérations**, **versions retenues**). Le bouton **`PROMOUVOIR Vn EN PRODUCTION`** vise cette version ;
+  quand **tout** ce que la conversation a retenu est déjà en production, il laisse la place à un repère
+  « ✓ Rien à promouvoir » (et la phrase « Rien n'est écrit avant ce clic » n'est alors plus affichée).
 - ⚠️ **Les noms de version sont LOCAUX au cycle** : « V0 » du 2ᵉ cycle n'est pas le « V0 » du 1ᵉʳ (il contient déjà la
   promotion du cycle précédent). Le bilan ne parle donc jamais de « V0 → V0 » : la phrase du backend décrit la
   **zone** (« la zone éditable a été modifiée pendant la conversation : 3 036 → 3 598 caractères ») et les cycles
@@ -235,6 +284,33 @@ c'est le seul moyen de lire ce que **tout le scénario** a réellement changé a
   dans cette conversation » (le bouton est de toute façon désactivé tant qu'aucun échange n'est validé).
 - L'IHM oublie le bilan dès qu'un nouveau cycle démarre ou qu'une nouvelle conversation commence (jamais de panneau
   périmé).
+
+### 5.4 Chaînage des cycles — les améliorations s'accumulent (mode automatique)
+
+Depuis que le mode automatique de l'Agent C **accepte** les versions sans écrire le prompt de production
+(§5.2), un cycle pouvait repartir du prompt de production : les améliorations retenues **ne s'accumulaient
+donc pas** d'un cycle à l'autre, et le bilan « début ↔ fin » ne montrait que le dernier cycle. Le **chaînage**
+supprime ce défaut.
+
+- À la fin d'un cycle, l'IHM retient la **référence de la version acceptée** (`{campaignId, version}`) et la
+  transmet au cycle suivant (`fromCampaignId` + `fromVersion`). Le service compose alors la zone de départ avec
+  les **parties figées du snapshot source** et la **section de cette version** : le fichier de production n'est
+  **jamais** lu comme source, et **jamais écrit**.
+- Conséquence : le cycle 2 teste le prompt **enrichi du cycle 1**, le cycle 3 celui du cycle 2… Le bilan final est
+  donc **réellement cumulatif** (« début » = zone du premier cycle, « fin » = zone retenue du dernier) et **un
+  seul bouton** `PROMOUVOIR` adopte **tout le travail du scénario**.
+- Le **snapshot** enregistre l'origine dans `baseZoneSource` (`<campaignId>:<version>`, vide = prompt de
+  production) et l'IHM l'affiche : « **zone héritée** — zone de départ de ce cycle : celle de la version retenue
+  `V1` du cycle `po-…` ». La version de référence du cycle reste nommée **V0** (nommage **local** au cycle) : elle
+  n'est **pas** `production` (l'IHM affiche « référence », et elle reste promouvable si elle n'est pas appliquée).
+- **Refus explicites, AVANT tout appel IA** (aucun coût, message lisible) : cycle source inconnu, version
+  inconnue, zone d'un **autre agent**, cycle source encore **en cours**, ou prompt de production **modifié depuis**
+  ce cycle (promotion externe) — dans ce dernier cas, promouvoir d'abord ou relancer un cycle normal.
+- **Mode manuel** : aucun chaînage. L'humain promeut, le fichier contient donc déjà sa décision, et le cycle
+  suivant part du prompt à jour (comportement historique inchangé).
+- Vérifié en réel (deux cycles, profondeur 2) : le 2ᵉ cycle a `baseZoneSource = "po-…:V1"`, sa zone V0 est
+  **exactement** la zone retenue du 1ᵉʳ, le fichier de production reste **identique** (SHA-256 avant/après) et le
+  bilan propose un unique `PROMOUVOIR`.
 
 ---
 
@@ -549,14 +625,19 @@ production restauré à l'identique après le test — empreinte SHA-256 compar�
 
 1. **Boucle pilotée par l'IHM** : pas de file de tâches ni d'exécution en arrière-plan ; l'onglet doit rester
    ouvert pendant la campagne (une requête = une itération). Le **scénario Agent C** suit la même règle : la
-   **profondeur** est une borne de l'IHM (le client reçoit `turnNumber` / `depth` et peut clore lui-même le
-   scénario, mais l'IHM ne lui demande jamais plus de questions que la profondeur choisie) — fermer l'onglet
+   **profondeur** est une borne de l'IHM : le client reçoit `turnNumber` / `depth` et peut clore lui-même le
+   scénario (mais sa **dernière question autorisée** est posée, cf. §5 : le compteur ne provoque jamais la
+   clôture, sinon le scénario perdait la dernière question) — l'IHM ne lui demande jamais plus de questions que
+   la profondeur choisie — fermer l'onglet
    arrête le scénario, sans rien perdre (fil et campagnes restent sur disque).
 2. **Un seul scénario par campagne** : une campagne = une question. L'enchaînement se fait par le **fil de
    conversation** (campagne → promotion → question suivante), pas par plusieurs questions dans la même campagne
    (le multi-scénarios §45 reste à faire : un snapshot par question).
 3. **Fournisseur réel obligatoire** : l'atelier refuse le mode MOCK (message explicite nommant l'étape) ;
-   les autres modules continuent de fonctionner en mode démo. Le routage des modèles est **figé avec la campagne**
+   les autres modules continuent de fonctionner en mode démo. Un **modèle servi localement** (LM Studio,
+   Ollama…) est accepté comme fournisseur réel : voir `doc-technique.md` §12.1 (contexte à élargir,
+   délai de lecture réglable — 1800 s par défaut, `LOCAL_READ_TIMEOUT_SECONDS=0` pour aucun délai —,
+   pas de mode JSON natif). Le routage des modèles est **figé avec la campagne**
    (changer de modèle ⇒ nouvelle campagne).
 4. **Une campagne active par agent** (et une seule pour l'agent principal, transverse).
 5. Comme en production, les données réclamées par le Coach (`NEED_DATA`) lui sont **fournies** (fichiers
@@ -702,11 +783,17 @@ un autre pour **contrôler** (Agent B) et un autre pour **réécrire un prompt**
 | **Fournisseur — IA coach** | Le modèle qui répond à la question de test (c'est lui qui « subit » le prompt optimisé) | DeepSeek |
 | **Fournisseur — Agent B (contrôleur)** | Le modèle qui diagnostique la réponse | celui du coach si laissé vide |
 | **Fournisseur — Agent A (éditeur)** | Le modèle qui réécrit la zone du prompt | celui du coach si laissé vide |
+| **Fournisseur — Agent C (client simulé)** | Le modèle qui joue le client (mode Agent C) | DeepSeek |
+
+Chaque liste propose **DeepSeek**, **OpenAI** et **Local (LM Studio)** : un modèle servi localement est un
+fournisseur **réel** pour l'atelier (pas de clé API, mais un contexte à élargir et un délai de lecture réglable —
+voir `doc-technique.md` §12.1). Une campagne locale est bien plus lente : chaque itération enchaîne trois appels.
 
 Règles :
 
 1. Les **trois** fournisseurs doivent être **réels** : le mode démo (MOCK) est refusé, avec un message qui nomme
-   l'étape fautive (`Fournisseur IA du Agent B (contrôleur) : …`).
+   l'étape fautive (`Fournisseur IA du Agent B (contrôleur) : …`). Un serveur local (LM Studio, Ollama…) est
+   accepté au même titre que DeepSeek ou OpenAI.
 2. Le routage est **figé avec la campagne** : il est enregistré dans `campaign.json` et recopié sur chaque
    itération (`provider`, `controllerProvider`, `editorProvider`), donc une reprise rejoue **les mêmes modèles**.
    Une nouvelle campagne est nécessaire pour changer de modèle (c'est ce qui garantit la reproductibilité).

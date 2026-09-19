@@ -126,7 +126,8 @@ ai/
   RemoteAIService (abstrait)   # implémentation LLM réelle (OpenAI/DeepSeek)
   OpenAIService / DeepSeekService
   MockAIService                # mode démo (déterministe, sans réseau)
-  AIServiceFactory             # sélection GPT / DEEPSEEK / MOCK
+  LocalAIService              # serveur LOCAL compatible OpenAI (LM Studio, Ollama…)
+  AIServiceFactory             # sélection GPT / DEEPSEEK / LOCAL / MOCK
   AgentFiles                   # agents.json + prompts système par agent (agent/ puis repli classpath)
 config/
   JacksonConfig  WebConfig  MarketingProperties  QualityProperties  AdvisorFeedbackProperties
@@ -314,12 +315,14 @@ app.prompt-optimization.hash-salt: ${PROMPT_OPT_HASH_SALT:…}
 | POST | `/api/prompt-optimization/campaigns` | Démarre une campagne `{agentId, question, iterations, zoneKey, provider, controllerProvider, editorProvider, threadId}` → snapshot figé + `RUNNING`, **et renvoie le fil de conversation** `{campaign, thread}` |
 | GET | `/api/prompt-optimization/campaigns/{id}` | Vue complète : campagne + snapshot + itérations + versions + avis + **fil de conversation** |
 | POST | `/api/prompt-optimization/campaigns/{id}/iterate` | Exécute **une** itération (Coach → Agent B → Agent A → validation) |
-| POST | `/api/prompt-optimization/campaigns/{id}/stop` \| `/resume` \| `/promote` \| `/reject` \| `/feedback` | Ajustements et décisions humaines (arrêt gracieux, reprise avec `additionalIterations`, **promotion**, refus, avis) |
+| POST | `/api/prompt-optimization/campaigns/{id}/stop` \| `/resume` \| `/promote` \| `/accept` \| `/reject` \| `/feedback` | Ajustements et décisions humaines (arrêt gracieux, reprise avec `additionalIterations`, **promotion** (seule écriture), **acceptation sans écriture** (mode automatique de l'Agent C), refus, avis) |
 | GET | `/api/prompt-optimization/campaigns/{id}/versions` \| `/compare` \| `/usage` | Versions, comparaison initiale ↔ courante, compteurs (itérations, appels IA, caractères, durée) |
 | GET | `/api/prompt-optimization/threads` \| `/threads/{threadId}` | **Fils de conversation** de l'atelier (mémoire des cycles : tours validés par promotion + campagnes associées) |
 | PUT | `/api/prompt-optimization/threads/{threadId}/turns/{index}` | Corrige le contenu d'un tour `{content}` (réponse rejouée au cycle suivant) |
 | POST | `/api/prompt-optimization/client/question` | **Agent C (client simulé)** : `{threadId, brief, turnNumber, depth, provider}` → la question suivante du client (le fil fournit la conversation déjà échangée ; brief vide ou fournisseur MOCK refusés) |
-| GET | `/api/prompt-optimization/threads/{threadId}/comparison` | **Bilan d'une conversation** : prompt du PREMIER cycle face au prompt en vigueur à la fin (dernière version promue) — zones, prompts complets, cycles/itérations/promotions, `identical`, phrase `summary` |
+| POST | `/api/prompt-optimization/client/brief` | **Agent C (projet du client, « Générer projet »)** : `{agentId, provider, previousBriefs}` → `{brief, montantProjet, reason}`. Le payload contient le libellé, le **prompt de l'agent visé** (marqueurs de zone retirés), les **trois chiffres du dossier** et `budgetCoherent.plafondProjet` (`max(30 000 €, 2 × épargne)` ; crédit immobilier et assurance emprunteur : plafond large). Un `montantProjet` (ou un montant cité dans le brief) au-dessus du plafond est **refusé** : garde-fou contre les projets hors dossier (« achat d'un château ») |
+| GET | `/api/prompt-optimization/threads/{threadId}/comparison` | **Bilan d'une conversation** : prompt du PREMIER cycle face au prompt en vigueur à la fin (dernière version acceptée) — zones, prompts complets, cycles/itérations/promotions, `identical`, phrase `summary` |
+| POST | `/api/prompt-optimization/campaigns/{id}/accept` | **Accepte une version POUR LA CONVERSATION sans écrire le prompt de production** (mode automatique de l'Agent C) : fil alimenté, campagne `ACCEPTED`, ni sauvegarde ni réécriture |
 | GET | `/api/health` | Healthcheck (expose le fournisseur par défaut) |
 
 ### Exemple — POST /api/chat
@@ -600,6 +603,7 @@ flowchart LR
 - `formatPercent` (2 décimales fr-FR) pour le taux d'épargne ; `formatMoneyCents` pour le solde ;
 - Rendu **Markdown léger** des réponses (gras `**`, italique `*`, code) via segmentation React ; texte nettoyé avant synthèse vocale ;
 - **Audio** : micro 🎤 dictée et lecture vocale 🔊 (Web Speech API), activables via le réglage « Audio » du panneau « Avancé » ;
+- **Mode auto (mains libres, façon Siri)** : en veille, l'app attend le **mot-clé** (« Chloé » par défaut, modifiable, réglage mémorisé). Quand il est reconnu, un **carillon court et montant** est joué (`audioCue.ts`, `playWakeCue()`) : il **marque le début de l'écoute** — sans lui, impossible de savoir si le mot-clé a été entendu. Le son est **synthétisé** (Web Audio API, A5→E6, ~200 ms, volume bas car le micro reste ouvert) plutôt qu'embarqué en fichier : aucun binaire à versionner, aucune requête réseau, et un carillon indisponible ne bloque jamais l'écoute (aucune exception propagée, contexte audio partagé et anti-rebond de 250 ms) ;
 - Interrupteur « Avancé » : masque/affiche fournisseur IA (GPT/DeepSeek/Mock), garde-fou hors-sujet, réponses vocales, accès Logs & Agents (onglets séparés).
 - Fournisseur IA par défaut côté UI : **DeepSeek** (préférence mémorisée en localStorage).
 
@@ -607,18 +611,63 @@ flowchart LR
 
 ## 12. Mode démo (MOCK) vs fournisseurs réels
 
-| Point | MOCK (défaut backend) | GPT / DeepSeek |
-|---|---|---|
-| Classification d'intention | Heuristique mots-clés | LLM via `classifieur.txt` |
-| Réponse coach | Message générique (mode démo) | LLM via le prompt de l'agent actif (`generic.txt` + `principal.txt` + spécialisé) |
-| Synthèse de fin de conversation | **Déterministe** : niveaux d'intérêt déduits des messages (HIGH si le client cite le produit, MEDIUM si le coach, LOW sinon, REJECTED si refus explicite) + brouillon client | LLM via `suivi.txt` |
-| Rapport marketing | **Déterministe** : rapport construit à partir des agrégats | LLM via `marketing.txt` (interprétation) |
-| Rapport qualité | **Déterministe** : sépare satisfaction et conformité, signale les règles conformes frustrantes | LLM via `qualite_coach_client.txt` |
-| Rapport feedback conseiller | **Déterministe** : KPI de pertinence, convergences produit × intérêt | LLM via `feedback_conseiller.txt` |
-| Réseau / clé API | Aucun | Requis (`OPENAI_API_KEY`, `DEEPSEEK_API_KEY`) |
-| Simulation / calculs / statistiques | Identiques (Java) | Identiques (Java) |
+| Point | MOCK (défaut backend) | GPT / DeepSeek | LOCAL (LM Studio…) |
+|---|---|---|---|
+| Classification d'intention | Heuristique mots-clés | LLM via `classifieur.txt` | LLM via `classifieur.txt` |
+| Réponse coach | Message générique (mode démo) | LLM via le prompt de l'agent actif (`generic.txt` + `principal.txt` + spécialisé) | Identique (même protocole) |
+| Synthèse de fin de conversation | **Déterministe** : niveaux d'intérêt déduits des messages (HIGH si le client cite le produit, MEDIUM si le coach, LOW sinon, REJECTED si refus explicite) + brouillon client | LLM via `suivi.txt` | LLM via `suivi.txt` |
+| Rapport marketing | **Déterministe** : rapport construit à partir des agrégats | LLM via `marketing.txt` (interprétation) | LLM via `marketing.txt` |
+| Rapport qualité | **Déterministe** : sépare satisfaction et conformité, signale les règles conformes frustrantes | LLM via `qualite_coach_client.txt` | LLM via `qualite_coach_client.txt` |
+| Rapport feedback conseiller | **Déterministe** : KPI de pertinence, convergences produit × intérêt | LLM via `feedback_conseiller.txt` | LLM via `feedback_conseiller.txt` |
+| Réseau / clé API | Aucun | Requis (`OPENAI_API_KEY`, `DEEPSEEK_API_KEY`) | Aucune clé : serveur local (`app.ai.local.*`) |
+| Simulation / calculs / statistiques | Identiques (Java) | Identiques (Java) | Identiques (Java) |
 
 > Le fournisseur est **choisi dans l'IHM** et transmis à chaque appel (`provider`) : échanges avec l'IA **et** clôture de conversation. Le backend ne le lit plus dans `application.yml` ; il ne retombe sur `MOCK` que si aucun fournisseur n'est transmis par l'appelant.
+
+### 12.1 Fournisseur LOCAL (LM Studio, Ollama, llama.cpp…)
+
+`ai/LocalAIService` parle le **même protocole** que GPT/DeepSeek (`POST /chat/completions`), avec trois
+différences réelles, mesurées sur un LM Studio en service et **vérifiées par des tests**
+(`LocalAIServiceRequestTest`) :
+
+| Point | Réglage | Pourquoi |
+|---|---|---|
+| **Aucune clé API** | `app.ai.local.api-key` (vide) | Un serveur local n'en demande pas : une clé absente n'est plus une erreur et l'en-tête `Authorization` n'est même pas envoyé |
+| **Pas de mode JSON natif** | `app.ai.local.json-mode: none` | LM Studio **refuse** `response_format: json_object` (400 « must be 'json_schema' or 'text' ») ; les prompts exigent déjà du JSON, l'encadrement Markdown est retiré et un JSON tronqué réparé. `schema` (contrainte de forme `json_schema` permissive) est accepté par LM Studio mais **mesuré comme pire** : le modèle renvoie un objet VIDE |
+| **Délai de lecture large et RÉGLABLE** | `app.ai.local.read-timeout-seconds: 1800` (30 min ; `0` = **aucun délai**) | Un modèle local est BEAUCOUP plus lent qu'une API distante : les 300 s des fournisseurs distants ne suffisent pas pour une réponse du Coach, et un modèle « raisonneur » peut dépasser plusieurs minutes. Réglable par variable d'environnement (`LOCAL_READ_TIMEOUT_SECONDS`), donc ajustable sans recompiler |
+| **Cause de l'échec VISIBLE dans l'IHM** | `controller/AiCallExceptionHandler` (502) + `RemoteAIService.readFailure(...)` | La réponse 500 par défaut de Spring met la cause dans `trace`, pas dans `message` — le frontend n'affiche donc que « Erreur HTTP 500 », et un délai dépassé ressemble à un bug. Désormais : **502 Bad Gateway** avec `message` = « Délai de lecture dépassé après N s sur le fournisseur Local (LM Studio) … » ou « Le fournisseur … a refusé l'appel (HTTP 400) : … » (le corps du refus est cité). Un échec **d'analyse** (JSON hors contrat) garde, lui, « Réponse IA invalide: … » |
+| **Rappel de format** | `RemoteAIService.JSON_FORMAT_REMINDER` (tous fournisseurs) | Un petit modèle noyé dans 48 000 jetons oublie le contrat JSON : la consigne « réponds UNIQUEMENT par un objet JSON valide » est donc **répétée à la fin du message utilisateur** (dernier jeton lu = le rappel). Aucun impact sur le contenu demandé |
+| **Repli « prose »** | `RemoteAIService.isPlainTextAnswer` | Si la réponse ne commence ni par `{` ni par `[`, elle n'est pas jetée : elle est **utilisée telle quelle comme réponse au client** et un `WARN` est tracé. Un JSON mal formé garde, lui, son erreur explicite (contrat visible). Vérifié : page coach en LOCAL → **200 en 35 s** avec une réponse utile (soldes) |
+| **HTTP/1.1 IMPOSÉ** | `RemoteAIService` (tous fournisseurs) | **Cause racine du blocage observé** : le client du JDK négocie HTTP/2 (mise à niveau `h2c` en clair) ; face à LM Studio la connexion TCP s'établit, le modèle n'est **jamais** sollicité (`lms ps` reste IDLE) et l'appel attend indéfiniment (aucune erreur). Forcer `HttpClient.Version.HTTP_1_1` fait répondre la même requête en quelques secondes — DeepSeek reste à 2 s |
+
+`app.ai.local.model` doit être **l'identifiant exposé par `GET /v1/models`** (ex. `qwen3.5-9b`) : c'est le modèle
+déjà chargé dans LM Studio qui répond, pas un modèle téléchargé par l'application.
+
+⚠️ **Deux pièges du serveur local** (constatés, non contournables côté Java) :
+
+1. **Taille de contexte** : LM Studio charge un modèle avec une taille de contexte (`n_ctx`) qui vaut **4 096 par
+défaut**, alors qu'une conversation du coach envoie facilement **6 000 à 20 000 jetons** (prompts d'agent +
+catalogue + synthèse + historique) → LM Studio répond
+`The number of tokens to keep from the initial prompt is greater than the context length`. Il faut charger le
+modèle avec un contexte plus large (interface LM Studio ▸ *Context Length*, ou
+`lms load <modèle> -c 32768`).
+2. **Modèles « raisonneurs »** (Qwen3…) : ils produisent d'abord un raisonnement (`reasoning_content`), donc
+des centaines de jetons **avant** la réponse. Un `max_tokens` trop bas renvoie une réponse **vide**
+(`finish_reason = length`) ; `/no_think` et `enable_thinking: false` sont ignorés par LM Studio. D'où un
+plafond de sortie généreux (`app.ai.local.max-tokens`, 8192 par défaut).
+
+**Ce qui marche, et ce qui ne marche pas (mesuré)** :
+
+| Usage | Volume envoyé | Résultat avec Qwen3.5-9B (LM Studio) |
+|---|---|---|
+| Agent C (question au client simulé) | ~1 000 jetons | ✅ **200 en 42-63 s**, JSON correct (question + `endConversation`) |
+| Page coach (échange complet) | **~48 000 jetons** | ✅ **200 en 35 s** depuis le rappel de format + le repli « prose » (le modèle ne respecte toujours pas le contrat JSON → sa prose est affichée telle quelle). Nécessite un contexte ≥ 64 k (sinon 400 « greater than the context length ») |
+
+Conclusion pratique : le modèle local est **utilisable partout** (garde-fous ci-dessus), mais sur la page coach il
+répond en prose : garder **DeepSeek/GPT** quand le format structuré compte (cartes de produits, suivi conseillé) et
+réserver le local aux appels à petit contexte (Agent C de l'atelier) ou aux démonstrations hors ligne.
+Chargement avec un contexte suffisant :
+`lms load qwen3.5-9b -c 65536 --identifier qwen3.5-9b` (≈ 15,5 Gio).
 
 ### 12.1 Robustesse du parsing des réponses de modèle
 
@@ -631,7 +680,7 @@ l'étape COACH d'une campagne :
 - `Réponse IA invalide: Unexpected end-of-input: expected close marker for Object (… line: 1, column: 2321)`.
 
 Quatre protections, appliquées à **tous** les points de parsing (chat, suivi, marketing, qualité, feedback conseiller,
-contrôleur, éditeur) :
+contrôleur, éditeur), plus trois garde-fous ajoutés après l'arrivée des modèles locaux :
 
 - `JacksonConfig` construit son `ObjectMapper` sur une `JsonFactory` tolérante :
   `ALLOW_UNESCAPED_CONTROL_CHARS` (retours à la ligne / tabulations bruts) et `ALLOW_TRAILING_COMMA` ;
@@ -648,13 +697,36 @@ contrôleur, éditeur) :
   invalide » sur « je voudrais racheter mon crédit immobilier ». Les deux listes (`intent` / `projectType`) sont
   désormais explicitement distinguées dans `agent/classifieur.txt`, avec des exemples de désambiguïsation
   assurance / crédit / épargne (et la règle « assurance-vie = placement »).
+- `RemoteAIService.JSON_FORMAT_REMINDER` : la consigne de format est **répétée à la fin du message utilisateur**
+  (« RAPPEL DE FORMAT : réponds UNIQUEMENT par un objet JSON valide… »). Le contrat JSON est ainsi le **dernier**
+  jeton lu — indispensable pour un petit modèle local noyé dans 48 000 jetons de contexte, sans effet sur les
+  modèles distants (DeepSeek : 200 en 2,7 s).
+- `RemoteAIService.isPlainTextAnswer(...)` : une réponse qui ne commence ni par `{` ni par `[` n'est **plus** une
+  erreur — elle est utilisée telle quelle comme réponse au client, avec un `WARN` qui dit que le contrat JSON n'a
+  pas été respecté. Défaut réel observé : « `Réponse IA invalide: Unrecognized token 'Votre'` » sur la page coach
+  avec Qwen3.5-9B. Un JSON **hors contrat** (commence par `{` mais ne parse pas) garde son erreur explicite.
+- `JsonRepair.quoteBareFieldValues(...)` : une **valeur d'énumération laissée sans guillemets** est citée avant
+  l'analyse (`"confidence": HIGH` → `"confidence": "HIGH"`). Défaut réel observé (Gemma-4-12b-it, classifieur) :
+  « Réponse classification invalide: { … "confidence": HIGH … } » — un JSON *qui paraît* correct, mais que Jackson
+  refuse, et qui bloquait **tout l'échange** (le classifieur est le premier appel). Jackson n'offre aucune option
+  pour accepter cela : la réécriture est donc faite sur le texte, **hors chaînes** (une raison contenant
+  « : HIGH, » n'est jamais modifiée), et ne cite ni les littéraux (`true` / `false` / `null`) ni les **nombres**
+  (citer `6000` casserait les montants). Une valeur manifestement inachevée (« : HIGH CONFIDENCE} ») reste
+  refusée : on ne devine pas un mot tronqué.
 
 La troncature reste **TRACÉE** : `finish_reason` et la longueur reçue sont journalisés (`[IA] … réponse JSON
 incomplète RÉPARÉE …`), et le message d'erreur du Coach cite désormais la **fin de la réponse reçue**.
 
 Tests : `JacksonConfigTest` (4 : retour à la ligne brut, tabulation + CR, virgule finale, champ inconnu) et
-`RemoteAIServiceJsonTest` (7 : encadrement retiré, JSON simple inchangé, chaîne coupée refermée, structures
-ouvertes refermées, dernier membre incomplet abandonné, jamais de réparation inventive, guillemet échappé).
+`RemoteAIServiceJsonTest` (9 : encadrement retiré, JSON simple inchangé, chaîne coupée refermée, structures
+ouvertes refermées, dernier membre incomplet abandonné, jamais de réparation inventive, guillemet échappé,
+réponse en prose reconnue comme telle, rappel de format ajouté en fin de message) plus
+`ClassifierPayloadToleranceTest` (4 : la réponse fautive du classifieur — `"confidence": HIGH` — est lue
+`HIGH` de bout en bout, une raison contenant « : HIGH, » n'est pas réécrite, littéraux et nombres gardent leur
+type, une valeur inachevée reste refusée) plus
+`LocalAIServiceRequestTest` (7 : absence de `response_format`, schéma `json_schema` permissif, mode natif
+possible, fournisseur distant toujours soumis à clé + `json_object`, local sans clé, plafond de sortie par
+défaut, routage du `AIServiceFactory`).
 
 ---
 
@@ -1187,14 +1259,53 @@ Le contenu du prompt **hors zone** n'est jamais modifié par une promotion.
 **Acceptation SANS CHANGEMENT** : si la zone recomposée est **identique** au fichier en production (cas où l'Agent A
 n'a rien proposé : la seule version connue est celle du snapshot), la campagne est simplement `ACCEPTED` —
 **aucune écriture** (ni `backup`, ni `AgentPromptStore.write`, donc `backupId`/`backupFile` vides) et l'échange est
-écrit dans le fil de conversation. L'IHM expose cette action en **direct, sans confirmation** (« ACCEPTER SANS
+dans le fil de conversation. L'IHM expose cette action en **direct, sans confirmation** (« ACCEPTER SANS
 CHANGEMENT », barre d'actions de « Progression ») : sans elle, une campagne sans proposition bloquerait
 l'enchaînement de la conversation. Un test compare le prompt de production **avant/après** (aucune écriture).
+
+### 20.10 bis Acceptation SANS ÉCRITURE (`POST /accept`) et décision finale
+
+`promoteVersion` et `acceptVersion` partagent **la même** décision (`decideVersion(campaignId, version,
+writeProduction)`) : mêmes contrôles, même validation de zone, même écriture de l'échange dans le fil. Ce qui change
+tient dans un booléen — et c'est tout l'enjeu du **mode automatique de l'Agent C** :
+
+| | `/promote` (`writeProduction = true`) | `/accept` (`writeProduction = false`) |
+| --- | --- | --- |
+| Sauvegarde du prompt courant (`history/`) | oui | **non** |
+| Réécriture du fichier de l'agent | oui (si la zone change) | **non** |
+| Campagne → `ACCEPTED` + `promotedVersion` | oui | oui |
+| Échange dans le fil de conversation | oui | oui |
+| Message renvoyé | « La version Vn remplace la zone … » | « Version Vn ACCEPTÉE pour la conversation : le prompt de production … n'a PAS été modifié. Utilisez « Promouvoir » pour l'appliquer. » |
+
+Les contrôles **spécifiques à l'écriture** (dérive externe du fichier, zone transverse, autre campagne active) sont
+évalués **uniquement** quand `writeProduction` est vrai : une acceptation ne peut donc jamais échouer pour une raison
+liée à l'écriture, et elle n'écrit rien même si le fichier a changé entre-temps.
+
+**`appliedInProduction(campaignId, version)`** répond à l'IHM : « cette version est-elle DÉJÀ la zone du fichier de
+production ? ». La comparaison porte sur la **zone éditable** (marqueurs et parties figées exclus) et est normalisée
+(CRLF du fichier vs LF des versions). Elle est exposée dans chaque vue de version (`applied`), distincte de
+`promoted` (= version **acceptée** de la campagne) : c'est ce couple qui permet d'afficher « ★ acceptée (à
+promouvoir) » et de proposer « Promouvoir » **après** une acceptation automatique — donc au moment où l'humain
+décide.
+
+### 20.10 quater Chaînage des cycles — la zone de départ peut être héritée
+
+En mode automatique, chaque cycle partait du **prompt de production** (rien n'est écrit) : les améliorations
+retenues ne s'accumulaient donc pas. `StartRequest` porte maintenant {@code fromCampaignId} + {@code fromVersion} :
+la **zone de départ** du cycle est celle de la version RETENUE de ce cycle-là.
+- `inheritZone(request, zoneDuFichier, zoneInfo)` : prend les **parties figées du snapshot source** et la section
+  de la version retenue (`store.editableSectionOf`), **sans jamais lire ni écrire le fichier**. Validée **avant tout
+  appel IA** (cycle/version inconnus, zone d'un autre agent, cycle source actif, prompt modifié depuis → refus).
+- Le snapshot fige l'origine dans `baseZoneSource` (`<campaignId>:<version>`, vide = production), exposée par
+  `GET /campaigns/{id}` (`snapshot.baseZoneSource`) et affichée par l'IHM (« zone héritée »).
+- La version de référence du cycle reste **V0** (nommage local) mais n'est **pas** `production` : la vue des
+  versions exige désormais `applied` en plus de `basePromptVersion` + `promotedVersion` vide.
+- Mode manuel : aucun chaînage (l'humain promeut, le fichier porte déjà sa décision).
 
 ### 20.11 Mode MOCK et fournisseurs réels
 
 `MockAIService.reviewCoachAnswer` / `editPromptSection` / `clientTurn` lèvent `IllegalStateException(NO_REAL_PROVIDER_MESSAGE)` : l'atelier
-**exige un fournisseur réel** (GPT ou DeepSeek) et le dit clairement — les autres modules continuent de fonctionner en mode démo.
+**exige un fournisseur réel** (GPT, DeepSeek ou **LOCAL** — modèle servi localement) et le dit clairement — les autres modules continuent de fonctionner en mode démo.
 
 **Un fournisseur par étape** : `StartRequest` porte trois fournisseurs (`provider` = coach, `controllerProvider` = Agent B,
 `editorProvider` = Agent A) ; les deux derniers sont facultatifs (`null` ⇒ celui du coach). Les trois sont validés
@@ -1218,8 +1329,9 @@ sans ces champs retombe sur le fournisseur du coach (constructeurs compacts de `
   la version **qui a produit la réponse affichée** — le seul jugement possible d'un prompt est la réponse qu'il a
   donnée ; la réponse entre alors dans la conversation telle quelle (aucun appel IA ajouté). La version proposée
   par l'Agent A (jamais utilisée) se promeut depuis le **tableau des versions**, avec **génération** de sa réponse.
-  `canPromote` = décision possible **et** aucune version déjà acceptée : après acceptation, plus aucun bouton de
-  promotion (tout reste consultable).
+  Le garde-fou n'est plus « aucune version déjà acceptée » mais l'**état réel du fichier** (`applied`, cf. §20.10 bis) :
+  une version acceptée sans écriture reste **promouvable** (c'est exactement ce que fait l'humain à la fin d'un
+  scénario automatique), et une version déjà présente en production ne l'est plus (bouton masqué, sans effet).
 - Les boutons suivent l'**état réel** : la version de production n'est ni modifiable ni promouvable (sans effet) ;
   « Changements Vn → Vn+1 » (et « Voir le prompt produit ») n'apparaît que si l'Agent A a réellement produit une
   nouvelle version — une itération « sans modification » ne propose donc jamais un diff `Vn → Vn`, et elle affiche
@@ -1235,22 +1347,30 @@ sans ces champs retombe sur le fournisseur du coach (constructeurs compacts de `
 - La boucle est **pilotée par l'IHM** : une requête = une itération (le `STOP` est vérifié entre deux itérations).
 - **Mode Agent C (client simulé)** : une case à cocher (décochée par défaut) remplace la « question de test » par un
   **brief client** et laisse l'IA jouer le client. Quand elle est cochée : sélecteur de **fournisseur de l'Agent C**
-  et champ **Profondeur** (nombre maximum de questions, 1–20 ; l'Agent C reçoit `turnNumber` / `depth`), puis
-  **case « Promotion automatique »** qui conserve les deux modes (« qui promeut ? » : décochée = vous validez chaque
-  cycle ; cochée = la dernière version du cycle est promue et le client enchaîne).
+  et champ **Profondeur** (nombre de questions, 1–20 ; l'Agent C reçoit `turnNumber` / `depth`), puis
+  **case « Enchaînement automatique »** qui conserve les deux modes (« qui décide ? » : décochée = vous validez chaque
+  cycle ; cochée = la dernière version du cycle est **acceptée pour la conversation** — `POST /accept`, aucune
+  écriture — et le client enchaîne).
   La question posée par le client s'affiche **dans le bloc de conversation** (« Question du client (Agent C) —
   n°X / profondeur Y ») et reste **corrigeable** avant le cycle (« GO — poser cette question ») ; le bandeau du bloc
   porte les boutons **STOP** (arrêt gracieux : la campagne en cours se termine puis la boucle s'arrête) et
   **CONTINUER — question suivante du client**. En mode automatique, l'IHM enchaîne seule : question → cycle →
-  promotion → réponse dans le fil → question suivante, jusqu'à la profondeur (ou l'arrêt par STOP, ou la clôture
-  décidée par le client : `endConversation`). Le brief est **obligatoire** (le bouton GO reste inactif sans lui) et
-  rien d'autre n'est persisté : ni fiche d'évaluation, ni question intermédiaire — seuls le **fil** et le **prompt
-  promu** sont écrits.
+  **acceptation sans écriture** → réponse dans le fil → question suivante, jusqu'à la profondeur (la question
+  numéro `depth` est POSÉE : le compteur ne provoque jamais la clôture, cf. `agent/prompt_client.txt` ; ou l'arrêt
+  par STOP, ou la clôture décidée par le client : `endConversation`). Le brief est **obligatoire** (le bouton GO reste inactif
+  sans lui) et rien d'autre n'est persisté : ni fiche d'évaluation, ni question intermédiaire — seuls le **fil** et le
+  **prompt promu** sont écrits.
 - **Bilan de conversation** (bouton **« COMPARER LE PROMPT INITIAL ET LE PROMPT FINAL »**, présent dans les deux
-  barres du bloc de conversation, désactivé tant qu'aucun échange n'est validé) : panneau `Comparaison de la
-  conversation — début ↔ fin` = phrase du backend, deux zones éditables avec le **cycle d'origine**, **diff**
-  compact de la zone, **prompts complets** dépliables et compteurs (cycles, itérations, promotions). Le bilan est
-  **oublié** dès qu'un cycle démarre ou qu'une nouvelle conversation commence.
+  barres du bloc de conversation, désactivé tant qu'aucun échange n'est validé ; **ouvert automatiquement** à la fin
+  d'un scénario Agent C en mode automatique) : panneau `Comparaison de la conversation — début ↔ fin` = phrase du
+  backend, deux zones éditables avec le **cycle d'origine**, **diff** compact de la zone, **prompts complets**
+  dépliables et compteurs (cycles, itérations, **versions retenues**). La « fin » affichée est la dernière version
+  **retenue** qui n'est pas encore appliquée au fichier (`applied = false`, cycle le plus récent d'abord) : quand les
+  derniers cycles n'ont rien proposé, c'est donc une version d'un cycle ANTÉRIEUR qui est proposée — le bouton
+  **`PROMOUVOIR Vn EN
+  PRODUCTION`** la vise (remplacé par « ✓ Rien à promouvoir » si tout est déjà en production) : c'est **le point de
+  décision humain** du mode automatique — on compare, puis on promeut (ou pas). Le bilan est **oublié** dès qu'un cycle
+  démarre ou qu'une nouvelle conversation commence.
 - **Bulle de réponse** : le texte de l'IA est mis en forme par `frontend/src/messageFormat.tsx` — **module partagé
   avec la page coach** (`renderMessageContent` : `**gras**`, `*italique*`, `` `code` ``, liens `[URL|nom|url]`
   cliquables en http(s), retours à la ligne conservés ; aucun HTML brut ⇒ pas d'injection). Les questions du fil

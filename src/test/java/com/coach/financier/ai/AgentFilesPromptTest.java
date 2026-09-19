@@ -93,4 +93,24 @@ class AgentFilesPromptTest {
         assertFalse(AgentFiles.promptControllerSystemPrompt().contains("[[["));
         assertFalse(AgentFiles.promptEditorSystemPrompt().contains("[[["));
     }
+
+    /**
+     * CONTRAT DU CLIENT SIMULÉ (« Agent C ») : la DERNIÈRE question autorisée (`turnNumber == depth`) doit être
+     * POSÉE, et non remplacée par une phrase de clôture — sinon le scénario s'arrête une question trop tôt.
+     * <p>
+     * Bogue constaté en réel par l'utilisateur : « quand je choisis 3, le client a posé 2 questions ; 5 → 4 ».
+     * Le prompt demandait au client de conclure (`endConversation` à `true`) dès que `turnNumber` atteignait
+     * `depth` : sa dernière question était donc consommée par une clôture, et l'IHM fermait le scénario.
+     */
+    @Test
+    void theSimulatedClientAsksItsLastAllowedQuestion() {
+        String prompt = AgentFiles.promptClientSystemPrompt();
+
+        assertTrue(prompt.contains("La question numéro `depth` est ta DERNIÈRE question AUTORISÉE"),
+                "la dernière question autorisée doit être posée : " + prompt);
+        assertTrue(prompt.contains("n'anticipe JAMAIS la clôture à cause du compteur"),
+                "aucune clôture ne doit être provoquée par le compteur de profondeur");
+        assertFalse(prompt.contains("tu conclus le scénario (`endConversation` à `true`) au lieu de relancer"),
+                "la règle qui faisait perdre la dernière question ne doit pas revenir");
+    }
 }

@@ -3,6 +3,7 @@ package com.coach.financier.service;
 import com.coach.financier.ai.AIService;
 import com.coach.financier.ai.AIServiceFactory;
 import com.coach.financier.ai.DeepSeekService;
+import com.coach.financier.ai.LocalAIService;
 import com.coach.financier.ai.MockAIService;
 import com.coach.financier.ai.OpenAIService;
 import com.coach.financier.config.PromptOptimizationProperties;
@@ -494,10 +495,13 @@ class PromptOptimizationServiceTest {
         service.iterate(campaignId);
 
         assertThrows(IllegalArgumentException.class, () -> service.promoteVersion(campaignId, "V9"));
+        assertThrows(IllegalArgumentException.class, () -> service.acceptVersion(campaignId, "V9"),
+                "l'acceptation sans écriture partage le même garde-fou de version");
 
         service.resume(campaignId, 0);
         var active = assertThrows(IllegalStateException.class, () -> service.promoteVersion(campaignId, "V1"));
         assertTrue(active.getMessage().contains("pendant que la campagne tourne"));
+        assertThrows(IllegalStateException.class, () -> service.acceptVersion(campaignId, "V1"));
         // Aucun fichier de production n'a été touché (la promotion n'est jamais exécutée dans ces tests).
     }
 
@@ -1096,6 +1100,141 @@ class PromptOptimizationServiceTest {
     }
 
     /**
+     * ACCEPTATION SANS ÉCRITURE (mode automatique de l'Agent C) : la version est retenue POUR LA CONVERSATION
+     * — sa réponse entre dans le fil, le client garde donc sa mémoire — mais le prompt de PRODUCTION n'est pas
+     * touché : ni sauvegarde, ni réécriture. C'est ce qui garantit qu'un scénario enchaîné ne décide rien à la
+     * place de l'humain : la promotion reste l'UNIQUE écriture, décidée à la fin, après comparaison début ↔ fin.
+     */
+    @Test
+    void acceptingAVersionNeverWritesTheProductionPrompt() throws Exception {
+        Path production = Path.of("agent", "credit-conso.txt");
+        String before = Files.readString(production);
+        ai.coachAnswers = List.of("Réponse de la version V0.", "Réponse de la version V1.");
+        var campaign = service.start(new StartRequest("credit_conso", QUESTION, 1, null, AIModels.AIProvider.DEEPSEEK));
+
+        var iteration = service.iterate(campaign.campaignId());
+        assertEquals("V1", iteration.resultingVersion(), "l'éditeur propose une zone DIFFÉRENTE de la production");
+        assertFalse(service.appliedInProduction(campaign.campaignId(), "V1"),
+                "V1 n'est pas (encore) dans le fichier de production");
+
+        var result = service.acceptVersion(campaign.campaignId(), "V1");
+
+        assertEquals(PromptOptimizationModels.CAMPAIGN_ACCEPTED, result.campaign().status());
+        assertEquals("V1", result.campaign().promotedVersion(), "la version est retenue pour la conversation");
+        assertTrue(result.backupFile().isEmpty(), "aucune écriture ⇒ aucune sauvegarde");
+        assertTrue(result.message().contains("n'a PAS été modifié"), result.message());
+        assertEquals(before, Files.readString(production), "le prompt de production reste intact");
+        assertFalse(service.appliedInProduction(campaign.campaignId(), "V1"),
+                "acceptée ne veut pas dire écrite : l'humain décide à la fin");
+
+        var thread = store.threadOf(campaign.campaignId()).orElseThrow();
+        assertEquals(1, thread.exchanges());
+        assertEquals("Réponse de la version V1.", thread.history().get(1).content(),
+                "la conversation contient bien la réponse de la version ACCEPTÉE");
+    }
+
+    /**
+     * CHAÎNAGE DES CYCLES (mode automatique de l'Agent C) : un cycle peut partir de la version RETENUE du cycle
+     * précédent au lieu du prompt de production — les améliorations s'ACCUMULENT donc dans la conversation, alors
+     * que le fichier de production n'est jamais écrit. C'est ce qui rend le bilan « début ↔ fin » cumulatif et
+     * permet de promouvoir en UNE fois tout le travail du scénario.
+     */
+    @Test
+    void aCycleCanStartFromTheRetainedVersionOfThePreviousCycle() throws Exception {
+        Path production = Path.of("agent", "credit-conso.txt");
+        String before = Files.readString(production);
+        ai.coachAnswers = List.of("Réponse de la version V0.", "Réponse de la version V1.");
+        var first = service.start(new StartRequest("credit_conso", QUESTION, 1, null, AIModels.AIProvider.DEEPSEEK));
+        var iteration = service.iterate(first.campaignId());
+        assertEquals("V1", iteration.resultingVersion());
+        service.acceptVersion(first.campaignId(), "V1");
+        String inherited = service.versions(first.campaignId()).get(1).editableSection();
+        assertNotEquals(service.versions(first.campaignId()).get(0).editableSection(), inherited,
+                "la version retenue modifie bien la zone");
+        int coachCallsBefore = ai.coachCalls;
+
+        var second = service.start(new StartRequest("credit_conso", QUESTION, 1, null, AIModels.AIProvider.DEEPSEEK,
+                AIModels.AIProvider.DEEPSEEK, AIModels.AIProvider.DEEPSEEK, null, first.campaignId(), "V1"));
+        var snapshot = service.snapshot(second.campaignId());
+
+        assertEquals(inherited, snapshot.initialEditableSection(),
+                "la zone de départ est celle RETENUE par le cycle précédent");
+        assertEquals(first.campaignId() + ":V1", snapshot.baseZoneSource());
+        assertEquals(PromptOptimizationModels.versionName(0), second.basePromptVersion(),
+                "le nommage des versions reste LOCAL au cycle (V0 = zone de départ)");
+        assertEquals(inherited, service.versions(second.campaignId()).get(0).editableSection(),
+                "la version de référence du nouveau cycle EST la zone héritée");
+
+        var secondIteration = service.iterate(second.campaignId());
+        assertEquals(coachCallsBefore + 1, ai.coachCalls, "le cycle hérité rejoue le prompt avec cette zone");
+        assertTrue(ai.lastSystemPrompt.contains(inherited),
+                "le Coach reçoit le prompt COMPOSÉ à partir de la zone héritée");
+        assertFalse(service.appliedInProduction(second.campaignId(), secondIteration.resultingVersion()),
+                "rien n'a été écrit : la version retenue reste à promouvoir");
+        assertEquals(before, Files.readString(production), "le prompt de production n'est jamais écrit");
+    }
+
+    /** Chaîner est refusé quand la demande est incohérente (version, cycle ou zone inconnus). */
+    @Test
+    void chainingRefusesAnUnknownVersionACampaignOrAForeignZone() {
+        var first = service.start(new StartRequest("credit_conso", QUESTION, 1, null, AIModels.AIProvider.DEEPSEEK));
+        service.iterate(first.campaignId());
+
+        assertThrows(IllegalArgumentException.class, () -> service.start(chainFrom(first.campaignId(), "V9")));
+        assertThrows(IllegalArgumentException.class, () -> service.start(chainFrom("po-inexistante", "V1")));
+
+        // La zone visée est celle d'un AUTRE agent : composer un prompt hybride n'a aucun sens.
+        IllegalArgumentException foreign = assertThrows(IllegalArgumentException.class,
+                () -> service.start(new StartRequest("assurance_auto", QUESTION, 1, null,
+                        AIModels.AIProvider.DEEPSEEK, AIModels.AIProvider.DEEPSEEK, AIModels.AIProvider.DEEPSEEK,
+                        null, first.campaignId(), "V1")));
+        assertTrue(foreign.getMessage().contains("impossible d'enchaîner"), foreign.getMessage());
+    }
+
+    private StartRequest chainFrom(String campaignId, String version) {
+        return new StartRequest("credit_conso", QUESTION, 1, null, AIModels.AIProvider.DEEPSEEK,
+                AIModels.AIProvider.DEEPSEEK, AIModels.AIProvider.DEEPSEEK, null, campaignId, version);
+    }
+
+    /** « Appliquée » décrit le FICHIER, jamais le statut de la campagne. */
+    @Test
+    void appliedInProductionFollowsTheFileNotTheCampaignStatus() throws Exception {
+        Path production = Path.of("agent", "credit-conso.txt");
+        String before = Files.readString(production);
+        var campaign = service.start(new StartRequest("credit_conso", QUESTION, 1, null, AIModels.AIProvider.DEEPSEEK));
+        assertTrue(service.appliedInProduction(campaign.campaignId(), campaign.basePromptVersion()),
+                "la version de référence EST le prompt en production");
+
+        var iteration = service.iterate(campaign.campaignId());
+        service.acceptVersion(campaign.campaignId(), iteration.resultingVersion());
+
+        assertFalse(service.appliedInProduction(campaign.campaignId(), "V1"));
+        assertTrue(service.appliedInProduction(campaign.campaignId(), "V0"),
+                "la version de référence reste celle du fichier");
+        assertEquals(before, Files.readString(production), "aucune écriture dans les deux cas");
+    }
+
+    /** Accepter la version de référence (aucune modification proposée) n'écrit rien et le dit clairement. */
+    @Test
+    void acceptingTheReferenceVersionWritesNothing() throws Exception {
+        Path production = Path.of("agent", "credit-conso.txt");
+        String before = Files.readString(production);
+        var campaign = service.start(new StartRequest("credit_conso", QUESTION, 1, null, AIModels.AIProvider.DEEPSEEK));
+        ai.edition = new PromptOptimizationModels.EditorResult(PromptOptimizationModels.EDITOR_NO_CHANGE, "ZONE V0",
+                List.of(), List.of(), List.of(), List.of(), false);
+        service.iterate(campaign.campaignId());
+
+        var result = service.acceptVersion(campaign.campaignId(), campaign.basePromptVersion());
+
+        assertEquals(PromptOptimizationModels.CAMPAIGN_ACCEPTED, result.campaign().status());
+        assertTrue(result.message().contains("ACCEPTÉE pour la conversation"), result.message());
+        assertTrue(result.backupFile().isEmpty());
+        assertEquals(before, Files.readString(production));
+        assertEquals(1, store.threadOf(campaign.campaignId()).orElseThrow().exchanges(),
+                "la conversation est débloquée malgré l'absence d'écriture");
+    }
+
+    /**
      * Agent B juge le RESPECT DU PROMPT : il doit donc recevoir le prompt système <b>exactement</b> tel qu'il a
      * été envoyé au Coach — même chaîne, marqueurs de zone exclus —, ainsi que la classification figée et la
      * liste des données disponibles (tout ce que le payload du Coach contenait).
@@ -1122,8 +1261,44 @@ class PromptOptimizationServiceTest {
                 "le prompt reçu contient bien la partie métier de l'agent");
     }
 
-    // --- Agent C : le CLIENT simulé (il mène la conversation) -----------------------------------------
+    /**
+     * PARITÉ DE DONNÉES entre le Coach, l'Agent B et l'Agent A (vérification demandée à la suite d'un
+     * diagnostic douteux : « Agent B reproche au Coach d'avoir inventé une offre qui existe dans le
+     * catalogue »).
+     * <p>
+     * Un contrôleur ne peut juger une invention que s'il voit <b>exactement</b> ce que le Coach a vu : les
+     * fichiers joints doivent lui être transmis avec leur <b>CONTENU</b> (et pas seulement leurs descriptions),
+     * faute de quoi un produit réellement fourni serait signalé à tort comme inventé. L'éditeur, qui écrit à
+     * partir du même diagnostic, doit bénéficier de la même parité — sinon il figerait une règle sur un
+     * produit ou un taux inexistant. Vérifié ici sur le contenu, pas sur la forme.
+     */
+    @Test
+    void agentBAndAgentAReceiveExactlyTheDataGivenToTheCoach() {
+        var campaign = service.start(new StartRequest("credit_conso", QUESTION, 1, null,
+                AIModels.AIProvider.DEEPSEEK));
 
+        service.iterate(campaign.campaignId());
+
+        List<?> coachData = (List<?>) ai.lastCoachProvidedData;
+        assertNotNull(coachData, "le Coach a reçu des données jointes (fiches produits, guide, cascade…)");
+        assertFalse(coachData.isEmpty(), "le contexte de l'agent contient bien des fichiers");
+        for (Object entry : coachData) {
+            Map<?, ?> file = (Map<?, ?>) entry;
+            assertTrue(file.containsKey("description") && file.containsKey("data"),
+                    "chaque entrée jointe au Coach porte sa description ET son contenu : " + file.keySet());
+        }
+        assertEquals(coachData, ai.lastControllerContext.get("providedData"),
+                "Agent B reçoit les MÊMES données que le Coach, contenu compris");
+        assertEquals(coachData, ai.lastEditorContext.get("providedData"),
+                "Agent A reçoit les MÊMES données que le Coach, contenu compris");
+        // Le catalogue (chemins + descriptions) que le Coach POUVAIT demander est également transmis.
+        assertNotNull(ai.lastControllerContext.get("availableData"),
+                "Agent B sait aussi ce que le Coach POUVAIT demander (catalogue)");
+        assertNotNull(ai.lastControllerContext.get("additionalData"),
+                "Agent B reçoit le projet courant et les produits compatibles calculés par le backend");
+    }
+
+    // --- Agent C : le CLIENT simulé (il mène la conversation) -----------------------------------------
     /**
      * Le client simulé ne reçoit QUE ce qu'il faut pour jouer son rôle : le brief écrit par l'humain, les
      * <b>trois chiffres du dossier</b> (compte courant, épargne, mensualité de crédit), son numéro de question,
@@ -1167,6 +1342,125 @@ class PromptOptimizationServiceTest {
         assertEquals(List.of(), ai.lastClientContext.get("previousExchanges"));
     }
 
+    /**
+     * « Générer projet » : l'Agent C cherche LUI-MÊME un client et un projet correspondant à l'agent de coach
+     * sélectionné. Il doit recevoir le périmètre de cet agent (libellé ET prompt), les trois chiffres du dossier
+     * — ceux que le client connaîtra — et les briefs déjà proposés, pour en chercher un FRANCHEMENT différent
+     * au clic suivant.
+     */
+    @Test
+    void theSimulatedClientInventsAProjectSuitedToTheSelectedAgent() {
+        var brief = service.clientBrief("credit_conso",
+                List.of("Projet de trésorerie pour des travaux de cuisine, 15 000 €."),
+                AIModels.AIProvider.DEEPSEEK);
+
+        assertEquals(ai.scriptedClientBrief.brief(), brief.brief());
+        assertTrue(brief.usable());
+        Map<String, Object> context = ai.lastClientBriefContext;
+        Map<?, ?> agent = (Map<?, ?>) context.get("agent");
+        assertEquals("credit_conso", agent.get("id"));
+        assertEquals("Crédit à la consommation", agent.get("libelle"));
+        String agentPrompt = String.valueOf(context.get("agentPrompt"));
+        assertTrue(agentPrompt.contains("Crédit à la consommation"),
+                "le prompt de l'agent sert de cadre : le projet doit tomber dans son périmètre");
+        assertFalse(agentPrompt.contains("[[[") || agentPrompt.contains("]]]"),
+                "les marqueurs de zone ne sont jamais envoyés au LLM");
+        Map<?, ?> figures = (Map<?, ?>) context.get("clientFigures");
+        assertEquals(3, figures.size(), "exactement les trois chiffres que le client connaîtra ensuite");
+        assertEquals(List.of("Projet de trésorerie pour des travaux de cuisine, 15 000 €."),
+                context.get("previousBriefs"), "les briefs déjà proposés sont transmis au modèle");
+    }
+
+    /**
+     * Le modèle ne doit pas proposer « n'importe quoi » (signalement utilisateur : « un achat d'un château »).
+     * Deux garde-fous : le contexte contient les TROIS chiffres du dossier ET le PLAFOND que le backend en
+     * déduit (un petit modèle calcule mal) ; une proposition au-dessus de ce plafond est REFUSÉE, que le montant
+     * soit déclaré ou seulement cité dans le brief.
+     */
+    @Test
+    void theAgentCInventsProjectsThatFitTheCustomerFiguresAndTheBackendCeiling() {
+        service.clientBrief("credit_conso", List.of(), AIModels.AIProvider.DEEPSEEK);
+
+        Map<String, Object> context = ai.lastClientBriefContext;
+        Map<?, ?> figures = (Map<?, ?>) context.get("clientFigures");
+        // Les trois chiffres réels du dossier, AVEC leur montant : c'est ce qui cadre le projet.
+        for (String key : List.of("compteCourant", "epargne", "creditEnCours")) {
+            Map<?, ?> figure = (Map<?, ?>) figures.get(key);
+            assertNotNull(figure.get("montant"), key + " : le montant réel est transmis au modèle");
+        }
+        BigDecimal savings = new BigDecimal(
+                String.valueOf(((Map<?, ?>) figures.get("epargne")).get("montant")));
+        Map<?, ?> budget = (Map<?, ?>) context.get("budgetCoherent");
+        BigDecimal ceiling = (BigDecimal) budget.get("plafondProjet");
+        assertTrue(ceiling.compareTo(savings.multiply(new BigDecimal("2"))) >= 0,
+                "le plafond tient compte de l'épargne du client (" + savings + " €) : " + ceiling);
+        assertTrue(ceiling.compareTo(new BigDecimal("30000")) >= 0,
+                "plancher : un dossier sans épargne peut quand même porter un petit projet à la consommation");
+
+        // Un projet juste EN DESSOUS du plafond reste accepté : le garde-fou n'interdit pas les projets normaux.
+        ai.scriptedClientBrief = new PromptOptimizationModels.ClientBrief(
+                "Nadia, 41 ans, propriétaire, veut financer 28 000 € de travaux de rénovation énergétique.",
+                new BigDecimal("28000"), "projet de travaux cohérent avec le dossier");
+        assertEquals(new BigDecimal("28000"),
+                service.clientBrief("credit_conso", List.of(), AIModels.AIProvider.DEEPSEEK).montantProjet());
+
+        // Montant DÉCLARÉ hors dossier : refus explicite.
+        ai.scriptedClientBrief = new PromptOptimizationModels.ClientBrief(
+                "Rémi achète un château de 450 000 € : il veut savoir quelles solutions existent.",
+                new BigDecimal("450000"), "projet ambitieux");
+        var tooBig = assertThrows(IllegalStateException.class,
+                () -> service.clientBrief("credit_conso", List.of(), AIModels.AIProvider.DEEPSEEK));
+        assertTrue(tooBig.getMessage().contains("450000"), tooBig.getMessage());
+        assertTrue(tooBig.getMessage().contains("plafond admis"), tooBig.getMessage());
+
+        // Montant seulement CITÉ dans le brief (le modèle a oublié de le déclarer) : refusé lui aussi.
+        ai.scriptedClientBrief = new PromptOptimizationModels.ClientBrief(
+                "Rémi veut s'offrir un château à 450 000 € et voudrait un prêt adapté.",
+                null, "projet ambitieux");
+        assertThrows(IllegalStateException.class,
+                () -> service.clientBrief("credit_conso", List.of(), AIModels.AIProvider.DEEPSEEK));
+
+        // Le crédit immobilier échappe au plafond « 2 × épargne » : un achat à plusieurs centaines de milliers
+        // d'euros y est légitime (c'est le Périmètre de l'agent, pas un dépassement de budget).
+        ai.scriptedClientBrief = new PromptOptimizationModels.ClientBrief(
+                "Léa et Marc achètent leur résidence principale pour 285 000 € avec un apport de 15 000 €.",
+                new BigDecimal("265000"), "achat immobilier cohérent");
+        var immo = service.clientBrief("credit_immo", List.of(), AIModels.AIProvider.DEEPSEEK);
+        assertEquals(new BigDecimal("265000"), immo.montantProjet());
+    }
+
+    /**
+     * Le projet proposé doit être différent du précédent : le brief COURANT est transmis au modèle, et la
+     * proposition n'écrit RIEN (elle reste un texte à relire, modifiable par l'humain).
+     */
+    @Test
+    void theGeneratedProjectIsOnlyAProposalAndNeverWritesAnything() {
+        int campaignsBefore = service.campaigns().size();
+        int threadsBefore = store.threads().size();
+
+        service.clientBrief("credit_conso", List.of("Premier projet", "Deuxième projet"),
+                AIModels.AIProvider.DEEPSEEK);
+
+        assertEquals(List.of("Premier projet", "Deuxième projet"), ai.lastClientBriefContext.get("previousBriefs"));
+        assertEquals(campaignsBefore, service.campaigns().size(), "aucune campagne n'est créée");
+        assertEquals(threadsBefore, store.threads().size(), "aucune conversation n'est ouverte");
+    }
+
+    @Test
+    void theGeneratedProjectRequiresARealProviderAKnownAgentAndANonEmptyAnswer() {
+        var demo = assertThrows(IllegalArgumentException.class,
+                () -> service.clientBrief("credit_conso", List.of(), AIModels.AIProvider.MOCK));
+        assertTrue(demo.getMessage().contains("fournisseur IA réel"), demo.getMessage());
+        assertThrows(IllegalArgumentException.class,
+                () -> service.clientBrief("agent-inconnu", List.of(), AIModels.AIProvider.DEEPSEEK));
+
+        // Réponse vide du modèle : refus explicite plutôt qu'un brief vide proposé à l'humain.
+        ai.scriptedClientBrief = new PromptOptimizationModels.ClientBrief("   ", null, "");
+        var empty = assertThrows(IllegalStateException.class,
+                () -> service.clientBrief("credit_conso", List.of(), AIModels.AIProvider.DEEPSEEK));
+        assertTrue(empty.getMessage().contains("aucun projet exploitable"), empty.getMessage());
+    }
+
     // --- Doubles de test ------------------------------------------------------------------------------
 
     /** Faux fournisseur IA : scripte la boucle de l'atelier, sans réseau. */
@@ -1202,6 +1496,8 @@ class PromptOptimizationServiceTest {
         String lastCurrentProjectDescription = "";
         /** Historique transmis au COACH au dernier appel (exactement `conversationHistory`). */
         List<ConversationModels.Message> lastHistory = List.of();
+        /** Données JOINTES réellement transmises au Coach (contenu inclus) — parité avec Agent B / Agent A. */
+        Object lastCoachProvidedData;
         int coachCalls;
         int controllerCalls;
         int editorCalls;
@@ -1246,6 +1542,8 @@ class PromptOptimizationServiceTest {
             coachCalls++;
             lastSystemPrompt = systemPrompt;
             lastHistory = history == null ? List.of() : history;
+            // Données réellement jointes au Coach : sert à vérifier la PARITÉ avec l'Agent B et l'Agent A.
+            lastCoachProvidedData = additionalData == null ? null : additionalData.get("providedData");
             if (duringCoachCall != null) {
                 duringCoachCall.run();
             }
@@ -1306,6 +1604,22 @@ class PromptOptimizationServiceTest {
             lastClientContext = context;
             return scriptedClientTurn;
         }
+
+        /** Projet scripté du CLIENT simulé (« Générer projet ») + contexte réellement reçu (assertions). */
+        PromptOptimizationModels.ClientBrief scriptedClientBrief = new PromptOptimizationModels.ClientBrief(
+                "Claire, 34 ans, aide-soignante en CDI, locataire. Elle doit remplacer son véhicule et souhaite "
+                        + "financer 7 500 € sur 4 ans ; elle veut savoir quelle mensualité prévoir et si son "
+                        + "épargne doit servir d'apport.",
+                new BigDecimal("7500"),
+                "projet véhicule avec contrainte de mensualité : teste le cadrage du crédit conso");
+        Map<String, Object> lastClientBriefContext;
+
+        @Override
+        public PromptOptimizationModels.ClientBrief clientBrief(Map<String, Object> context,
+                                                              AIModels.AIProvider provider) {
+            lastClientBriefContext = context;
+            return scriptedClientBrief;
+        }
         @Override
         public MarketingModels.MarketingReport analyzeMarketing(MarketingModels.MarketingAggregates aggregates,
                                                                 AIModels.AIProvider provider) {
@@ -1331,7 +1645,7 @@ class PromptOptimizationServiceTest {
         private final Map<AIModels.AIProvider, AIService> routes = new LinkedHashMap<>();
 
         FakeAIServiceFactory(AIService service) {
-            super((OpenAIService) null, (DeepSeekService) null, (MockAIService) null);
+            super((OpenAIService) null, (DeepSeekService) null, (LocalAIService) null, (MockAIService) null);
             this.service = service;
         }
 
