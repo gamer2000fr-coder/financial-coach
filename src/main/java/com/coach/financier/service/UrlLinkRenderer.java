@@ -20,6 +20,8 @@ import java.util.regex.Pattern;
 public final class UrlLinkRenderer {
     private static final Pattern LINK_PATTERN = Pattern.compile("\\[URL\\|([^|\\]]+)\\|([^\\]]*)\\]");
     private static final Pattern BOLD_PATTERN = Pattern.compile("\\*\\*([^*]+)\\*\\*");
+    /** Lien d'appel : {@code tel:} suivi d'un numéro plausible (jamais un caractère d'attribut HTML). */
+    private static final Pattern TEL_PATTERN = Pattern.compile("^tel:\\+?[0-9 ().\\-]{6,20}$");
 
     private UrlLinkRenderer() {}
 
@@ -66,12 +68,19 @@ public final class UrlLinkRenderer {
         return new SanitizeResult(out.toString(), violations);
     }
 
-    /** Rendu texte brut : {@code [URL|nom|url]} → {@code nom : url}. */
+    /**
+     * Rendu texte brut : {@code [URL|nom|url]} → {@code nom : url} (numéro seul pour un lien d'appel) et
+     * suppression du gras Markdown ({@code **texte**} → {@code texte}), pour que le mail en texte brut ne
+     * contienne jamais d'astérisques.
+     */
     public static String toText(String text) {
-        return replaceLinks(text, (label, url) -> isHttpUrl(url) ? label + " : " + url : label);
+        String converted = replaceLinks(text, (label, url) -> isHttpUrl(url) ? label + " : " + url
+                : isTelUrl(url) ? label + " : " + telNumber(url)
+                : label);
+        return converted == null ? "" : BOLD_PATTERN.matcher(converted).replaceAll("$1");
     }
 
-    /** Rendu HTML : échappement complet puis liens cliquables (http/https uniquement). */
+    /** Rendu HTML : échappement complet puis liens cliquables (http/https et tel: uniquement). */
     public static String toHtml(String text) {
         if (text == null) {
             return "";
@@ -79,6 +88,8 @@ public final class UrlLinkRenderer {
         String escaped = replaceLinks(escapeHtml(text), (label, url) ->
                 isHttpUrl(url)
                         ? "<a href=\"" + url + "\" target=\"_blank\" rel=\"noopener\">" + label + "</a>"
+                        : isTelUrl(url)
+                        ? "<a href=\"" + url + "\">" + label + "</a>"
                         : label);
         Matcher bold = BOLD_PATTERN.matcher(escaped);
         StringBuilder bolded = new StringBuilder();
@@ -95,6 +106,24 @@ public final class UrlLinkRenderer {
         }
         String trimmed = url.trim().toLowerCase(java.util.Locale.ROOT);
         return trimmed.startsWith("http://") || trimmed.startsWith("https://");
+    }
+
+    /**
+     * Lien d'APPEL téléphonique ({@code tel:0612345678}). Il n'est jamais produit par le LLM (le contrôle
+     * anti-invention ne reconnaît que les URL http(s)) : il est ajouté par le BACKEND à partir de la
+     * configuration. Le format est strictement vérifié (chiffres, espaces, {@code + . ( ) -}) pour qu'aucun
+     * caractère dangereux ne puisse entrer dans un attribut {@code href}.
+     */
+    public static boolean isTelUrl(String url) {
+        if (url == null) {
+            return false;
+        }
+        return TEL_PATTERN.matcher(url.trim()).matches();
+    }
+
+    /** Numéro affiché (sans le préfixe {@code tel:}) pour le rendu texte. */
+    public static String telNumber(String url) {
+        return url == null ? "" : url.trim().substring("tel:".length()).trim();
     }
 
     public static String escapeHtml(String value) {

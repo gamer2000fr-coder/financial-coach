@@ -26,6 +26,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -51,6 +52,8 @@ class ConversationClosureServiceTest {
     private static final String ADVISOR = "conseiller@sg.test";
     private static final String PRODUCT_ID = "sg_auto_tous_risques";
     private static final String PRODUCT_URL = "https://particuliers.sg.fr/assurances/nos-offres/assurance-auto";
+    /** Numéro de DÉMO (configuration {@code app.suivi.customer-phone}) : jamais produit par l'IA. */
+    private static final String DEMO_PHONE = "0644910925";
 
     private ConversationService conversationService;
     private AIServiceFactory aiServiceFactory;
@@ -321,15 +324,66 @@ class ConversationClosureServiceTest {
                 productCatalogueService, new EmailAttachmentBuilder(), mailService, bankingDataRepository,
                 financialAnalysisService, aiLogService, testObjectMapper(), marketingProperties(),
                 mock(MarketingEventStore.class), mock(MarketingExtractionService.class),
-                qualityChecks(), advisorDossiers(),
+                qualityChecks(), advisorDossiers(), new CommercialScoreService(financialAnalysisService),
                 "Conseiller SG", ADVISOR, "Jean Martin", "txt", "https://particuliers.sg.fr/vos-rendez-vous",
-                "https://particuliers.sg.fr", true);
+                "https://particuliers.sg.fr", true, DEMO_PHONE);
     }
 
     /**
      * Dossier évaluable : store pointant vers le répertoire de test (aucune écriture dans ./data) et
      * lien d'évaluation absolu — le mail conseiller doit contenir le lien vers le dossier.
      */
+    @Test
+    void close_addsTheCommercialScoreAndTheCallLinkToTheAdvisorEmail() {
+        // Le score de sens commercial sert au conseiller à PRIORISER sa relance : il est ajouté au mail
+        // conseiller (jamais au brouillon client), avec son explication courte et le lien d'appel.
+        when(aiServiceFactory.defaultProvider()).thenReturn(AIModels.AIProvider.MOCK);
+        when(aiServiceFactory.get(any())).thenReturn(new MockAIService());
+        when(conversationService.find("s1")).thenReturn(conversationWithTousRisques());
+
+        SuiviModels.CloseConversationResponse response = service().close("s1", null);
+
+        String body = response.advisorEmail().body();
+        assertTrue(body.contains("**Score de sens commercial : "),
+                "Le mail conseiller porte le score de sens commercial, en gras (Markdown du projet)");
+        assertTrue(UrlLinkRenderer.toHtml(body).contains("<strong>Score de sens commercial :"),
+                "Dans le mail HTML, le score apparaît en gras");
+        assertFalse(UrlLinkRenderer.toText(body).contains("**"),
+                "Le mail en texte brut ne contient aucun astérisque de gras");
+        assertTrue(body.contains("/100 — "),
+                "Le score est lisible sous la forme « 72/100 — Priorité haute »");
+        assertTrue(body.contains("Pourquoi ce score :"),
+                "Le score est expliqué en une phrase courte");
+        assertTrue(body.contains("Contacter le client : [URL|Appeler le client|tel:" + DEMO_PHONE + "]"),
+                "Le mail conseiller propose le lien d'appel du client (numéro de configuration)");
+        // Le score et le téléphone sont des informations INTERNES du conseiller.
+        assertFalse(response.preparedCustomerEmail().body().contains("Score de sens commercial"),
+                "Le brouillon client ne doit jamais contenir le score commercial");
+        assertFalse(response.preparedCustomerEmail().body().contains(DEMO_PHONE),
+                "Le brouillon client ne doit jamais contenir le numéro de téléphone");
+    }
+
+    @Test
+    void close_persistsTheDossierUsableByTheCallCenterDirectory() {
+        // Le dossier persisté porte de quoi alimenter l'ANNUAIRE du centre d'appels : client, catégorie,
+        // titre, score et transcript — sans jamais exposer le brouillon client dans la page.
+        when(aiServiceFactory.defaultProvider()).thenReturn(AIModels.AIProvider.MOCK);
+        when(aiServiceFactory.get(any())).thenReturn(new MockAIService());
+        when(conversationService.find("s1")).thenReturn(conversationWithTousRisques());
+
+        service().close("s1", null);
+
+        com.coach.financier.model.AdvisorFeedbackModels.AdvisorDossier dossier =
+                new com.coach.financier.service.AdvisorDossierStore(advisorFeedbackProperties(),
+                        testObjectMapper()).findBySession("s1").orElseThrow();
+        assertTrue(dossier.score() != null && dossier.score().score() != null,
+                "Le dossier persisté porte le score de sens commercial");
+        assertNotNull(dossier.client(), "Le dossier persisté porte l'identité métier affichée dans l'annuaire");
+        assertEquals("ASSURANCE", dossier.client().category(),
+                "Catégorie déduite de la famille de l'offre présentée (assurance auto)");
+        assertFalse(dossier.transcript().isEmpty(), "Le transcript est conservé avec le dossier");
+    }
+
     private static com.coach.financier.service.AdvisorDossierService advisorDossiers() {
         return new com.coach.financier.service.AdvisorDossierService(
                 new com.coach.financier.service.AdvisorDossierStore(advisorFeedbackProperties(),

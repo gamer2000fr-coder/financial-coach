@@ -46,6 +46,7 @@ import type {
   GeneratedClientBrief,
   GeneratedClientBriefInput,
 } from './types.promptopt'
+import type { DirectoryDetail, DirectoryList, DirectoryQuery } from './types.directory'
 
 function resolveApiBaseUrl(): string {
   if (typeof window === 'undefined') return 'http://localhost:9797/api'
@@ -121,6 +122,25 @@ export async function fetchLogAnswer(id: number): Promise<string> {
 
 export async function fetchConversation(sessionId: string): Promise<ConversationData> {
   return apiFetch<ConversationData>(`/conversations/${encodeURIComponent(sessionId)}`)
+}
+
+/**
+ * ANNUAIRE DES CONVERSATIONS (page Centre d'appels) : conversations clôturées, filtrées (période,
+ * catégorie, recherche) et triées côté serveur.
+ */
+export async function fetchConversationDirectory(query: DirectoryQuery): Promise<DirectoryList> {
+  const params = new URLSearchParams()
+  params.set('days', String(query.days))
+  if (query.category) params.set('category', query.category)
+  if (query.q) params.set('q', query.q)
+  if (query.sort) params.set('sort', query.sort)
+  if (query.order) params.set('order', query.order)
+  return apiFetch<DirectoryList>(`/conversations/directory?${params.toString()}`)
+}
+
+/** Détail d'une conversation (pop-in) : synthèse conseiller, score expliqué et transcript. */
+export async function fetchConversationDirectoryDetail(sessionId: string): Promise<DirectoryDetail> {
+  return apiFetch<DirectoryDetail>(`/conversations/directory/${encodeURIComponent(sessionId)}`)
 }
 
 export interface CloseConversationOptions {

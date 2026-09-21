@@ -61,6 +61,7 @@ Empêcher structurellement l'IA de recommander ou de mentionner un produit banca
 | `#/advisor-feedback` | **Feedback Conseillers** | Saisie rapide d'un avis conseiller par dossier, KPI de pertinence, zones corrigées, pertinence produit, corrections d'intérêt, qualité des emails préparés, analyse IA, export CSV |
 | `#/advisor-feedback/session/<sessionId>` | **Évaluation d'un dossier** | Vue ciblée ouverte par le **lien du mail conseiller** : projet, synthèse du Coach, produits et niveaux d'intérêt, suivi conseillé, email préparé, puis formulaire d'évaluation |
 | `#/conversation/<sessionId>` | **Historique d'une conversation** | Vue ciblée **en lecture seule**, ouverte par le lien « Consulter l'historique de la conversation » du mail conseiller : synthèse + relecture des échanges client ↔ Coach, avec accès direct à l'évaluation du dossier. L'URL ne contient que le `sessionId` |
+| `#/centre-appels` | **Centre d'appels** | Annuaire des conversations clôturées pour l'équipe commerciale : tableau filtrable (période 5/10/30 jours, catégorie, recherche) et triable (client, catégorie, titre, **score de sens commercial**, date), avec la pop-in de détail (synthèse envoyée au conseiller, score expliqué, prochaines actions, offres d'intérêt, conversation complète repliable) |
 | `#/prompt-lab` | **Atelier d'optimisation des prompts** | Choix de l'agent (zone optimisée **figée** au prompt de l'agent spécialisé), question de test, nombre d'itérations, fournisseur IA, puis : progression, arrêt/reprise, avis humain, comparaison des versions, diff de la zone, promotion explicite en production |
 
 ---
@@ -196,6 +197,8 @@ flowchart TD
 - le **suivi conseillé** = **un seul email automatique**, au **conseiller** ;
 - ce mail contient un **lien direct « Évaluer le suivi du Coach »** vers le dossier de la conversation : le conseiller passe du mail à l'écran d'évaluation en un clic (§41/§42) ;
 - il contient aussi un **lien « Consulter l'historique de la conversation »** (`#/conversation/<sessionId>`) pour relire tous les échanges avant de reprendre contact. L'historique vit **en mémoire côté serveur** : après un redémarrage du backend, la vue l'indique honnêtement (« cette conversation n'est plus disponible ») au lieu d'une erreur technique ;
+- il commence par le **score de sens commercial** (0 à 100 + libellé de priorité) avec son **explication courte** (« Pourquoi ce score ») et un **lien d'appel du client** (`tel:`, numéro de démonstration `0644910925`) : le conseiller sait **par quoi commencer**. Le score n'est **jamais** montré au client ;
+- la **conversation est archivée** avec son dossier (client, catégorie, titre, score, transcript) : elle reste consultable dans la page **`#/centre-appels`** même après un redémarrage du backend ;
 - le brouillon destiné au client est **joint** (`.eml`/`.html`/`.txt`), jamais envoyé et ne contient **jamais** ces liens internes.
 - Déclenchement **sans attente** (l'IHM n'affiche ni chargement ni bannière de résultat) et **une seule fois par session**.
 - Cas particuliers : suivi désactivé, moins de 2 échanges, ou session inconnue (backend redémarré) → **aucun envoi** ; l'échec d'envoi est tracé dans l'écran **Logs** (bloc `[SUIVI]` : `mailStatus`, `mailSent`, `mailTarget`, `mailError`).
@@ -277,7 +280,31 @@ flowchart TD
   - le **backend** vérifie l'existence du dossier (§46) : session inconnue → « Ce dossier n'est plus disponible. » (sans erreur technique) ;
   - un dossier déjà évalué affiche le feedback existant et permet sa **révision** (nouvelle version).
 
-### 3.10 Atelier d'amélioration itérative des prompts (`#/prompt-lab`)
+### 3.10 Centre d'appels (`#/centre-appels`)
+
+Objectif : donner à l'équipe commerciale / au centre d'appels **une file de travail priorisée** plutôt qu'une
+liste de conversations à parcourir.
+
+- **Source unique** : les dossiers de suivi écrits à chaque clôture — donc exactement ce qui a été envoyé au
+  conseiller, **sans le brouillon destiné au client**. Aucune donnée n'est recalculée pour l'affichage.
+- **Score de sens commercial** : attribué à la clôture (proposé par l'IA de synthèse, borné et complété par le
+  code) à partir de critères explicites : **maturité du projet**, **urgence exprimée par le client**,
+  **intérêt réel** (demandes de précision, comparaison, refus), **capacité de financement** d'après les
+  indicateurs disponibles, **engagement** dans l'échange. Il donne une priorité (très haute / haute / moyenne /
+  faible) et **2 à 3 raisons courtes** qui l'expliquent.
+- **Tableau** : client, catégorie, titre de la conversation, score (badge + libellé), date de clôture, offres
+  concernées et bouton « Voir le détail ».
+- **Filtres** : période (**5 / 10 / 30 derniers jours** ou tout l'historique), **catégorie** (crédit conso,
+  crédit immobilier, épargne, assurance, autre), **recherche libre** (client, titre, projet, produit).
+- **Tri** en cliquant sur un en-tête de colonne (client, catégorie, titre, score, date) — croissant/décroissant.
+- **Pop-in de détail** : score + raisons + critères mesurés (repliables), **prochaines actions de suivi**,
+  offres d'intérêt, **synthèse envoyée au conseiller** (liens cliquables) et **conversation complète dans un bloc
+  repliable**. Boutons : **appeler le client** (lien `tel:`), ouvrir la vue dédiée à la conversation, ouvrir le
+  dossier d'évaluation.
+- **Aucune donnée inventée** : un dossier ancien (écrit avant l'apparition du score ou de l'identité client)
+  reste affiché avec des valeurs vides.
+
+### 3.11 Atelier d'amélioration itérative des prompts (`#/prompt-lab`)
 
 Améliorer un prompt « à la main » ne prouve rien : on ne sait pas **ce qui** a été amélioré, ni si le gain vient du prompt ou d'une autre conversation. L'atelier transforme cette intuition en **expérience reproductible** : _une question figée, un contexte figé, une seule zone de prompt modifiable, et deux agents IA qui débattent_.
 
@@ -518,6 +545,8 @@ Toutes les données sont **fictives** et servent uniquement la démonstration.
 30. Une **mauvaise note ne crée jamais** d'anomalie de qualité : les deux dimensions restent séparées ;
 31. Une simulation de crédit **adossée à la grille de taux** fournie, annoncée comme indicative et non contractuelle (la souscription fait foi), est **conforme** ; le refus de chiffrer suivi d'une redirection vers le simulateur officiel reste conforme lorsque la grille n'est pas disponible ;
 31bis. Une simulation produite détaille **montant, durée, mensualité, taux débiteur annuel fixe, TAEG fixe, frais de dossier, coût total et montant total dû**, passe en **tableau** — rendu comme un vrai tableau dans l'interface — dès que plusieurs durées ou mensualités sont chiffrées, et se termine par le **lien de souscription officiel** du produit (`url_souscription` de la fiche) — le simulateur n'étant proposé que si aucun chiffrage n'est possible ;
+    ⚠️ *Référence métier* : le prompt de l'agent crédit conso est aujourd'hui une **version allégée** qui ne demande ni ce détail en 8 informations, ni le tableau, ni le lien de souscription. L'affichage en vrai tableau côté IHM et le contrôle qualité sur les chiffres hors grille restent, eux, en place ;
+    ⚠️ *Critère de référence métier* : dans l'état actuel du POC, le prompt de l'agent crédit conso est une **version allégée** qui ne demande ni ce détail en 8 informations, ni le tableau, ni le lien de souscription (l'affichage IHM en vrai tableau et le contrôle qualité sur les chiffres restent, eux, en place) ;
 32. Un chiffrage de crédit produit **sans grille de taux**, ou présenté comme un engagement ferme, est signalé (sévérité HIGH) ;
 33. La page Qualité n'affiche que les contrôles **réellement exécutés** (aucun faux « 0 ») ;
 34. Aucun avis ne contient de donnée personnelle (identifiant pseudonymisé, commentaire nettoyé).
@@ -549,6 +578,23 @@ Toutes les données sont **fictives** et servent uniquement la démonstration.
 54. Aucun code, seuil, règle métier ou catalogue n'est modifié par l'atelier : seul un fichier de **prompt** peut changer, et uniquement après promotion ;
 55. Le **routage des modèles** (coach / Agent B / Agent A) est figé avec la campagne et visible dans l'IHM : une reprise rejoue les mêmes modèles ;
 56. Une erreur d'un fournisseur est affichée **avec l'étape concernée** et laisse la campagne reprenable — elle n'est jamais masquée.
+
+### 7.6 Score commercial et annuaire des conversations
+
+57. Le score de sens commercial figure dans le **mail conseiller** (score, libellé de priorité, explication
+    courte) avec un **lien d'appel** du client ; il **n'est jamais** envoyé au client (ni dans le brouillon,
+    ni dans la réponse du Coach) ;
+58. Un score **proposé par l'IA** est conservé mais **borné à 0..100**, et les critères mesurés (maturité,
+    intérêt, urgence, capacité, engagement) restent **traçables** — sans proposition de l'IA, le score est
+    calculé de façon déterministe ;
+59. Le score **n'introduit aucun seuil bancaire** : le critère « capacité » ne fait que décrire les indicateurs
+    réellement disponibles (et reste neutre s'ils manquent) ;
+60. L'annuaire du centre d'appels **filtre** (période, catégorie, recherche) et **trie** (dont le score) côté
+    serveur, et le détail affiche la synthèse **sans le brouillon client** ;
+61. Un dossier ancien, sans score ni identité client, reste **lisible** avec des valeurs vides (aucune valeur
+    inventée) ;
+62. Le numéro de téléphone vient **exclusivement de la configuration** (`app.suivi.customer-phone`) : un lien
+    d'appel proposé par l'IA est **neutralisé** par le contrôle d'anti-invention d'URL.
 
 ---
 

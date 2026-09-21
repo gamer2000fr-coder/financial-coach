@@ -48,4 +48,46 @@ class UrlLinkRendererTest {
         assertEquals(2, UrlLinkRenderer.extractUrls(
                 "[URL|a|https://a.test] [URL|b|not-a-url]").size());
     }
+
+    @Test
+    void toText_removesBoldMarkers() {
+        // Le mail en texte brut ne doit jamais exposer les astérisques du gras Markdown.
+        assertEquals("Score de sens commercial : 72/100 — Priorité haute",
+                UrlLinkRenderer.toText("**Score de sens commercial : 72/100 — Priorité haute**"));
+    }
+
+    @Test
+    void toHtml_buildsStrongForBoldMarkers() {
+        String out = UrlLinkRenderer.toHtml("**Score de sens commercial : 72/100**");
+        assertTrue(out.contains("<strong>Score de sens commercial : 72/100</strong>"));
+    }
+
+    @Test
+    void toHtml_buildsAClickableCallLinkForATelUrl() {
+        // Lien d'APPEL ajouté par le backend (page Centre d'appels / mail conseiller) : le numéro vient
+        // de la configuration, jamais du LLM.
+        String out = UrlLinkRenderer.toHtml("Contacter le client : [URL|Appeler le client|tel:0644910925]");
+        assertTrue(out.contains("<a href=\"tel:0644910925\">Appeler le client</a>"));
+    }
+
+    @Test
+    void toText_showsThePhoneNumberOfACallLink() {
+        assertEquals("Contacter le client : Appeler le client : 0644910925",
+                UrlLinkRenderer.toText("Contacter le client : [URL|Appeler le client|tel:0644910925]"));
+    }
+
+    @Test
+    void telLink_withUnexpectedCharactersIsNotRendered() {
+        String out = UrlLinkRenderer.toHtml("[URL|Appeler|tel:06\" onmouseover=\"alert(1)]");
+        assertFalse(out.contains("<a "), "Un lien d'appel au format inattendu n'est jamais rendu cliquable");
+    }
+
+    @Test
+    void sanitize_neutralisesATelUrlProposedByTheModel() {
+        // Anti-invention : le LLM ne peut pas proposer de lien d'appel (seuls http(s) sont whitelistés).
+        UrlLinkRenderer.SanitizeResult result = UrlLinkRenderer.sanitize(
+                "Appelez-moi [URL|Appeler|tel:0600000000]", Set.of());
+        assertEquals("Appelez-moi Appeler", result.text());
+        assertEquals(1, result.violations().size());
+    }
 }

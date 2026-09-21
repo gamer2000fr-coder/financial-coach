@@ -9,11 +9,12 @@ import AdvisorFeedback from './AdvisorFeedback'
 import DossierFeedback from './DossierFeedback'
 import AdvisorCallbackPopup from './AdvisorCallbackPopup'
 import ConversationView from './ConversationView'
+import CallCenter from './CallCenter'
 import PromptLab from './PromptLab'
 import './styles.css'
 
 type Page = 'chat' | 'logs' | 'agents' | 'marketing' | 'quality' | 'advisor-feedback' | 'advisor-dossier'
-  | 'conversation' | 'prompt-lab'
+  | 'conversation' | 'prompt-lab' | 'centre-appels'
 
 /** SessionId porté par le lien du mail conseiller : `#/advisor-feedback/session/<sessionId>` (§42). */
 function dossierSessionId(hash: string): string | null {
@@ -31,6 +32,7 @@ function pageFor(hash: string): Page {
   if (hash.startsWith('#/logs')) return 'logs'
   if (hash.startsWith('#/agents')) return 'agents'
   if (hash.startsWith('#/prompt-lab')) return 'prompt-lab'
+  if (hash.startsWith('#/centre-appels')) return 'centre-appels'
   if (hash.startsWith('#/marketing')) return 'marketing'
   if (hash.startsWith('#/quality')) return 'quality'
   if (hash.startsWith('#/advisor-feedback/session/')) return 'advisor-dossier'
@@ -66,6 +68,7 @@ function pageContent(page: Page, route: string) {
   if (page === 'logs') return <Logs />
   if (page === 'agents') return <Agents />
   if (page === 'prompt-lab') return <PromptLab />
+  if (page === 'centre-appels') return <CallCenter />
   if (page === 'marketing') return <Marketing />
   if (page === 'quality') return <Quality />
   if (page === 'advisor-dossier') {

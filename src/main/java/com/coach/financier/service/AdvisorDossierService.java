@@ -93,11 +93,35 @@ public class AdvisorDossierService {
                 + "[URL|Consulter l'historique de la conversation|" + conversationUrl(sessionId) + "]";
     }
 
+    /**
+     * Éléments complémentaires du dossier, produits par la clôture : identité « métier » (client, titre,
+     * catégorie), score de sens commercial et transcript de la conversation. Ils alimentent l'ANNUAIRE
+     * DES CONVERSATIONS du centre d'appels et restent facultatifs (dossier minimal si absents).
+     */
+    public record DossierExtras(String customerId, String title, String category, String categoryLabel,
+                                SuiviModels.CommercialScore score,
+                                List<AdvisorFeedbackModels.DossierMessage> transcript) {
+        public static DossierExtras empty() {
+            return new DossierExtras(null, null, null, null, null, List.of());
+        }
+
+        public DossierExtras {
+            transcript = transcript == null ? List.of() : List.copyOf(transcript);
+        }
+    }
+
     /** Persiste le dossier préparé (best effort : un échec ne bloque jamais la clôture). */
     public Optional<AdvisorFeedbackModels.AdvisorDossier> persist(String sessionId, SuiviModels.SuiviResult result) {
+        return persist(sessionId, result, DossierExtras.empty());
+    }
+
+    /** Persiste le dossier préparé avec les éléments de l'annuaire (client, score, transcript). */
+    public Optional<AdvisorFeedbackModels.AdvisorDossier> persist(String sessionId, SuiviModels.SuiviResult result,
+                                                                  DossierExtras extras) {
         if (!properties.isEnabled() || sessionId == null || sessionId.isBlank() || result == null) {
             return Optional.empty();
         }
+        DossierExtras details = extras == null ? DossierExtras.empty() : extras;
         String timestamp = Instant.now().toString();
         SuiviModels.ConversationSummary summary = result.conversationSummary();
         List<AdvisorFeedbackModels.DossierProduct> products = new ArrayList<>();
@@ -121,9 +145,33 @@ public class AdvisorDossierService {
                         result.preparedCustomerEmail() == null ? null : result.preparedCustomerEmail().subject(),
                         result.preparedCustomerEmail() == null ? null : result.preparedCustomerEmail().body()),
                 feedbackUrl(sessionId),
-                timestamp);
+                timestamp,
+                new AdvisorFeedbackModels.DossierClient(details.customerId(),
+                        firstNonBlank(details.title(), summary == null ? null : summary.mainProject()),
+                        details.category(), details.categoryLabel()),
+                toDossierScore(details.score()),
+                details.transcript());
         return dossierStore.save(dossier);
     }
+
+    /** Traduit le score de clôture en score persisté (raisons + critères mesurés). */
+    private static AdvisorFeedbackModels.DossierScore toDossierScore(SuiviModels.CommercialScore score) {
+        if (score == null) {
+            return null;
+        }
+        return new AdvisorFeedbackModels.DossierScore(score.score(), score.priority(), score.label(),
+                score.reasons(), score.details(), score.proposedByAi());
+    }
+
+    private static String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value.trim();
+            }
+        }
+        return null;
+    }
+
 
     /**
      * Vue d'un dossier pour l'écran d'évaluation : dossier + feedback éventuel + statut (§48).

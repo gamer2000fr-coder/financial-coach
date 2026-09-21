@@ -35,10 +35,16 @@ export function renderInline(text: string, key: string, depth = 0): ReactNode[] 
     if (link) {
       const label = link[1].trim()
       const url = link[2].trim()
-      // Sécurité : on n'accepte que http(s) — sinon on n'affiche que le libellé.
+      // Sécurité : http(s) pour les liens web, tel: pour le lien d'APPEL ajouté par le backend
+      // (numéro de la configuration, jamais produit par l'IA) — sinon on n'affiche que le libellé.
       if (/^https?:\/\//i.test(url)) {
         return (
           <a key={k} href={url} target="_blank" rel="noopener noreferrer">{label}</a>
+        )
+      }
+      if (/^tel:\+?[0-9 ().-]{6,20}$/i.test(url)) {
+        return (
+          <a key={k} className="phone-link" href={url}>{label}</a>
         )
       }
       return label

@@ -4,12 +4,15 @@ import com.coach.financier.ai.AIService;
 import com.coach.financier.ai.AIServiceFactory;
 import com.coach.financier.ai.AgentFiles;
 import com.coach.financier.config.MarketingProperties;
+import com.coach.financier.model.AdvisorFeedbackModels;
 import com.coach.financier.model.AIModels;
 import com.coach.financier.model.BankProduct;
+import com.coach.financier.model.ConversationCategory;
 import com.coach.financier.model.ConversationModels;
 import com.coach.financier.model.CurrentProject;
 import com.coach.financier.model.FinancialSummary;
 import com.coach.financier.model.MarketingModels;
+import com.coach.financier.model.ProductFamily;
 import com.coach.financier.model.SuiviModels;
 import com.coach.financier.repository.BankingDataRepository;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -77,6 +80,7 @@ public class ConversationClosureService {
     private final MarketingExtractionService marketingExtractionService;
     private final CoachQualityCheckService coachQualityCheckService;
     private final AdvisorDossierService advisorDossierService;
+    private final CommercialScoreService commercialScoreService;
 
     private final String configuredAdvisorName;
     private final String configuredAdvisorEmail;
@@ -85,6 +89,7 @@ public class ConversationClosureService {
     private final String appointmentUrl;
     private final String dossierUrl;
     private final boolean advisorMailHtml;
+    private final String customerPhone;
 
     public ConversationClosureService(ConversationService conversationService,
                                       AIServiceFactory aiServiceFactory,
@@ -101,13 +106,15 @@ public class ConversationClosureService {
                                       MarketingExtractionService marketingExtractionService,
                                       CoachQualityCheckService coachQualityCheckService,
                                       AdvisorDossierService advisorDossierService,
+                                      CommercialScoreService commercialScoreService,
                                       @Value("${app.advisor.name:}") String configuredAdvisorName,
                                       @Value("${app.advisor.email:}") String configuredAdvisorEmail,
                                       @Value("${app.customer.name:}") String configuredCustomerName,
                                       @Value("${app.suivi.attachment-format:txt}") String defaultAttachmentFormat,
                                       @Value("${app.suivi.advisor-appointment-url:}") String appointmentUrl,
                                       @Value("${app.suivi.dossier-url:}") String dossierUrl,
-                                      @Value("${app.suivi.advisor-mail-html:true}") boolean advisorMailHtml) {
+                                      @Value("${app.suivi.advisor-mail-html:true}") boolean advisorMailHtml,
+                                      @Value("${app.suivi.customer-phone:}") String customerPhone) {
         this.conversationService = conversationService;
         this.aiServiceFactory = aiServiceFactory;
         this.productUrlIndex = productUrlIndex;
@@ -123,6 +130,7 @@ public class ConversationClosureService {
         this.marketingExtractionService = marketingExtractionService;
         this.coachQualityCheckService = coachQualityCheckService;
         this.advisorDossierService = advisorDossierService;
+        this.commercialScoreService = commercialScoreService;
         this.configuredAdvisorName = configuredAdvisorName;
         this.configuredAdvisorEmail = configuredAdvisorEmail;
         this.configuredCustomerName = configuredCustomerName;
@@ -130,6 +138,7 @@ public class ConversationClosureService {
         this.appointmentUrl = appointmentUrl;
         this.dossierUrl = dossierUrl == null ? "" : dossierUrl.trim();
         this.advisorMailHtml = advisorMailHtml;
+        this.customerPhone = customerPhone == null ? "" : customerPhone.trim();
     }
 
     public SuiviModels.CloseConversationResponse close(String sessionId, SuiviModels.CloseConversationRequest request) {
@@ -219,12 +228,19 @@ public class ConversationClosureService {
         //       client : ils sont exécutés à chaque clôture et ne bloquent jamais le dossier de suivi.
         int qualityCheckCount = runQualityChecks(conversation, sessionId, warnings);
 
-        // 5quater) Dossier évaluable : persistance (best effort) + LIEN D'ÉVALUATION ajouté au mail
-        //          conseiller APRÈS la validation des URLs (le lien est fabriqué par le backend, il ne
-        //          peut donc pas être neutralisé par le contrôle anti-invention). L'URL ne contient que
-        //          le sessionId : aucune donnée personnelle (§45).
-        advisorDossierService.persist(sessionId, result);
-        validated = withAdvisorLinks(validated, sessionId);
+        // 5quater) SCORE DE SENS COMMERCIAL : proposé par l'IA de synthèse (borné par le backend) sinon
+        //          calculé de façon déterministe. Il sert à PRIORISER les relances du conseiller et figure
+        //          en tête des compléments du mail conseiller, avec son explication courte.
+        SuiviModels.CommercialScore score = commercialScoreService.scoreFor(conversation, result,
+                candidateProducts);
+
+        // 5quinquies) Dossier évaluable : persistance (best effort, enrichi pour l'ANNUAIRE DES
+        //          CONVERSATIONS du centre d'appels) + LIEN D'ÉVALUATION ajouté au mail conseiller APRÈS la
+        //          validation des URLs (le lien est fabriqué par le backend, il ne peut donc pas être
+        //          neutralisé par le contrôle anti-invention). L'URL ne contient que le sessionId :
+        //          aucune donnée personnelle (§45).
+        advisorDossierService.persist(sessionId, result, dossierExtras(conversation, result, score));
+        validated = withAdvisorLinks(validated, sessionId, score);
 
         // 6) Pièce jointe générée à partir du brouillon client : destinataire = mail du client
         //    (fiche customer.mail), expéditeur = mail du conseiller (évite « unknown sender »).
@@ -294,6 +310,8 @@ public class ConversationClosureService {
      * Ajoute au mail conseiller les liens fournis par le SYSTÈME (jamais fabriqués par l'IA, donc
      * insensibles au contrôle d'invention d'URL, appliqué plus haut) :
      * <ul>
+     *   <li><b>score de sens commercial</b> + son explication + le lien d'appel du client — en TÊTE, car
+     *       c'est l'information qui permet de prioriser la relance ;</li>
      *   <li>« Ouvrir le dossier du client » — URL de configuration ({@code app.suivi.dossier-url}) :
      *       pour la démo, le site Société Générale ; en production, l'outil conseiller ;</li>
      *   <li>« Consulter l'historique de la conversation » — lien vers la vue de relecture des échanges,
@@ -302,12 +320,17 @@ public class ConversationClosureService {
      *       le sessionId (aucune donnée personnelle).</li>
      * </ul>
      */
-    private Validated withAdvisorLinks(Validated validated, String sessionId) {
+    private Validated withAdvisorLinks(Validated validated, String sessionId,
+                                       SuiviModels.CommercialScore score) {
         SuiviModels.EmailContent advisor = validated.advisorEmail();
         if (advisor == null) {
             return validated;
         }
         StringBuilder body = new StringBuilder(advisor.body() == null ? "" : advisor.body().stripTrailing());
+        String scoreBlockText = scoreBlock(score);
+        if (!scoreBlockText.isBlank()) {
+            body.append("\n\n").append(scoreBlockText);
+        }
         if (!dossierUrl.isBlank()) {
             body.append("\n\nDossier client : [URL|Ouvrir le dossier du client|").append(dossierUrl).append(']');
         }
@@ -316,6 +339,116 @@ public class ConversationClosureService {
         return new Validated(validated.summary(), validated.products(), validated.rejectedProducts(),
                 new SuiviModels.EmailContent(advisorSubject(advisor.subject()), body.toString()),
                 validated.preparedCustomerEmail());
+    }
+
+    /**
+     * Bloc « score de sens commercial » : score, explication courte (raisons) et lien d'appel direct du
+     * client. Le numéro provient de la CONFIGURATION ({@code app.suivi.customer-phone}) — jamais de l'IA —
+     * et le lien n'est ajouté que s'il est renseigné : aucun numéro n'est jamais inventé.
+     * <p>
+     * La première ligne est mise en **gras** au format Markdown du projet : elle devient un
+     * {@code <strong>} dans le mail HTML et redevient du texte simple dans le mail en texte brut.
+     */
+    private String scoreBlock(SuiviModels.CommercialScore score) {
+        if (score == null) {
+            return "";
+        }
+        StringBuilder block = new StringBuilder();
+        block.append("--------------------------------\n");
+        block.append("**Score de sens commercial : ").append(score.display()).append("**\n");
+        if (!score.reasons().isEmpty()) {
+            block.append("Pourquoi ce score : ").append(String.join(" ", score.reasons())).append('\n');
+        }
+        if (!customerPhone.isBlank()) {
+            block.append("Contacter le client : [URL|Appeler le client|tel:")
+                    .append(customerPhone).append(']');
+        }
+        return block.toString().stripTrailing();
+    }
+
+    /**
+     * Éléments du dossier utiles à l'ANNUAIRE DES CONVERSATIONS (centre d'appels) : identité « métier »
+     * (client, titre, catégorie), score commercial et transcript des échanges.
+     */
+    private AdvisorDossierService.DossierExtras dossierExtras(ConversationModels.Conversation conversation,
+                                                              SuiviModels.SuiviResult result,
+                                                              SuiviModels.CommercialScore score) {
+        ConversationCategory category = categoryOf(conversation);
+        return new AdvisorDossierService.DossierExtras(customerReference(),
+                conversationTitle(conversation, result), category.code(), category.label(), score,
+                transcriptMessages(conversation));
+    }
+
+    /**
+     * Catégorie MÉTIER de la conversation : familles des offres présentées pendant l'échange (source la
+     * plus fiable), sinon type du projet courant, sinon « Autre ». Aucune catégorie n'est inventée.
+     */
+    private static ConversationCategory categoryOf(ConversationModels.Conversation conversation) {
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        for (Map<String, Object> product : conversation.discussedProducts()) {
+            String family = value(product.get("family"));
+            if (family != null && !family.isBlank()) {
+                counts.merge(family.trim().toUpperCase(Locale.ROOT), 1, Integer::sum);
+            }
+        }
+        String dominant = counts.entrySet().stream()
+                .max(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey)
+                .orElse(null);
+        ConversationCategory fromProducts = categoryOfFamily(dominant);
+        if (fromProducts != ConversationCategory.AUTRE) {
+            return fromProducts;
+        }
+        CurrentProject project = conversation.currentProject();
+        return ConversationCategory.fromProjectType(project == null ? null : project.getType());
+    }
+
+    /** Famille du catalogue → catégorie métier (famille inconnue ⇒ « Autre », jamais une erreur). */
+    private static ConversationCategory categoryOfFamily(String familyName) {
+        if (familyName == null || familyName.isBlank()) {
+            return ConversationCategory.AUTRE;
+        }
+        try {
+            return ConversationCategory.fromFamily(ProductFamily.valueOf(familyName));
+        } catch (IllegalArgumentException e) {
+            return ConversationCategory.AUTRE;
+        }
+    }
+
+    /** Titre lisible de la conversation : projet principal, sinon premier message du client. */
+    private static String conversationTitle(ConversationModels.Conversation conversation,
+                                            SuiviModels.SuiviResult result) {
+        SuiviModels.ConversationSummary summary = result == null ? null : result.conversationSummary();
+        String mainProject = summary == null ? null : summary.mainProject();
+        if (mainProject != null && !mainProject.isBlank()) {
+            return abbreviate(mainProject.trim().replaceAll("\\s+", " "));
+        }
+        for (ConversationModels.Message message : conversation.transcript()) {
+            if ("user".equalsIgnoreCase(value(message.role())) && message.content() != null
+                    && !message.content().isBlank()) {
+                return abbreviate(message.content().strip().replaceAll("\\s+", " "));
+            }
+        }
+        return "Conversation " + conversation.sessionId();
+    }
+
+    /** Transcript des échanges, conservé avec le dossier (bloc dépliable de la fiche conversation). */
+    private static List<AdvisorFeedbackModels.DossierMessage> transcriptMessages(
+            ConversationModels.Conversation conversation) {
+        List<AdvisorFeedbackModels.DossierMessage> messages = new ArrayList<>();
+        for (ConversationModels.Message message : conversation.transcript()) {
+            messages.add(new AdvisorFeedbackModels.DossierMessage(message.role(), message.content(),
+                    message.timestamp() == null ? null : message.timestamp().toString()));
+        }
+        return messages;
+    }
+
+    /** Tronque un libellé (titres de l'annuaire) sans casser le mot : 90 caractères au plus. */
+    private static String abbreviate(String value) {
+        if (value == null || value.length() <= 90) {
+            return value;
+        }
+        return value.substring(0, 87).stripTrailing() + "...";
     }
 
     /**

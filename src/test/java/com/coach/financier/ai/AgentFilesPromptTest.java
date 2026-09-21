@@ -133,15 +133,23 @@ class AgentFilesPromptTest {
                 "le jeton ne doit jamais être transformé en lien ni accompagné d'une adresse inventée");
     }
 
-    /** L'agent crédit conso rappelle le jeton dans ses règles de prochaine étape (RDV + rappel). */
+    /**
+     * L'agent crédit conso reçoit bien le jeton de rappel (règle transverse de l'agent principal, composée
+     * dans le prompt de chaque agent).
+     * <p>
+     * ⚠️ La règle « lien de SOUSCRIPTION » (`url_souscription`) n'est plus portée par `agent/credit-conso.txt`
+     * dans sa version allégée : elle n'est donc plus vérifiée ici. Le champ reste déclaré et whitelisté côté
+     * back-office (`ProductUrlIndexTest`), pour qu'une URL de souscription citée par le Coach ne soit jamais
+     * prise pour une URL inventée.
+     */
     @Test
     void theConsumerCreditAgentOffersTheCallbackTokenToo() {
         String prompt = AgentFiles.systemPromptFor("credit_conso");
 
         assertTrue(prompt.contains("[RAPPEL|Être rappelé par un conseiller]"),
                 "l'agent crédit conso propose aussi le rappel conseiller");
-        assertTrue(prompt.contains("url_souscription"),
-                "la souscription s'appuie sur l'URL déclarée par la fiche (url_souscription)");
+        assertTrue(prompt.contains("SANS URL"),
+                "le jeton de rappel n'est jamais transformé en lien (aucune adresse de rappel n'existe)");
     }
 
     /**
@@ -182,7 +190,7 @@ class AgentFilesPromptTest {
                 "les mentions obligatoires restent dues, mais reformulées");
         assertTrue(principal.contains("ne reprend pas celle de ma réponse précédente"),
                 "la checklist finale fait vérifier l'accroche");
-        assertTrue(AgentFiles.systemPromptFor("credit_conso").contains("même phrase qu'au tour précédent"),
-                "l'agent crédit conso porte la règle pour ses réponses de suivi");
+        assertTrue(AgentFiles.systemPromptFor("credit_conso").contains("Ne jamais réutiliser la même phrase d'ouverture"),
+                "la règle transverse est bien composée dans le prompt de l'agent crédit conso");
     }
 }

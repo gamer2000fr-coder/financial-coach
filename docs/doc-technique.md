@@ -239,6 +239,8 @@ app.suivi.advisor-appointment-url: ${ADVISOR_APPOINTMENT_URL:…}  # lien de RDV
 app.suivi.dossier-url: ${SUIVI_DOSSIER_URL:https://particuliers.sg.fr}  # lien « dossier client » du mail conseiller
 #   (démo = site Société Générale ; en production = outil conseiller. Vide ⇒ aucun lien)
 app.suivi.advisor-mail-html: ${SUIVI_ADVISOR_MAIL_HTML:true}
+app.suivi.customer-phone: ${SUIVI_CUSTOMER_PHONE:0644910925}  # lien d'appel du mail conseiller + page Centre d'appels
+#   (numéro renseigné EN DUR pour la démo ; jamais produit par l'IA. Vide ⇒ aucun lien d'appel)
 app.mail.enabled: ${MAIL_ENABLED:true}
 app.mail.from: ${MAIL_FROM:${MAIL_USERNAME:}}
 spring.mail.host: ${MAIL_HOST:smtp.gmail.com}
@@ -302,6 +304,8 @@ app.prompt-optimization.hash-salt: ${PROMPT_OPT_HASH_SALT:…}
 | DELETE | `/api/logs` | Vider les logs |
 | GET | `/api/conversations/{sessionId}` | Historique complet d'une conversation `{sessionId, summary, messages[]}` |
 | POST | `/api/conversations/{sessionId}/close` | **Fin de conversation** : dossier de suivi + email au conseiller (body optionnel `{advisorEmail, advisorName, attachmentFormat, send, provider}` ; `send=false` = dry-run) |
+| GET | `/api/conversations/directory` | **Annuaire des conversations** (page Centre d'appels) : conversations clôturées + score commercial. Paramètres `days` (5/10/30, `0` = tout), `category` (CREDIT_CONSO, CREDIT_IMMO, EPARGNE, ASSURANCE, AUTRE), `q` (client, titre, projet, produit), `sort` (date, score, client, categorie, titre), `order` (asc, desc) |
+| GET | `/api/conversations/directory/{sessionId}` | Détail d'une conversation : synthèse du mail conseiller (sans le brouillon client), score expliqué (raisons + critères), actions de suivi, offres d'intérêt et transcript. **404** si aucun dossier |
 | GET | `/api/mail/status` | État de l'envoi mail `{enabled, available, from, target, reason}` |
 | GET | `/api/agents` | Liste des agents éditables `[{key, libelle, file}]` (dont `suivi` et `marketing`) |
 | GET/PUT | `/api/agents/{key}/prompt` | Lire / écrire le prompt d'un agent |
@@ -511,6 +515,12 @@ flowchart LR
   ou `official_product_url`) — et non le simulateur ; celui-ci n'est proposé que lorsqu'aucun chiffrage n'est
   possible (grille indisponible, paramètre manquant, crédit renouvelable) ou pour une demande d'offre ferme. Si
   `souscription_en_ligne` est absent ou false, il renvoie au conseiller.
+- ⚠️ **Ces deux règles ne sont plus portées par le prompt** depuis que `agent/credit-conso.txt` a été conservé
+  dans sa **version allégée** : le prompt demande seulement de fournir « mensualité, coût total, intérêts »
+  depuis la grille, en rappelant le caractère indicatif, puis de renvoyer vers « le simulateur officiel et la
+  souscription » — sans les 8 informations détaillées, sans tableau et sans le lien de souscription. Le champ
+  `url_souscription` reste déclaré et **whitelisté** (`ProductUrlIndex`) : s'il est cité, il n'est jamais pris
+  pour une URL inventée. Le contrôle qualité `CREDIT_SIMULATION_VIOLATION` (chiffrage hors grille) reste actif.
 
 ---
 
@@ -1158,6 +1168,35 @@ Société Générale), « Consulter l'historique de la conversation » (`/#/conv
 « Évaluer le suivi du Coach » au format `[URL|nom|…/session/<id>]`, **aucune donnée
 personnelle** dans l'URL, liens absents du brouillon client (`ConversationClosureServiceTest`).
 - Dossier inconnu → **404** (vérifié sur l'instance) ; dossier connu → 200 avec `feedbackStatus` `PENDING` puis `COMPLETED` après envoi du feedback (vérifié sur l'instance).
+
+### 19.4 Score de sens commercial (priorisation conseiller et centre d'appels)
+
+Objectif métier : donner au conseiller un **ordre de priorité objectivable** (« affaire mûre et urgente » avant
+« projet exploratoire ») au moment où il reçoit le dossier, et le rendre exploitable par un **centre d'appels**.
+
+- **Qui le calcule ?** L'**IA de synthèse** en propose un (`commercialScore` : `score`, `urgency`, `reasons`,
+  décrit au §22 de `agent/suivi.txt`) car elle seule lit la conversation (urgence réellement exprimée, objections,
+  maturité) ; le **backend le borne** (0..100), ignore les raisons vides et **recalcule TOUJOURS les critères
+  mesurables** (`CommercialScoreService`) : sans proposition de l'IA (mode démo, réponse incomplète), le score est
+  entièrement déterministe.
+- **Critères mesurés** (100 points) : maturité du projet (30 : projet identifié, objet/montant connus, offres
+  présentées), intérêt du client (25 : meilleur niveau observé), urgence (20 : contrainte de temps lue par l'IA,
+  sinon marqueurs des messages du **client** uniquement), capacité de financement (15 : endettement, épargne
+  mensuelle, découverts — **aucun seuil bancaire n'est introduit**), engagement (10 : messages du client).
+  Pénalité : −8 par offre explicitement écartée (plafond −16). Priorités : `VERY_HIGH` (≥ 80), `HIGH` (≥ 65),
+  `MEDIUM` (≥ 45), `LOW` (< 45).
+- **Où le voit-on ?** (1) **mail conseiller** : bloc ajouté par le backend APRÈS la validation — score, libellé,
+  « Pourquoi ce score » (2-3 raisons courtes) et **lien d'appel** `[URL|Appeler le client|tel:<numéro>]`
+  (`app.suivi.customer-phone`, jamais produit par l'IA) ; (2) **page `#/centre-appels`** : colonne, filtre et tri.
+  Le score n'est **jamais** transmis au client (test dédié).
+- **Persistance** : le score, l'identité métier (client, titre, catégorie) et le **transcript** sont ajoutés au
+  **dossier de suivi** (`AdvisorDossier.client/score/transcript`) — l'annuaire n'invente rien et un dossier ancien
+  (écrit avant ces champs) reste lisible avec des valeurs vides.
+- **Catégorie** : déduite des familles des offres réellement présentées (sinon du type de projet, sinon « Autre »)
+  par `ConversationCategory` — jamais devinée depuis le texte.
+- Tests : `CommercialScoreServiceTest` (9), `ConversationDirectoryServiceTest` (8), `UrlLinkRendererTest` (liens
+  `tel:` rendus cliquables en HTML et lisibles en texte, un `tel:` proposé par le modèle restant neutralisé),
+  `ConversationClosureServiceTest` (score + lien d'appel dans le mail, dossier exploitable par l'annuaire).
 
 ---
 

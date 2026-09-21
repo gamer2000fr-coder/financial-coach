@@ -11,6 +11,7 @@ import {
   MessageCircle,
   Mic,
   MicOff,
+  PhoneCall,
   Plus,
   Send,
   Settings,
@@ -889,6 +890,9 @@ function App() {
               </a>
               <a className="icon-button logs-link" href="#/advisor-feedback" target="_blank" rel="noopener noreferrer" title="Feedback Conseillers">
                 <UserCheck size={20} />
+              </a>
+              <a className="icon-button logs-link" href="#/centre-appels" target="_blank" rel="noopener noreferrer" title="Centre d'appels — conversations et score commercial">
+                <PhoneCall size={20} />
               </a>
               <a className="icon-button logs-link" href="#/prompt-lab" target="_blank" rel="noopener noreferrer" title="Atelier d'optimisation des prompts">
                 <Sparkles size={20} />

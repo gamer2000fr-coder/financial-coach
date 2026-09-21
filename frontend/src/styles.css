@@ -977,4 +977,79 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   .plab-two { grid-template-columns: 1fr; }
 }
 
+/* ---- Page Centre d'appels (#/centre-appels) : annuaire des conversations + score commercial ---- */
+.cc-search {
+  display: inline-flex; align-items: center; gap: 6px; border: 1px solid #e4e7ee; border-radius: 8px;
+  padding: 5px 9px; background: #fff; color: #6b7280;
+}
+.cc-search input {
+  border: none; outline: none; font: inherit; font-size: 12.5px; min-width: 190px; color: #111827;
+  background: transparent;
+}
+.cc-kpis { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 12px; color: #4b5563; }
+.cc-kpi { padding: 3px 9px; border-radius: 999px; background: #f3f4f6; font-size: 11.5px; }
+.cc-kpi.very-high { background: #dcfce7; color: #166534; }
+.cc-kpi.high { background: #e0f2fe; color: #075985; }
+.cc-kpi.medium { background: #fef3c7; color: #92400e; }
+.cc-kpi.low { background: #f3f4f6; color: #4b5563; }
+.cc-sort {
+  background: none; border: none; padding: 0; margin: 0; font: inherit; font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .04em; color: #6b7280; cursor: pointer;
+}
+.cc-sort:hover { color: var(--accent); }
+.cc-title { max-width: 320px; }
+.cc-chip {
+  display: inline-block; padding: 2px 8px; border-radius: 999px; background: #eef0f4; font-size: 11px;
+  color: #374151;
+}
+.cc-chip.interest-high { background: #dcfce7; color: #166534; }
+.cc-chip.interest-medium { background: #e0f2fe; color: #075985; }
+.cc-chip.interest-low { background: #f3f4f6; color: #4b5563; }
+.cc-chip.interest-rejected { background: #fee2e2; color: #991b1b; }
+.cc-score {
+  display: inline-block; min-width: 56px; text-align: center; padding: 3px 8px; border-radius: 8px;
+  font-weight: 700; font-size: 12px; background: #f3f4f6; color: #374151;
+}
+.cc-score.big { font-size: 17px; min-width: 74px; padding: 6px 10px; }
+.cc-score.very-high { background: #dcfce7; color: #166534; }
+.cc-score.high { background: #e0f2fe; color: #075985; }
+.cc-score.medium { background: #fef3c7; color: #92400e; }
+.cc-score.low { background: #f3f4f6; color: #4b5563; }
+.cc-score-label { display: block; font-size: 10.5px; color: #6b7280; margin-top: 2px; }
+.cc-actions { text-align: right; white-space: nowrap; }
+.cc-popup {
+  background: #fff; border-radius: 14px; width: min(1040px, 96vw); max-height: 92vh; display: flex;
+  flex-direction: column; box-shadow: 0 24px 60px rgba(15, 20, 30, .28);
+}
+.cc-popup-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  padding: 16px 18px 8px; border-bottom: 1px solid #eef0f4;
+}
+.cc-popup-head h2 { margin: 0 0 4px; font-size: 18px; }
+.cc-popup-body { padding: 14px 18px; overflow: auto; display: flex; flex-direction: column; gap: 16px; }
+.cc-popup-foot {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px; justify-content: flex-end;
+  padding: 12px 18px; border-top: 1px solid #eef0f4; background: #fafbfc; border-radius: 0 0 14px 14px;
+}
+.cc-score-box {
+  display: flex; align-items: flex-start; gap: 14px; flex-wrap: wrap;
+  background: #f8f9fb; border-radius: 12px; padding: 12px 14px;
+}
+.cc-list { margin: 6px 0 0; padding-left: 18px; font-size: 12.5px; color: #374151; }
+.cc-list.small { font-size: 11.5px; color: #4b5563; }
+.cc-toggle {
+  display: inline-flex; align-items: center; gap: 6px; background: none; border: none; padding: 0;
+  margin-top: 8px; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--accent); cursor: pointer;
+}
+.cc-call { align-self: center; text-decoration: none; }
+.cc-section h3 { display: flex; align-items: center; gap: 6px; font-size: 14px; margin: 0 0 6px; }
+.cc-subject { font-size: 12.5px; font-weight: 600; color: #374151; margin: 0 0 6px; }
+.cc-mail {
+  background: #fff; border: 1px solid #eef0f4; border-radius: 10px; padding: 12px 14px;
+  font-size: 13px; line-height: 1.5; color: #374151; white-space: pre-wrap; max-height: 46vh; overflow: auto;
+}
+.cc-transcript { margin-top: 10px; display: flex; flex-direction: column; gap: 10px; max-height: 52vh; overflow: auto; }
+.phone-link { color: var(--accent); font-weight: 700; text-decoration: none; }
+.phone-link:hover { text-decoration: underline; }
+
 

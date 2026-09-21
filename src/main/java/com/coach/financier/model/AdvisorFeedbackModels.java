@@ -496,12 +496,44 @@ public final class AdvisorFeedbackModels {
     public record DossierEmail(String subject, String body) {
     }
 
+    /** Message d'un échange client ↔ Coach, conservé avec le dossier (annuaire du centre d'appels). */
+    public record DossierMessage(String role, String content, String timestamp) {
+    }
+
+    /**
+     * Identité « métier » d'un dossier, utilisée par l'ANNUAIRE DES CONVERSATIONS du centre d'appels :
+     * client, titre lisible et catégorie (filtre). Aucune donnée n'est inventée : un dossier ancien
+     * (écrit avant l'introduction de ces champs) reste lisible avec des valeurs vides.
+     */
+    public record DossierClient(String customerId, String title, String category, String categoryLabel) {
+    }
+
+    /**
+     * SCORE DE SENS COMMERCIAL conservé avec le dossier (voir {@code CommercialScoreService}) :
+     * il permet au conseiller de prioriser ses relances et de comprendre le score (raisons + critères).
+     */
+    public record DossierScore(Integer score, String priority, String label, List<String> reasons,
+                               List<String> details, Boolean proposedByAi) {
+        public DossierScore {
+            reasons = reasons == null ? List.of() : List.copyOf(reasons);
+            details = details == null ? List.of() : List.copyOf(details);
+        }
+
+        /** « 72/100 — Priorité haute », ou chaîne vide si le dossier n'a pas de score. */
+        public String display() {
+            return score == null ? "" : score + "/100 — " + (label == null ? "" : label);
+        }
+    }
+
     /**
      * Dossier de suivi PERSISTÉ à la clôture : c'est ce que le conseiller retrouve lorsqu'il clique sur
      * le lien d'évaluation reçu par email (§41 à §43).
      * <p>
      * Aucune donnée personnelle n'est exposée dans l'URL : seul le {@code sessionId} identifie le dossier
      * (§45), et le backend reste seul juge de son existence et de son accessibilité (§46).
+     * <p>
+     * {@code client}, {@code score} et {@code transcript} alimentent l'ANNUAIRE DES CONVERSATIONS
+     * (centre d'appels) : ils sont absents des dossiers écrits avant cette évolution.
      */
     public record AdvisorDossier(
             String dossierId,
@@ -515,15 +547,30 @@ public final class AdvisorFeedbackModels {
             DossierEmail advisorEmail,
             DossierEmail customerEmail,
             String feedbackUrl,
-            String createdAt) {
+            String createdAt,
+            DossierClient client,
+            DossierScore score,
+            List<DossierMessage> transcript) {
 
         public AdvisorDossier {
             otherProjects = otherProjects == null ? List.of() : List.copyOf(otherProjects);
             preferences = preferences == null ? List.of() : List.copyOf(preferences);
             productsOfInterest = productsOfInterest == null ? List.of() : List.copyOf(productsOfInterest);
             nextActions = nextActions == null ? List.of() : List.copyOf(nextActions);
+            transcript = transcript == null ? List.of() : List.copyOf(transcript);
+        }
+
+        /** Compatibilité : dossier sans identité client, sans score et sans transcript. */
+        public AdvisorDossier(String dossierId, String timestamp, String sessionId, String mainProject,
+                              List<String> otherProjects, List<String> preferences,
+                              List<DossierProduct> productsOfInterest, List<String> nextActions,
+                              DossierEmail advisorEmail, DossierEmail customerEmail, String feedbackUrl,
+                              String createdAt) {
+            this(dossierId, timestamp, sessionId, mainProject, otherProjects, preferences, productsOfInterest,
+                    nextActions, advisorEmail, customerEmail, feedbackUrl, createdAt, null, null, List.of());
         }
     }
+
 
     /** Dossier + feedback éventuel + statut, tels que servis à l'écran d'évaluation. */
     public record DossierView(AdvisorDossier dossier, AdvisorFeedback feedback, String feedbackStatus) {
