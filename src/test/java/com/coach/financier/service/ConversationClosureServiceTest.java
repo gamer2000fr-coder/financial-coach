@@ -169,16 +169,25 @@ class ConversationClosureServiceTest {
         // Le brouillon client, lui, ne contient jamais le lien d'évaluation.
         assertFalse(response.preparedCustomerEmail().body().contains("advisor-feedback"),
                 "Le brouillon client ne doit pas contenir le lien interne d'évaluation");
-        // Lien « dossier client » : URL fournie par la CONFIGURATION (démo = site Société Générale) et
-        // ajoutée par le backend au mail conseiller, jamais par l'IA.
-        assertTrue(body.contains("Dossier client : [URL|Ouvrir le dossier du client|https://particuliers.sg.fr]"),
-                "Le mail conseiller contient le lien de retrouvaille du dossier client");
+        // Lien « dossier client » : il ouvre DIRECTEMENT la pop-in du dossier dans la page Centre d'appels
+        // (l'URL de l'outil conseiller n'est qu'un repli quand aucune IHM n'est configurée).
+        assertTrue(body.contains(
+                        "Dossier client : [URL|Ouvrir le dossier du client|http://localhost:9898/#/centre-appels/s1]"),
+                "Le mail conseiller ouvre le dossier dans la page Centre d'appels");
+        String dossierLink = body.substring(body.indexOf("[URL|Ouvrir le dossier du client|"));
+        dossierLink = dossierLink.substring(0, dossierLink.indexOf(']'));
+        assertFalse(dossierLink.contains("Michel@gmail.com"), "Aucun email client dans le lien du dossier");
+        assertFalse(dossierLink.contains("Jean Martin"), "Aucun nom dans le lien du dossier");
+        assertFalse(body.contains("https://particuliers.sg.fr]"),
+                "L'outil conseiller externe n'est plus utilisé quand l'IHM est configurée");
         assertFalse(response.preparedCustomerEmail().body().contains("Ouvrir le dossier du client"),
                 "Le brouillon client ne doit pas contenir le lien interne du conseiller");
     }
 
     @Test
-    void close_addsTheConversationHistoryLinkToTheAdvisorEmail() {
+    void close_noLongerAddsTheConversationHistoryLinkToTheAdvisorEmail() {
+        // Le lien « Consulter l'historique de la conversation » a été retiré du mail : le conseiller relit
+        // les échanges depuis la pop-in du dossier (la page #/conversation/<id> reste disponible).
         when(aiServiceFactory.defaultProvider()).thenReturn(AIModels.AIProvider.MOCK);
         when(aiServiceFactory.get(any())).thenReturn(new MockAIService());
         when(conversationService.find("s1")).thenReturn(conversationWithTousRisques());
@@ -186,18 +195,15 @@ class ConversationClosureServiceTest {
         SuiviModels.CloseConversationResponse response = service().close("s1", null);
 
         String body = response.advisorEmail().body();
-        assertTrue(body.contains(
-                        "[URL|Consulter l'historique de la conversation|http://localhost:9898/#/conversation/s1]"),
-                "Le mail conseiller doit permettre de relire les échanges de la conversation");
-        // Le lien ne porte QUE le sessionId : ni nom, ni email, ni montant du dossier.
-        String link = body.substring(body.indexOf("[URL|Consulter l'historique de la conversation|"));
-        link = link.substring(0, link.indexOf(']'));
-        assertFalse(link.contains("Michel@gmail.com"), "Aucun email client dans le lien");
-        assertFalse(link.contains("Jean Martin"), "Aucun nom dans le lien");
-        assertFalse(link.contains("conseiller@sg.test"), "Aucun email conseiller dans le lien");
+        assertFalse(body.contains("Consulter l'historique de la conversation"),
+                "Le mail ne contient plus le bloc d'historique de la conversation");
+        assertFalse(body.contains("#/conversation/"),
+                "Aucun lien vers la page d'historique dans le mail conseiller");
+        assertTrue(body.contains("[URL|Ouvrir le dossier du client|http://localhost:9898/#/centre-appels/s1]"),
+                "Le dossier s'ouvre depuis la page Centre d'appels");
         // Le brouillon client ne reçoit jamais les liens internes du conseiller.
-        assertFalse(response.preparedCustomerEmail().body().contains("#/conversation/"),
-                "Le brouillon client ne doit pas contenir le lien de relecture interne");
+        assertFalse(response.preparedCustomerEmail().body().contains("Ouvrir le dossier du client"));
+        assertFalse(response.preparedCustomerEmail().body().contains("#/centre-appels/"));
     }
 
     @Test

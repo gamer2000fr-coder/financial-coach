@@ -137,10 +137,11 @@ class AgentFilesPromptTest {
      * L'agent crédit conso reçoit bien le jeton de rappel (règle transverse de l'agent principal, composée
      * dans le prompt de chaque agent).
      * <p>
-     * ⚠️ La règle « lien de SOUSCRIPTION » (`url_souscription`) n'est plus portée par `agent/credit-conso.txt`
-     * dans sa version allégée : elle n'est donc plus vérifiée ici. Le champ reste déclaré et whitelisté côté
-     * back-office (`ProductUrlIndexTest`), pour qu'une URL de souscription citée par le Coach ne soit jamais
-     * prise pour une URL inventée.
+     * ⚠️ La règle « lien de SOUSCRIPTION » (`url_souscription`) est de nouveau portée par
+     * `agent/credit-conso.txt` (règle « simulation », voir {@link #theSimulationRuleListsTheMandatoryFigures}) :
+     * elle avait disparu lors du retour à la version allégée du prompt. Le champ reste aussi déclaré et
+     * whitelisté côté back-office (`ProductUrlIndexTest`), pour qu'une URL de souscription citée par le Coach
+     * ne soit jamais prise pour une URL inventée.
      */
     @Test
     void theConsumerCreditAgentOffersTheCallbackTokenToo() {
@@ -150,6 +151,37 @@ class AgentFilesPromptTest {
                 "l'agent crédit conso propose aussi le rappel conseiller");
         assertTrue(prompt.contains("SANS URL"),
                 "le jeton de rappel n'est jamais transformé en lien (aucune adresse de rappel n'existe)");
+    }
+
+    /**
+     * CONTRAT DE LA SIMULATION (agent crédit conso) : quand le client demande un chiffrage, le Coach doit
+     * présenter les HUIT informations attendues par le conseiller, un TABLEAU dès qu'il compare plusieurs
+     * durées, et donner le lien de SOUSCRIPTION (et non un lien de simulateur) une fois la simulation faite.
+     * <p>
+     * Cette règle a déjà été perdue une fois (retour à une version allégée du prompt) : elle est donc
+     * verrouillée ici, sur le prompt RÉELLEMENT composé pour l'agent (gabarit + principal + spécialisé).
+     */
+    @Test
+    void theSimulationRuleListsTheMandatoryFigures() {
+        String prompt = AgentFiles.systemPromptFor("credit_conso");
+
+        assertTrue(prompt.contains("montant du crédit, durée, mensualité, taux d'intérêt débiteur annuel fixe"),
+                "les huit informations d'une simulation doivent être listées : " + prompt);
+        for (String figure : new String[]{"frais de dossier", "coût total du crédit", "montant total dû"}) {
+            assertTrue(prompt.contains(figure), "information obligatoire absente : " + figure);
+        }
+        assertTrue(prompt.contains("TABLEAU"),
+                "plusieurs durées ou mensualités doivent être présentées sous forme de tableau");
+        assertTrue(prompt.contains("ne répète pas les colonnes CONSTANTES"),
+                "un tableau de chiffres ne doit pas répéter les colonnes constantes (montant, taux)");
+        assertTrue(prompt.contains("4 à 5 colonnes maximum"),
+                "la taille du tableau est bornée : au-delà, il devient illisible dans la bulle de chat");
+        assertTrue(prompt.contains("url_souscription"),
+                "le lien de souscription remplace le lien de simulateur une fois la simulation faite");
+        assertTrue(prompt.contains("et NON avec un lien de simulateur"),
+                "la règle doit écarter explicitement le lien du simulateur");
+        assertTrue(prompt.contains("sans inventer d'URL"),
+                "aucune URL ne doit être inventée si l'offre ne porte pas de lien de souscription");
     }
 
     /**

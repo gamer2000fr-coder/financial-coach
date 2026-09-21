@@ -131,13 +131,14 @@ function renderTable(lines: string[], start: number, end: number, key: string): 
   for (let index = firstRow; index <= end; index += 1) {
     rows.push(parseCells(lines[index]))
   }
+  const numeric = numericColumns(rows)
   return (
     <div key={key} className="md-table-wrap">
       <table className="md-table">
         <thead>
           <tr>
             {header.map((cell, column) => (
-              <th key={`${key}-h${column}`} className={cellClassName(cell)}>
+              <th key={`${key}-h${column}`} className={cellClassName(cell, numeric[column])}>
                 {renderInline(cell, `${key}-h${column}`)}
               </th>
             ))}
@@ -147,7 +148,7 @@ function renderTable(lines: string[], start: number, end: number, key: string): 
           {rows.map((row, rowIndex) => (
             <tr key={`${key}-r${rowIndex}`}>
               {row.map((cell, column) => (
-                <td key={`${key}-r${rowIndex}c${column}`} className={cellClassName(cell)}>
+                <td key={`${key}-r${rowIndex}c${column}`} className={cellClassName(cell, numeric[column])}>
                   {renderInline(cell, `${key}-r${rowIndex}c${column}`)}
                 </td>
               ))}
@@ -159,9 +160,29 @@ function renderTable(lines: string[], start: number, end: number, key: string): 
   )
 }
 
-/** Montants et pourcentages alignés à droite (colonnes de chiffres lisibles). */
-function cellClassName(cell: string): string | undefined {
-  return /€|%/.test(cell) && cell.length <= 16 ? 'md-num' : undefined
+/**
+ * Colonnes NUMÉRIQUES : dès qu'une cellule de données porte un montant ou un pourcentage, toute la colonne
+ * est alignée à droite — en-tête compris. Sans cela, « Montant total dû » resterait collé à gauche
+ * au-dessus de chiffres alignés à droite, ce qui rend le tableau difficile à lire.
+ */
+function numericColumns(rows: string[][]): boolean[] {
+  const width = rows.reduce((max, row) => Math.max(max, row.length), 0)
+  const flags: boolean[] = []
+  for (let column = 0; column < width; column += 1) {
+    flags.push(rows.some((row) => isNumericCell(row[column] ?? '')))
+  }
+  return flags
+}
+
+/** Montant ou pourcentage court : colonne de chiffres (les phrases contenant « € » ne comptent pas). */
+function isNumericCell(cell: string): boolean {
+  return /€|%/.test(cell) && cell.length <= 16
+}
+
+/** Classe d'une cellule : `md-num` si sa colonne est numérique (alignement à droite, chiffres tabulaires). */
+function cellClassName(cell: string, numericColumn?: boolean): string | undefined {
+  if (numericColumn) return 'md-num'
+  return cell.length <= 16 && isNumericCell(cell) ? 'md-num' : undefined
 }
 
 /** Version TEXTE BRUT d'un message (synthèse vocale) : le Markdown n'est jamais lu à voix haute. */

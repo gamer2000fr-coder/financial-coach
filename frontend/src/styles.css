@@ -206,6 +206,23 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .auto-dot.listening { background:#e50930; animation:auto-blink 1s infinite; }
 @keyframes auto-blink { 0%,100% { opacity:.35; } 50% { opacity:1; } }
 
+/* ---- DÉCOMPTE du mode auto : secondes restantes avant l'envoi automatique à l'IA ---- */
+.auto-countdown {
+  display:inline-flex; align-items:baseline; gap:2px; min-width:34px; justify-content:center;
+  padding:1px 8px; border-radius:999px; background:#e50930; color:#fff;
+  font-weight:700; font-size:13px; line-height:1.5; font-variant-numeric:tabular-nums;
+}
+.auto-countdown strong { font-size:14px; }
+/* Dernières secondes : le badge pulse pour que l'envoi à venir soit impossible à manquer. */
+.auto-countdown.urgent { animation:auto-countdown-pulse .8s ease-in-out infinite; }
+@keyframes auto-countdown-pulse { 0%,100% { transform:scale(1); } 50% { transform:scale(1.12); } }
+.auto-countdown-track { width:70px; height:4px; border-radius:999px; background:#f0c9cd; overflow:hidden; flex:none; }
+.auto-countdown-fill { display:block; height:100%; background:#e50930; transition:width .2s linear; }
+.auto-countdown-hint { opacity:.75; }
+@media (prefers-reduced-motion: reduce) {
+  .auto-countdown.urgent { animation:none; }
+}
+
 .summary-column { display:flex; flex-direction:column; gap:13px; }
 .summary-header { display:flex; justify-content:space-between; align-items:flex-start; padding:9px 2px 5px; color:#777; }
 .summary-header h2 { font-size:20px; font-weight:700; }
@@ -470,12 +487,33 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .callback-popup-ok:hover { background: var(--accent-dark); }
 
 /* ---- Tableaux Markdown des réponses du Coach (simulations chiffrées) ---- */
-.md-table-wrap { margin: 10px 0; overflow-x: auto; }
-.md-table { border-collapse: collapse; width: 100%; font-size: 13.5px; background: #fff; }
-.md-table th, .md-table td { border: 1px solid #e3e7ee; padding: 8px 10px; text-align: left; white-space: nowrap; }
-.md-table thead th { background: #f4f6f9; color: #334155; font-weight: 700; }
+/* ---- Tableaux Markdown des réponses IA (chiffrages multi-durées, comparaisons d'offres) ----
+   Objectif : un tableau LISIBLE dans une bulle de chat — aucune barre de défilement horizontale pour
+   les tableaux de chiffres courants (5-6 colonnes), libellés d'en-tête qui passent à la ligne, chiffres
+   alignés à droite et alignés verticalement (tabular-nums) pour comparer les colonnes d'un coup d'œil. */
+.md-table-wrap {
+  margin: 10px 0; overflow-x: auto; border: 1px solid #e3e7ee; border-radius: 10px; background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+}
+.md-table { border-collapse: collapse; width: 100%; background: #fff; }
+/* En-têtes : casse d'origine conservée (libellés du modèle), mais compacts et autorisés à passer à la ligne. */
+.md-table th {
+  padding: 7px 9px; text-align: left; font-size: 11.5px; font-weight: 700; color: #52627a;
+  background: #f6f8fb; border-bottom: 1px solid #dfe5ee; white-space: normal; line-height: 1.25;
+  vertical-align: bottom;
+}
+/* Cellules : séparateurs horizontaux uniquement (plus de quadrillage), texte qui passe à la ligne. */
+.md-table td {
+  padding: 7px 9px; font-size: 12.5px; color: #1f2937; border-bottom: 1px solid #eef1f6;
+  white-space: normal; line-height: 1.35;
+}
+.md-table tbody tr:last-child td { border-bottom: none; }
 .md-table tbody tr:nth-child(even) { background: #fafbfd; }
-.md-table td.md-num, .md-table th.md-num { text-align: right; font-variant-numeric: tabular-nums; }
+.md-table tbody tr:hover { background: #f2f6fd; }
+/* Chiffres (€, %) : à droite, sans coupure, largeur stable — impression de colonne de relevé bancaire. */
+.md-table td.md-num, .md-table th.md-num {
+  text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap;
+}
 .qlt-send {
   flex: 1; background: var(--accent); color: #fff; border: none; border-radius: 999px;
   padding: 10px 14px; font-weight: 700; cursor: pointer; font-size: 13px;
@@ -1070,6 +1108,10 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   display: inline-flex; align-items: center; gap: 6px; background: none; border: none; padding: 0;
   margin-top: 8px; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--accent); cursor: pointer;
 }
+/* Corps d'une section PILABLE : l'espacement est porté par le corps, pas par le titre cliquable. */
+.cc-toggle-body { margin-top: 8px; }
+/* Rappel de conformité affiché sous un contenu envoyé : jamais un ton d'alerte, juste une précision. */
+.cc-hint { margin: 8px 0 0; font-size: 11.5px; color: #6b7280; }
 .cc-call { align-self: center; text-decoration: none; }
 .cc-section h3 { display: flex; align-items: center; gap: 6px; font-size: 14px; margin: 0 0 6px; }
 .cc-subject { font-size: 12.5px; font-weight: 600; color: #374151; margin: 0 0 6px; }

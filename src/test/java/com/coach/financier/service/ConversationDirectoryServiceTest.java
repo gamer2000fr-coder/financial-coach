@@ -132,7 +132,10 @@ class ConversationDirectoryServiceTest {
         assertTrue(detail.advisorBody().contains("Synthèse conseiller"),
                 "Le détail porte la même synthèse que le mail envoyé au conseiller");
         assertFalse(detail.advisorBody().contains("Brouillon client"),
-                "Le brouillon destiné au client ne fait pas partie du détail");
+                "Le brouillon destiné au client reste une PIÈCE JOINTE : il n'est pas noyé dans la synthèse");
+        assertEquals("Brouillon client", detail.customerEmailSubject());
+        assertTrue(detail.customerEmailBody().contains("Brouillon client à vérifier"),
+                "La pièce jointe du mail conseiller est servie à la pop-in du centre d'appels");
         assertEquals(List.of("Rappeler le client"), detail.nextActions());
         assertEquals(1, detail.products().size());
         assertEquals(1, detail.scoreReasons().size());

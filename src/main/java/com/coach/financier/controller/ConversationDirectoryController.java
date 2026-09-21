@@ -73,7 +73,10 @@ public class ConversationDirectoryController {
                         "Aucun dossier de suivi pour la session " + sessionId));
     }
 
-    /** Détail d'une conversation : synthèse envoyée au conseiller (sans le brouillon client) + transcript. */
+    /**
+     * Détail d'une conversation : synthèse envoyée au conseiller, sa pièce jointe (brouillon d'email client)
+     * + transcript des échanges.
+     */
     @GetMapping("/{sessionId}")
     public DirectoryModels.DirectoryDetail detail(@PathVariable String sessionId) {
         return directoryService.detail(sessionId)

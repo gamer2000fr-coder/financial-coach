@@ -236,7 +236,7 @@ app.advisor.email: ${ADVISOR_EMAIL:<MAIL_USERNAME>}   # SEUL destinataire automa
 app.customer.name: ${CUSTOMER_NAME:}
 app.suivi.attachment-format: ${SUIVI_ATTACHMENT_FORMAT:eml}      # txt | html | eml
 app.suivi.advisor-appointment-url: ${ADVISOR_APPOINTMENT_URL:…}  # lien de RDV du brouillon client
-app.suivi.dossier-url: ${SUIVI_DOSSIER_URL:https://particuliers.sg.fr}  # lien « dossier client » du mail conseiller
+app.suivi.dossier-url: ${SUIVI_DOSSIER_URL:https://particuliers.sg.fr}  # REPLI du lien « dossier client » (utilisé seulement si app.advisor-feedback.frontend-url est vide)
 #   (démo = site Société Générale ; en production = outil conseiller. Vide ⇒ aucun lien)
 app.suivi.advisor-mail-html: ${SUIVI_ADVISOR_MAIL_HTML:true}
 app.suivi.customer-phone: ${SUIVI_CUSTOMER_PHONE:0644910925}  # lien d'appel du mail conseiller + page Centre d'appels
@@ -306,7 +306,7 @@ app.prompt-optimization.hash-salt: ${PROMPT_OPT_HASH_SALT:…}
 | GET | `/api/conversations/{sessionId}` | Historique complet d'une conversation `{sessionId, summary, messages[]}` |
 | POST | `/api/conversations/{sessionId}/close` | **Fin de conversation** : dossier de suivi + email au conseiller (body optionnel `{advisorEmail, advisorName, attachmentFormat, send, provider}` ; `send=false` = dry-run) |
 | GET | `/api/conversations/directory` | **Annuaire des conversations** (page Centre d'appels) : conversations clôturées + score commercial + statut d'avancement. Paramètres `days` (5/10/30, `0` = tout), `category` (CREDIT_CONSO, CREDIT_IMMO, EPARGNE, ASSURANCE, AUTRE), `status` (NOUVEAU, CONTACTE, QUALIFIE, RDV, CONCLU, PERDU, CLOTURE), `q` (client, titre, projet, produit), `sort` (date, score, client, categorie, titre), `order` (asc, desc) |
-| GET | `/api/conversations/directory/{sessionId}` | Détail d'une conversation : synthèse du mail conseiller (sans le brouillon client), score expliqué (raisons + critères), **statut et son historique**, actions de suivi, offres d'intérêt et transcript. **404** si aucun dossier |
+| GET | `/api/conversations/directory/{sessionId}` | Détail d'une conversation : synthèse du mail conseiller, **sa pièce jointe** (brouillon d'email client), score expliqué (raisons + critères), **statut et son historique**, actions de suivi, offres d'intérêt et transcript. **404** si aucun dossier |
 | POST | `/api/conversations/directory/{sessionId}/status` | **Suivi du dossier** `{status, comment}` (centre d'appels) → détail à jour ; le statut peut changer seul, ou avec un **message** ; un message SEUL est journalisé sans changer le statut ; **400** si le code est inconnu |
 | POST | `/api/prompt-optimization/threads/{threadId}/close` | **Clôture d'un scénario d'atelier** `{sendMail, archive, provider}` : le fil est rejoué comme une conversation de chat et passe dans le MÊME pipeline que la page coach (agent de suivi → dossier → mail conseiller → annuaire du centre d'appels). `archive=false` : aucun dossier écrit et pas de bloc d'évaluation dans le mail |
 | GET | `/api/mail/status` | État de l'envoi mail `{enabled, available, from, target, reason}` |
@@ -518,12 +518,15 @@ flowchart LR
   ou `official_product_url`) — et non le simulateur ; celui-ci n'est proposé que lorsqu'aucun chiffrage n'est
   possible (grille indisponible, paramètre manquant, crédit renouvelable) ou pour une demande d'offre ferme. Si
   `souscription_en_ligne` est absent ou false, il renvoie au conseiller.
-- ⚠️ **Ces deux règles ne sont plus portées par le prompt** depuis que `agent/credit-conso.txt` a été conservé
-  dans sa **version allégée** : le prompt demande seulement de fournir « mensualité, coût total, intérêts »
-  depuis la grille, en rappelant le caractère indicatif, puis de renvoyer vers « le simulateur officiel et la
-  souscription » — sans les 8 informations détaillées, sans tableau et sans le lien de souscription. Le champ
-  `url_souscription` reste déclaré et **whitelisté** (`ProductUrlIndex`) : s'il est cité, il n'est jamais pris
-  pour une URL inventée. Le contrôle qualité `CREDIT_SIMULATION_VIOLATION` (chiffrage hors grille) reste actif.
+- ✅ **Ces deux règles sont de nouveau portées par le prompt** : `agent/credit-conso.txt` liste les **huit
+  informations** d'une simulation, impose le **tableau** dès que plusieurs durées / mensualités sont
+  demandées, et fait donner le **lien de SOUSCRIPTION** (`url_souscription` de la fiche, à défaut `url` si
+  `souscription_en_ligne` est vrai) **au lieu du lien de simulateur** une fois le chiffrage fait — sans
+  inventer d'URL lorsque l'offre n'en porte pas. Un test verrouille cette présence
+  (`AgentFilesPromptTest#theSimulationRuleListsTheMandatoryFigures`) : la règle avait déjà été perdue une
+  fois, lors du retour à la version allégée du prompt. Le champ `url_souscription` reste déclaré et
+  **whitelisté** (`ProductUrlIndex`) : s'il est cité, il n'est jamais pris pour une URL inventée. Le contrôle
+  qualité `CREDIT_SIMULATION_VIOLATION` (chiffrage hors grille) reste actif.
 
 ---
 
@@ -661,9 +664,11 @@ flowchart LR
 - Le type `AiLog` reflète `LogEntry` (avec `debug?`, `agent`) ; `ChatResponse` expose `agent`.
 - `FinancialSummary` côté TS reflète le record Java (dont `savingsToIncomeRatio3Months`, `savingsRatePeriodLabel`) ;
 - `formatPercent` (2 décimales fr-FR) pour le taux d'épargne ; `formatMoneyCents` pour le solde ;
-- Rendu **Markdown léger** des réponses (gras `**`, italique `*`, code) via segmentation React ; texte nettoyé avant synthèse vocale ;
+- Rendu **Markdown léger** des réponses (gras `**`, italique `*`, code, liens `[URL|nom|url]`, jeton `[RAPPEL|nom]`) via segmentation React — **aucun HTML brut**, donc aucune injection possible — ;
+- **Tableaux Markdown** (`messageFormat.tsx`, partagé chat / atelier / pop-in du centre d'appels) : un bloc de lignes `| … |` est rendu comme un **vrai tableau** (sinon les barres verticales s'afficheraient en texte brut). Rendu pensé pour une bulle étroite : en-têtes autorisés à passer à la ligne, **séparateurs horizontaux uniquement** (pas de quadrillage), lignes alternées + survol, coins arrondis, et **colonnes numériques alignées à droite** — la colonne entière (en-tête compris) dès qu'une cellule porte un montant ou un pourcentage, avec chiffres à largeur fixe (`tabular-nums`) pour comparer les lignes d'un coup d'œil ; les cellules de texte long passent à la ligne (plus de défilement horizontal pour les tableaux de chiffres courants, `overflow-x` conservé en secours) ;
 - **Audio** : micro 🎤 dictée et lecture vocale 🔊 (Web Speech API), activables via le réglage « Audio » du panneau « Avancé » ;
 - **Mode auto (mains libres, façon Siri)** : en veille, l'app attend le **mot-clé** (« Chloé » par défaut, modifiable, réglage mémorisé). Quand il est reconnu, un **carillon court et montant** est joué (`audioCue.ts`, `playWakeCue()`) : il **marque le début de l'écoute** — sans lui, impossible de savoir si le mot-clé a été entendu. Le son est **synthétisé** (Web Audio API, A5→E6, ~200 ms, volume bas car le micro reste ouvert) plutôt qu'embarqué en fichier : aucun binaire à versionner, aucune requête réseau, et un carillon indisponible ne bloque jamais l'écoute (aucune exception propagée, contexte audio partagé et anti-rebond de 250 ms) ;
+  - **Décompte visible** : dès l'écoute, le bandeau affiche les secondes restantes (`5`, `4`, `3`…) sous forme de badge + barre de progression, avec un rappel « envoi automatique à l'IA si vous ne parlez plus ». Le décompte **repart à chaque parole captée** (c'est donc bien « N secondes **sans** entrée de voix ») et **pulse** dans les 2 dernières secondes. Il est masqué pendant une réponse IA (rien ne peut partir à ce moment-là, le bandeau indique alors « réponse de l'IA en cours »). L'échéance est calculée en **temps réel** à partir d'un instant limite (pas par décréments successifs) pour rester juste même si le navigateur bride les timers ; `prefers-reduced-motion` désactive la pulsation ;
 - Interrupteur « Avancé » : masque/affiche fournisseur IA (GPT/DeepSeek/Mock), garde-fou hors-sujet, réponses vocales, accès Logs & Agents (onglets séparés).
 - Fournisseur IA par défaut côté UI : **DeepSeek** (préférence mémorisée en localStorage).
 
@@ -1146,10 +1151,12 @@ curl "http://localhost:9797/api/advisor-feedback/export/summary.csv?period=7d"
 Clôture de conversation
   → ConversationClosureService : validation du dossier (URLs, produits, refus)
   → AdvisorDossierService.persist(...)        : dossier évaluable écrit en JSONL
-  → withAdvisorLinks(...)                     : liens SYSTÈME ajoutés au mail APRÈS validation
-                                              (Dossier client + Consulter l'historique + Évaluer le suivi)
+  → withAdvisorLinks(...)                     : compléments SYSTÈME ajoutés au mail APRÈS validation
+                                              (Score de sens commercial + appel, « Ouvrir le dossier du client »
+                                              → #/centre-appels/<sessionId>, Évaluer le suivi)
   → MailService : envoi au SEUL conseiller (le brouillon client n'a jamais ces liens)
-  → clic conseiller → #/advisor-feedback/session/<sessionId> → dossier + formulaire → feedback (versionné)
+  → clic conseiller → #/centre-appels/<sessionId>       → dossier + pop-in (suivi, synthèse, conversation)
+                    → #/advisor-feedback/session/<sessionId> → dossier + formulaire → feedback (versionné)
                     → #/conversation/<sessionId>           → historique des échanges (lecture seule)
 ```
 
@@ -1166,10 +1173,12 @@ Clôture de conversation
 ### 19.3 Tests
 
 - Liens présents et **fabriqués par le backend** (jamais par l'IA, donc insensibles au contrôle
-d'anti-invention d'URL) : « Dossier client » (URL de configuration `app.suivi.dossier-url`, démo = site
-Société Générale), « Consulter l'historique de la conversation » (`/#/conversation/<id>`, lecture seule) et
-« Évaluer le suivi du Coach » au format `[URL|nom|…/session/<id>]`, **aucune donnée
-personnelle** dans l'URL, liens absents du brouillon client (`ConversationClosureServiceTest`).
+d'anti-invention d'URL) : « Ouvrir le dossier du client » — qui ouvre **directement la pop-in du dossier**
+dans la page Centre d'appels (`/#/centre-appels/<sessionId>`, repli sur `app.suivi.dossier-url` si l'IHM n'est
+pas configurée) — et « Évaluer le suivi du Coach » au format `[URL|nom|…/session/<id>]`, **aucune donnée
+personnelle** dans les URL, liens absents du brouillon client (`ConversationClosureServiceTest`).
+  Le lien « Consulter l'historique de la conversation » n'est **plus** ajouté au mail : le conseiller relit
+  les échanges depuis la pop-in (la page `#/conversation/<id>` reste disponible et servie par l'API).
 - Dossier inconnu → **404** (vérifié sur l'instance) ; dossier connu → 200 avec `feedbackStatus` `PENDING` puis `COMPLETED` après envoi du feedback (vérifié sur l'instance).
 
 ### 19.4 Score de sens commercial (priorisation conseiller et centre d'appels)

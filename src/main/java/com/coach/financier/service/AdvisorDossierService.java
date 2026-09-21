@@ -87,10 +87,30 @@ public class AdvisorDossierService {
      * Bloc « relire la conversation » ajouté AU mail conseiller (jamais au brouillon client) : le conseiller
      * retrouve l'intégralité des échanges client ↔ Coach avant de reprendre contact. Le lien ne contient que
      * le sessionId (aucune donnée personnelle) et reste relatif si la base IHM n'est pas configurée.
+     * <p>
+     * ⚠️ Ce bloc n'est PLUS ajouté au mail : le conseiller ouvre désormais le dossier directement dans la page
+     * « Centre d'appels » (voir {@link #directoryUrl}). La page de relecture reste disponible (elle est
+     * exposée par l'API et par la pop-in du centre d'appels) : le bloc est conservé pour un usage ultérieur.
      */
     public String conversationBlock(String sessionId) {
         return "Échanges de la conversation avec le Coach :\n"
                 + "[URL|Consulter l'historique de la conversation|" + conversationUrl(sessionId) + "]";
+    }
+
+    /** La base IHM est-elle configurée ? Sinon les liens ajoutés au mail restent relatifs. */
+    public boolean hasFrontendUrl() {
+        return !frontendUrl.isBlank();
+    }
+
+    /**
+     * URL du dossier dans la page « Centre d'appels — conversations » : elle cible DIRECTEMENT le dossier
+     * (`#/centre-appels/<sessionId>`) et l'IHM ouvre la pop-in de ce dossier. C'est le lien « Ouvrir le dossier
+     * du client » du mail conseiller. Comme les autres liens du projet, l'URL ne contient QUE le sessionId.
+     */
+    public String directoryUrl(String sessionId) {
+        String encoded = URLEncoder.encode(sessionId == null ? "" : sessionId, StandardCharsets.UTF_8);
+        String base = frontendUrl.isBlank() ? "" : stripTrailingSlash(frontendUrl);
+        return base + "/#/centre-appels/" + encoded;
     }
 
     /**

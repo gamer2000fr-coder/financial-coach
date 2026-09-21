@@ -216,11 +216,19 @@ function App() {
   })
   // État du mode auto pour l'IHM : 'idle' (éteint) | 'standby' (veille, attend le mot-clé) | 'listening' (écoute)
   const [autoState, setAutoState] = useState<'idle' | 'standby' | 'listening'>('idle')
+  /**
+   * DÉCOMPTE AFFICHÉ (5, 4, 3…) pendant l'écoute : secondes restantes avant l'envoi automatique de la
+   * question à l'IA. {@code null} = aucun décompte en cours (veille, réponse IA en cours, mode éteint).
+   * Il redémarre à chaque parole captée : c'est donc bien « X secondes SANS entrée de voix ».
+   */
+  const [autoCountdown, setAutoCountdown] = useState<number | null>(null)
   const autoRecognitionRef = useRef<any>(null)
   const autoActiveRef = useRef(false) // la session auto tourne ?
   const autoPhaseRef = useRef<'standby' | 'listening'>('standby')
   const autoBufferRef = useRef('') // texte finalisé capté en mode écoute
   const autoTimerRef = useRef<number | null>(null) // timer de silence
+  const autoCountdownRef = useRef<number | null>(null) // intervalle du DÉCOMPTE affiché
+  const autoDeadlineRef = useRef(0) // instant (ms) où le silence déclenche l'envoi
   const autoEnabledRef = useRef(autoAudio)
   const wakeRef = useRef(wakeWord)
   const silenceRef = useRef(silenceSeconds)
@@ -455,9 +463,38 @@ function App() {
     }
   }
 
+  /** Stoppe le décompte affiché (le timer de silence, lui, est armé séparément). */
+  function clearAutoCountdown() {
+    if (autoCountdownRef.current !== null) {
+      window.clearInterval(autoCountdownRef.current)
+      autoCountdownRef.current = null
+    }
+    setAutoCountdown(null)
+  }
+
+  /**
+   * (Re)démarre le DÉCOMPTE AFFICHÉ en même temps que le timer de silence : l'utilisateur voit les
+   * secondes qui restent (5, 4, 3…) avant l'envoi automatique de sa question à l'IA. Appelé à chaque
+   * résultat vocal : tant qu'il parle, le décompte repart de zéro. L'échéance est calculée en temps réel
+   * (et non par décrément successif) pour rester juste même si le navigateur ralentit le timer.
+   */
+  function startAutoCountdown() {
+    const total = Math.max(MIN_SILENCE_SECONDS, silenceRef.current)
+    autoDeadlineRef.current = Date.now() + total * 1000
+    setAutoCountdown(total)
+    if (autoCountdownRef.current !== null) {
+      window.clearInterval(autoCountdownRef.current)
+    }
+    autoCountdownRef.current = window.setInterval(() => {
+      const remaining = Math.ceil((autoDeadlineRef.current - Date.now()) / 1000)
+      setAutoCountdown(remaining > 0 ? remaining : 1)
+    }, 200)
+  }
+
   /** Timer de silence écoulé : envoie la phrase captée, ou revient en veille si rien n'a été dit. */
   function onAutoSilence() {
     autoTimerRef.current = null
+    clearAutoCountdown()
     if (!autoActiveRef.current) return
     if (autoPhaseRef.current !== 'listening') {
       setInput('')
@@ -466,7 +503,8 @@ function App() {
     }
     const text = autoBufferRef.current.trim()
     if (loadingRef.current) {
-      // Réponse IA en cours : on garde la phrase et on réarme le timer.
+      // Réponse IA en cours : on garde la phrase et on réarme le timer (pas de décompte : rien ne
+      // partira tant que l'IA n'a pas répondu).
       autoTimerRef.current = window.setTimeout(onAutoSilence, silenceRef.current * 1000)
       return
     }
@@ -484,6 +522,7 @@ function App() {
     }
     autoActiveRef.current = false
     clearAutoTimer()
+    clearAutoCountdown()
     const recognition = autoRecognitionRef.current
     autoRecognitionRef.current = null
     try {
@@ -551,6 +590,8 @@ function App() {
         setInput(`${autoBufferRef.current} ${interim}`.trim())
         clearAutoTimer()
         autoTimerRef.current = window.setTimeout(onAutoSilence, silenceRef.current * 1000)
+        // Chaque parole (même partielle) relance le décompte : il ne s'écoule que pendant le SILENCE.
+        startAutoCountdown()
       }
     }
     recognition.onerror = (event: any) => {
@@ -1018,7 +1059,35 @@ function App() {
                 {autoState === 'listening' ? (
                   <>
                     <span className="auto-dot listening" />
-                    <span>🎙️ Écoute… la question sera envoyée après {silenceSeconds}s de silence</span>
+                    <span>🎙️ Écoute…</span>
+                    {autoCountdown !== null && !loading ? (
+                      <>
+                        {/* DÉCOMPTE : le nombre de secondes qui restent avant l'envoi automatique à l'IA.
+                            Il repart à chaque parole captée — il ne s'écoule donc que pendant le silence. */}
+                        <span
+                          className={`auto-countdown${autoCountdown <= 2 ? ' urgent' : ''}`}
+                          title="Votre question est envoyée à l'IA à la fin du décompte ; parlez pour le relancer"
+                        >
+                          <strong>{autoCountdown}</strong>
+                          <span>s</span>
+                        </span>
+                        <span className="auto-countdown-track" aria-hidden="true">
+                          <span
+                            className="auto-countdown-fill"
+                            style={{ width: `${Math.max(0, Math.min(100, Math.round((autoCountdown / Math.max(MIN_SILENCE_SECONDS, silenceSeconds)) * 100)))}%` }}
+                          />
+                        </span>
+                        <span className="auto-countdown-hint">
+                          envoi automatique à l&rsquo;IA si vous ne parlez plus
+                        </span>
+                      </>
+                    ) : (
+                      <span>
+                        {loading
+                          ? 'réponse de l’IA en cours — votre question partira ensuite'
+                          : `envoi automatique après ${silenceSeconds}s de silence`}
+                      </span>
+                    )}
                   </>
                 ) : (
                   <>

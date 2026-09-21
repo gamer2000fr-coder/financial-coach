@@ -22,7 +22,8 @@ import java.util.Set;
  * ANNUAIRE DES CONVERSATIONS pour l'équipe commerciale / le centre d'appels.
  * <p>
  * Source unique : les DOSSIERS DE SUIVI persistés à chaque clôture ({@code AdvisorDossierStore}),
- * c'est-à-dire exactement le contenu envoyé au conseiller par mail — au brouillon client près. La page
+ * c'est-à-dire exactement le contenu envoyé au conseiller par mail, avec sa pièce jointe (le brouillon
+ * d'email préparé pour le client, jamais envoyé automatiquement). La page
  * peut ainsi filtrer, trier et ouvrir un dossier sans qu'aucune donnée ne soit recalculée.
  * <p>
  * Filtres : période (N derniers jours, aujourd'hui inclus), catégorie métier, recherche libre
@@ -163,7 +164,10 @@ public class ConversationDirectoryService {
         return detail(sessionId);
     }
 
-    /** Détail d'une conversation (pop-in) : synthèse conseiller, score expliqué et transcript. */
+    /**
+     * Détail d'une conversation (pop-in) : synthèse conseiller, PIÈCE JOINTE (brouillon d'email client),
+     * score expliqué, suivi du dossier et transcript.
+     */
     public Optional<DirectoryModels.DirectoryDetail> detail(String sessionId) {
         Optional<AdvisorFeedbackModels.AdvisorDossier> found = dossierStore.findBySession(sessionId);
         if (found.isEmpty()) {
@@ -182,6 +186,8 @@ public class ConversationDirectoryService {
                 row,
                 dossier.advisorEmail() == null ? null : dossier.advisorEmail().subject(),
                 dossier.advisorEmail() == null ? null : dossier.advisorEmail().body(),
+                dossier.customerEmail() == null ? null : dossier.customerEmail().subject(),
+                dossier.customerEmail() == null ? null : dossier.customerEmail().body(),
                 dossier.nextActions(),
                 dossier.productsOfInterest(),
                 score == null ? List.of() : score.reasons(),

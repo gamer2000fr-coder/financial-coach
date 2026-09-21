@@ -324,18 +324,20 @@ public class ConversationClosureService {
     ) {}
 
     /**
-     * Ajoute au mail conseiller les liens fournis par le SYSTÈME (jamais fabriqués par l'IA, donc
+     * Ajoute au mail conseiller les compléments fournis par le SYSTÈME (jamais fabriqués par l'IA, donc
      * insensibles au contrôle d'invention d'URL, appliqué plus haut) :
      * <ul>
      *   <li><b>score de sens commercial</b> + son explication + le lien d'appel du client — en TÊTE, car
      *       c'est l'information qui permet de prioriser la relance ;</li>
-     *   <li>« Ouvrir le dossier du client » — URL de configuration ({@code app.suivi.dossier-url}) :
-     *       pour la démo, le site Société Générale ; en production, l'outil conseiller ;</li>
-     *   <li>« Consulter l'historique de la conversation » — lien vers la vue de relecture des échanges,
-     *       qui ne contient que le sessionId (aucune donnée personnelle) ;</li>
+     *   <li>« Ouvrir le dossier du client » — lien vers la page « Centre d'appels », qui ouvre DIRECTEMENT la
+     *       pop-in du dossier (score, synthèse, suivi, conversation). Le lien ne contient que le sessionId ;
+     *       si la base IHM n'est pas configurée, on retombe sur l'URL de l'outil conseiller
+     *       ({@code app.suivi.dossier-url}) ;</li>
      *   <li>« Évaluer le suivi du Coach » — lien direct vers le dossier évaluable, qui ne contient que
-     *       le sessionId (aucune donnée personnelle).</li>
+     *       le sessionId (aucune donnée personnelle), uniquement lorsque le dossier est archivé.</li>
      * </ul>
+     * Le lien « Consulter l'historique de la conversation » n'est plus ajouté au mail : le conseiller ouvre
+     * la conversation depuis la pop-in du centre d'appels (la page de relecture reste disponible).
      */
     private Validated withAdvisorLinks(Validated validated, String sessionId,
                                        SuiviModels.CommercialScore score, boolean archive) {
@@ -348,10 +350,15 @@ public class ConversationClosureService {
         if (!scoreBlockText.isBlank()) {
             body.append("\n\n").append(scoreBlockText);
         }
-        if (!dossierUrl.isBlank()) {
-            body.append("\n\nDossier client : [URL|Ouvrir le dossier du client|").append(dossierUrl).append(']');
+        String directoryLink = advisorDossierService.directoryUrl(sessionId);
+        if (!advisorDossierService.hasFrontendUrl() && !dossierUrl.isBlank()) {
+            // Repli : aucune IHM configurée (pas de base frontend) → on garde l'outil conseiller externe.
+            directoryLink = dossierUrl;
         }
-        body.append("\n\n").append(advisorDossierService.conversationBlock(sessionId));
+        if (!directoryLink.isBlank()) {
+            body.append("\n\nDossier client : [URL|Ouvrir le dossier du client|")
+                    .append(directoryLink).append(']');
+        }
         if (archive) {
             body.append("\n\n").append(advisorDossierService.feedbackBlock(sessionId));
         }

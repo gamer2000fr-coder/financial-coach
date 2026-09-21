@@ -40,7 +40,7 @@ Empêcher structurellement l'IA de recommander ou de mentionner un produit banca
 | F11 | Cascade produit | Règles de recommandation produit (« arbres de décision ») jointes au contexte |
 | F12 | Sélection d'agent | Routage du message vers l'agent spécialisé du thème (produit, épargne, assurance…) |
 | F13 | Réglages avancés | Interrupteur « Avancé » : fournisseur IA, audio, garde-fou hors-sujet, accès Logs/Agents |
-| F14 | Audio | Micro 🎤 (dictée, Web Speech API) et lecture vocale 🔊 / synthèse des réponses. **Mode mains libres** : en veille, on dit le mot-clé (« Chloé » par défaut) puis sa question ; un **carillon** (façon Siri) signale que le mot-clé est reconnu et que l'écoute commence |
+| F14 | Audio | Micro 🎤 (dictée, Web Speech API) et lecture vocale 🔊 / synthèse des réponses. **Mode mains libres** : en veille, on dit le mot-clé (« Chloé » par défaut) puis sa question ; un **carillon** (façon Siri) signale que le mot-clé est reconnu et que l'écoute commence, et un **décompte visible** (5, 4, 3…) indique les secondes restantes avant l'envoi automatique de la question — il repart à chaque parole, donc seul le **silence** fait partir la question |
 | F15 | Rendu Markdown | Gras / italique / code des réponses IA affichés proprement |
 | F16 | Fin de conversation | Clôture → **un seul email automatique : au conseiller**, avec le **brouillon d'email client en pièce jointe** (jamais envoyé au client) |
 | F17 | Marketing Intelligence | Analyse des conversations (intérêts, refus, cross-sell, besoins non couverts) + rapport IA, sans base de données |
@@ -60,8 +60,9 @@ Empêcher structurellement l'IA de recommander ou de mentionner un produit banca
 | `#/quality` | **Qualité & Satisfaction** | Note moyenne, taux de participation, avis positifs/négatifs, distribution des notes, motifs d'insatisfaction, contrôles du Coach, croisement satisfaction × conformité, analyse IA, export CSV |
 | `#/advisor-feedback` | **Feedback Conseillers** | Saisie rapide d'un avis conseiller par dossier, KPI de pertinence, zones corrigées, pertinence produit, corrections d'intérêt, qualité des emails préparés, analyse IA, export CSV |
 | `#/advisor-feedback/session/<sessionId>` | **Évaluation d'un dossier** | Vue ciblée ouverte par le **lien du mail conseiller** : projet, synthèse du Coach, produits et niveaux d'intérêt, suivi conseillé, email préparé, puis formulaire d'évaluation |
-| `#/conversation/<sessionId>` | **Historique d'une conversation** | Vue ciblée **en lecture seule**, ouverte par le lien « Consulter l'historique de la conversation » du mail conseiller : synthèse + relecture des échanges client ↔ Coach, avec accès direct à l'évaluation du dossier. L'URL ne contient que le `sessionId` |
-| `#/centre-appels` | **Centre d'appels** | Annuaire des conversations clôturées pour l'équipe commerciale : tableau filtrable (période 5/10/30 jours, catégorie, **statut**, recherche) et triable (client, catégorie, titre, **score de sens commercial**, date), avec la pop-in de détail (synthèse envoyée au conseiller, score expliqué, **statut d'avancement modifiable + historique**, prochaines actions, offres d'intérêt, conversation complète repliable) |
+| `#/conversation/<sessionId>` | **Historique d'une conversation** | Vue ciblée **en lecture seule** donnant la synthèse et la relecture des échanges client ↔ Coach, avec accès direct à l'évaluation du dossier. Le mail conseiller ne la lie plus (l'historique se relit dans la pop-in du Centre d'appels) : la page reste disponible pour un accès direct par URL. L'URL ne contient que le `sessionId` |
+| `#/centre-appels` | **Centre d'appels** | Annuaire des conversations clôturées pour l'équipe commerciale : tableau filtrable (période 5/10/30 jours, catégorie, **statut**, recherche) et triable (client, catégorie, titre, **score de sens commercial**, date), avec la pop-in de détail (score expliqué, **statut d'avancement modifiable + historique**, prochaines actions, offres d'intérêt, **synthèse envoyée au conseiller**, **pièce jointe — email client préparé** et **conversation complète** dans des blocs repliables) |
+| `#/centre-appels/<sessionId>` | **Dossier d'un client** | Même page, ouverte **directement sur la pop-in du dossier** : c'est la cible du lien « Ouvrir le dossier du client » du mail conseiller. L'URL ne contient que le `sessionId` |
 | `#/prompt-lab` | **Atelier d'optimisation des prompts** | Choix de l'agent (zone optimisée **figée** au prompt de l'agent spécialisé), question de test, nombre d'itérations, fournisseur IA, puis : progression, arrêt/reprise, avis humain, comparaison des versions, diff de la zone, promotion explicite en production |
 
 ---
@@ -196,7 +197,12 @@ flowchart TD
 
 - le **suivi conseillé** = **un seul email automatique**, au **conseiller** ;
 - ce mail contient un **lien direct « Évaluer le suivi du Coach »** vers le dossier de la conversation : le conseiller passe du mail à l'écran d'évaluation en un clic (§41/§42) ;
-- il contient aussi un **lien « Consulter l'historique de la conversation »** (`#/conversation/<sessionId>`) pour relire tous les échanges avant de reprendre contact. L'historique vit **en mémoire côté serveur** : après un redémarrage du backend, la vue l'indique honnêtement (« cette conversation n'est plus disponible ») au lieu d'une erreur technique ;
+- il contient un **lien « Ouvrir le dossier du client »** qui ouvre **directement la pop-in du dossier** dans
+  la page **`#/centre-appels/<sessionId>`** (score de sens commercial, suivi, synthèse conseiller et
+  conversation complète) : le conseiller passe du mail au dossier en un clic. L'URL ne contient que le
+  `sessionId` ; le lien vers l'historique de la conversation a été retiré du mail (la page `#/conversation/<id>`
+  reste disponible et la conversation se relit depuis la pop-in, bloc **« Conversation complète »** pilable, comme
+  la synthèse conseiller) ;
 - il commence par le **score de sens commercial** (0 à 100 + libellé de priorité) avec son **explication courte** (« Pourquoi ce score ») et un **lien d'appel du client** (`tel:`, numéro de démonstration `0644910925`) : le conseiller sait **par quoi commencer**. Le score n'est **jamais** montré au client ;
 - la **conversation est archivée** avec son dossier (client, catégorie, titre, score, transcript) : elle reste consultable dans la page **`#/centre-appels`** même après un redémarrage du backend ;
 - le brouillon destiné au client est **joint** (`.eml`/`.html`/`.txt`), jamais envoyé et ne contient **jamais** ces liens internes.
@@ -286,7 +292,8 @@ Objectif : donner à l'équipe commerciale / au centre d'appels **une file de tr
 liste de conversations à parcourir.
 
 - **Source unique** : les dossiers de suivi écrits à chaque clôture — donc exactement ce qui a été envoyé au
-  conseiller, **sans le brouillon destiné au client**. Aucune donnée n'est recalculée pour l'affichage.
+  conseiller, **sa pièce jointe comprise** (le brouillon d'email préparé pour le client). Aucune donnée n'est
+  recalculée pour l'affichage.
 - **Score de sens commercial** : attribué à la clôture (proposé par l'IA de synthèse, borné et complété par le
   code) à partir de critères explicites : **maturité du projet**, **urgence exprimée par le client**,
   **intérêt réel** (demandes de précision, comparaison, refus), **capacité de financement** d'après les
@@ -308,9 +315,10 @@ liste de conversations à parcourir.
   produit).
 - **Tri** en cliquant sur un en-tête de colonne (client, catégorie, titre, score, date) — croissant/décroissant.
 - **Pop-in de détail** : score + raisons + critères mesurés (repliables), **prochaines actions de suivi**,
-  offres d'intérêt, **synthèse envoyée au conseiller** (liens cliquables) et **conversation complète dans un bloc
-  repliable**. Boutons : **appeler le client** (lien `tel:`), ouvrir la vue dédiée à la conversation, ouvrir le
-  dossier d'évaluation.
+  offres d'intérêt, **synthèse envoyée au conseiller**, **pièce jointe — email client préparé** (le brouillon
+  transmis au conseiller, avec son objet et ses liens client) et **conversation complète** — chacune dans un
+  **bloc repliable** (tous **repliés par défaut**) afin de garder la fiche lisible. Boutons : **appeler le
+  client** (lien `tel:`) et ouvrir le dossier d'évaluation.
 - **Aucune donnée inventée** : un dossier ancien (écrit avant l'apparition du score ou de l'identité client)
   reste affiché avec des valeurs vides.
 
@@ -600,7 +608,7 @@ Toutes les données sont **fictives** et servent uniquement la démonstration.
 59. Le score **n'introduit aucun seuil bancaire** : le critère « capacité » ne fait que décrire les indicateurs
     réellement disponibles (et reste neutre s'ils manquent) ;
 60. L'annuaire du centre d'appels **filtre** (période, catégorie, recherche) et **trie** (dont le score) côté
-    serveur, et le détail affiche la synthèse **sans le brouillon client** ;
+    serveur, et le détail affiche la synthèse **et sa pièce jointe** (brouillon d'email client) ;
 61. Un dossier ancien, sans score ni identité client, reste **lisible** avec des valeurs vides (aucune valeur
     inventée) ;
 62. Le numéro de téléphone vient **exclusivement de la configuration** (`app.suivi.customer-phone`) : un lien

@@ -61,6 +61,9 @@ export interface DirectoryDetail {
   row: DirectoryRow
   advisorSubject: string | null
   advisorBody: string | null
+  /** Pièce jointe du mail conseiller : brouillon d'email préparé POUR LE CLIENT (jamais envoyé seul). */
+  customerEmailSubject: string | null
+  customerEmailBody: string | null
   nextActions: string[]
   products: DossierProductView[]
   scoreReasons: string[]

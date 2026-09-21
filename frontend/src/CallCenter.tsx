@@ -6,6 +6,7 @@ import {
   ChevronRight,
   History,
   MessageSquare,
+  Paperclip,
   PhoneCall,
   RefreshCw,
   Search,
@@ -45,8 +46,11 @@ const COLUMNS: { key: DirectorySort | 'statut'; label: string; sortable: boolean
  * commerciale. Tableau filtrable (période, catégorie, recherche) et triable (client, catégorie, titre,
  * score commercial, date), et pop-in de détail qui reprend la synthèse envoyée au conseiller par mail
  * (sans le brouillon destiné au client), avec le transcript repliable.
+ * <p>
+ * `initialSessionId` vient du lien « Ouvrir le dossier du client » du mail conseiller
+ * (`#/centre-appels/<sessionId>`) : la pop-in de ce dossier est ouverte au chargement.
  */
-export default function CallCenter() {
+export default function CallCenter({ initialSessionId }: { initialSessionId?: string }) {
   const [days, setDays] = useState(10)
   const [category, setCategory] = useState('')
   const [status, setStatus] = useState('')
@@ -56,7 +60,7 @@ export default function CallCenter() {
   const [list, setList] = useState<DirectoryList | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [openSession, setOpenSession] = useState<string | null>(null)
+  const [openSession, setOpenSession] = useState<string | null>(initialSessionId ?? null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -113,8 +117,9 @@ export default function CallCenter() {
 
       <p className="mkt-subtitle">
         Toutes les conversations clôturées avec le Coach IA, avec leur <strong>score de sens commercial</strong>{' '}
-        (priorisation des relances). Le détail affiche la même synthèse que le mail envoyé au conseiller —
-        <strong> sans le brouillon destiné au client</strong> — et l&rsquo;intégralité des échanges.
+        (priorisation des relances). Le détail affiche la même synthèse que le mail envoyé au conseiller, sa
+        <strong> pièce jointe</strong> (le brouillon d&rsquo;email préparé pour le client) et l&rsquo;intégralité des
+        échanges.
       </p>
 
       <div className="mkt-toolbar">
@@ -279,6 +284,12 @@ function ConversationPopup({ sessionId, onClose, onStatusChanged }: {
   const [error, setError] = useState<string | null>(null)
   const [showTranscript, setShowTranscript] = useState(false)
   const [showCriteria, setShowCriteria] = useState(false)
+  /** Synthèse conseiller : PILABLE, **repliée par défaut** comme la conversation complète : la pop-in
+   *  s'ouvre sur le score, le suivi du dossier et les offres, et le conseiller déplie la synthèse (le
+   *  contenu est déjà chargé, aucun appel réseau). */
+  const [showSynthesis, setShowSynthesis] = useState(false)
+  /** PIÈCE JOINTE du mail conseiller (brouillon d'email client) : même bloc pilable, repliée par défaut. */
+  const [showAttachment, setShowAttachment] = useState(false)
   const [statusDraft, setStatusDraft] = useState('')
   const [statusComment, setStatusComment] = useState('')
   const [savingStatus, setSavingStatus] = useState(false)
@@ -491,15 +502,61 @@ function ConversationPopup({ sessionId, onClose, onStatusChanged }: {
             )}
 
             <section className="cc-section">
-              <h3>
-                <Sparkles size={16} /> Synthèse envoyée au conseiller
-              </h3>
-              <p className="cc-subject">{detail.advisorSubject ?? '—'}</p>
-              <div className="cc-mail">{renderMessageContent(`dossier-${sessionId}`, detail.advisorBody ?? '')}</div>
+              {/* Même bloc pilable que « Conversation complète » : aucun chargement, le contenu est déjà là. */}
+              <button
+                type="button"
+                className="cc-toggle"
+                aria-expanded={showSynthesis}
+                onClick={() => setShowSynthesis((v) => !v)}
+              >
+                {showSynthesis ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                <Sparkles size={15} /> Synthèse envoyée au conseiller
+              </button>
+              {showSynthesis && (
+                <div className="cc-toggle-body">
+                  <p className="cc-subject">{detail.advisorSubject ?? '—'}</p>
+                  <div className="cc-mail">
+                    {renderMessageContent(`dossier-${sessionId}`, detail.advisorBody ?? '')}
+                  </div>
+                </div>
+              )}
             </section>
 
+            {detail.customerEmailBody && (
+              <section className="cc-section">
+                {/* PIÈCE JOINTE du mail conseiller : le brouillon d'email préparé pour le client, tel qu'il
+                    a été transmis (jamais envoyé automatiquement). */}
+                <button
+                  type="button"
+                  className="cc-toggle"
+                  aria-expanded={showAttachment}
+                  onClick={() => setShowAttachment((v) => !v)}
+                >
+                  {showAttachment ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                  <Paperclip size={15} /> Pièce jointe — email client préparé
+                </button>
+                {showAttachment && (
+                  <div className="cc-toggle-body">
+                    <p className="cc-subject">{detail.customerEmailSubject ?? '—'}</p>
+                    <div className="cc-mail">
+                      {renderMessageContent(`client-${sessionId}`, detail.customerEmailBody)}
+                    </div>
+                    <p className="cc-hint">
+                      Brouillon préparé par le Coach : il n&rsquo;est jamais envoyé automatiquement — à relire et
+                      à adapter avant tout envoi au client.
+                    </p>
+                  </div>
+                )}
+              </section>
+            )}
+
             <section className="cc-section">
-              <button type="button" className="cc-toggle" onClick={() => setShowTranscript((v) => !v)}>
+              <button
+                type="button"
+                className="cc-toggle"
+                aria-expanded={showTranscript}
+                onClick={() => setShowTranscript((v) => !v)}
+              >
                 {showTranscript ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
                 <History size={15} /> Conversation complète ({messages.length} message(s))
               </button>

@@ -28,6 +28,15 @@ function conversationSessionId(hash: string): string | null {
   return match ? decodeURIComponent(match[1]) : null
 }
 
+/**
+ * SessionId porté par le lien « Ouvrir le dossier du client » du mail conseiller :
+ * `#/centre-appels/<sessionId>` ouvre la page Centre d'appels AVEC la pop-in du dossier.
+ */
+function directorySessionId(hash: string): string | null {
+  const match = hash.match(/^#\/centre-appels\/(.+)$/)
+  return match ? decodeURIComponent(match[1]) : null
+}
+
 function pageFor(hash: string): Page {
   if (hash.startsWith('#/logs')) return 'logs'
   if (hash.startsWith('#/agents')) return 'agents'
@@ -68,7 +77,10 @@ function pageContent(page: Page, route: string) {
   if (page === 'logs') return <Logs />
   if (page === 'agents') return <Agents />
   if (page === 'prompt-lab') return <PromptLab />
-  if (page === 'centre-appels') return <CallCenter />
+  if (page === 'centre-appels') {
+    const sessionId = directorySessionId(route)
+    return sessionId ? <CallCenter key={sessionId} initialSessionId={sessionId} /> : <CallCenter />
+  }
   if (page === 'marketing') return <Marketing />
   if (page === 'quality') return <Quality />
   if (page === 'advisor-dossier') {

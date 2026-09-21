@@ -68,14 +68,16 @@ public final class DirectoryModels {
     ) {}
 
     /**
-     * Détail d'une conversation pour la pop-in : synthèse identique à celle du mail conseiller
-     * (sans le brouillon destiné au client), score expliqué, statut et son historique, actions de suivi et
-     * transcript.
+     * Détail d'une conversation pour la pop-in : synthèse identique à celle du mail conseiller, score
+     * expliqué, statut et son historique, actions de suivi, transcript, et la PIÈCE JOINTE du mail
+     * (brouillon d'email préparé pour le client, jamais envoyé automatiquement).
      */
     public record DirectoryDetail(
             DirectoryRow row,
             String advisorSubject,
             String advisorBody,
+            String customerEmailSubject,
+            String customerEmailBody,
             List<String> nextActions,
             List<AdvisorFeedbackModels.DossierProduct> products,
             List<String> scoreReasons,

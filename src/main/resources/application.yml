@@ -49,9 +49,10 @@ app:
     attachment-format: ${SUIVI_ATTACHMENT_FORMAT:eml}
     # Lien de prise de rendez-vous inséré dans le brouillon client (facultatif ; vide = aucun lien).
     advisor-appointment-url: ${ADVISOR_APPOINTMENT_URL:https://particuliers.sg.fr/vos-rendez-vous}
-    # Lien « Ouvrir le dossier du client » ajouté au MAIL CONSEILLER (facultatif ; vide = aucun lien).
-    # Ajouté par le BACKEND (jamais par l'IA) : pour la démo, le site Société Générale ; en production,
-    # l'URL de l'outil conseiller (espace de gestion).
+    # Lien « Ouvrir le dossier du client » ajouté au MAIL CONSEILLER : il pointe par défaut vers la page
+    # « Centre d'appels » de l'IHM (app.advisor-feedback.frontend-url + /#/centre-appels/<sessionId>), qui
+    # ouvre directement la pop-in du dossier. Cette URL-ci n'est qu'un REPLI, utilisé quand aucune IHM n'est
+    # configurée (parse vide = lien relatif vers l'IHM si la base est renseignée, sinon aucun lien).
     dossier-url: ${SUIVI_DOSSIER_URL:https://particuliers.sg.fr}
     # Email conseiller envoyé en HTML (liens cliquables) ; false = texte brut.
     advisor-mail-html: ${SUIVI_ADVISOR_MAIL_HTML:true}
