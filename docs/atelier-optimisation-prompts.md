@@ -145,6 +145,7 @@ Choix structurants :
 | GET | `/api/prompt-optimization/threads/{threadId}` | Conversation complète d'un fil (tours validés, dans l'ordre) |
 | PUT | `/api/prompt-optimization/threads/{threadId}/turns/{index}` | Corrige le contenu d'un tour `{content}` (l'humain garde la main sur ce qui sera rejoué) |
 | GET | `/api/prompt-optimization/threads/{threadId}/comparison` | **Bilan de la conversation** : prompt du PREMIER cycle face à la dernière version RETENUE à la fin (et la version à promouvoir = la dernière retenue non appliquée, cf. §5.3) |
+| POST | `/api/prompt-optimization/threads/{threadId}/close` | **Clôture du scénario** `{sendMail, archive, provider}` : le fil est rejoué comme une conversation de chat et passe dans le MÊME pipeline que la page coach (agent de suivi → dossier → **mail conseiller** avec score de sens commercial → **annuaire du centre d'appels**). `sendMail=true` envoie le mail ; `archive=true` écrit le dossier (donc la conversation devient consultable dans `#/centre-appels`). Aucune écriture de prompt, rien au client |
 | POST | `/api/prompt-optimization/client/question` | **Agent C (client simulé)** : `{threadId, brief, turnNumber, depth, provider}` → la question suivante du client `{"question", "endConversation", "reason"}` (le fil fournit la conversation déjà échangée) |
 | POST | `/api/prompt-optimization/client/brief` | **Agent C (projet du client)** : `{agentId, provider, previousBriefs}` → un projet inventé pour l'agent visé `{"brief", "montantProjet", "reason"}` (refusé si le montant dépasse le plafond de cohérence du dossier) |
 
@@ -181,6 +182,17 @@ question 2 → itérations → …) au lieu d'une question isolée.
   Les réponses sont **mises en forme exactement comme dans la page coach** (`frontend/src/messageFormat.tsx`,
   module partagé) : `**gras**`, `*italique*`, `` `code` ``, liens `[URL|nom|url]` cliquables (http(s) uniquement),
   retours à la ligne conservés — aucun HTML brut, donc aucune injection possible.
+- **Clôture du test (deux cases à cocher, désactivées par défaut)** à côté de « Nouvelle conversation » :
+  - **`email`** : le scénario terminé est clôturé comme une conversation de la page coach — dossier préparé par
+    l'agent de suivi, **mail envoyé au conseiller** (score de sens commercial, explication, lien d'appel,
+    brouillon client en pièce jointe). Mêmes statuts que le chat : `SENT`, `MAIL_UNAVAILABLE`, `SEND_FAILED` ;
+  - **`centre d'appel`** : le dossier est **archivé**, donc la conversation devient consultable dans
+    `#/centre-appels` (avec son score). Décoché, aucun dossier n'est écrit : un test d'atelier n'encombre pas
+    l'annuaire.
+  Les deux cases sont **indépendantes** (on peut envoyer le mail sans archiver, ou archiver sans envoyer).
+  Le fil est rejoué comme une session de chat (messages, projet et offres compatibles du dernier cycle repris
+  du snapshot) : la clôture utilise **le même service** que la page coach. Aucune écriture de prompt n'a lieu,
+  et rien n'est jamais envoyé au client.
 - **Agent B** : « TOUT LIRE, MAIS JUGER LE DERNIER ÉCHANGE UNIQUEMENT » — il lit l'historique pour comprendre le
   contexte, mais seuls la question courante et la réponse courante sont jugées (les réponses déjà validées ne
   sont jamais réévaluées).

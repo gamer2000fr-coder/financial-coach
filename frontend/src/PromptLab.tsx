@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import {
   acceptPromptVersion,
+  closePromptThread,
   fetchPromptCampaign,
   fetchClientQuestion,
   fetchGeneratedClientBrief,
@@ -91,6 +92,35 @@ function providerLabel(code: string): string {
   if (code === 'LOCAL') return 'Local (LM Studio)'
   if (code === 'MOCK') return 'Mode démo'
   return code || '—'
+}
+
+/**
+ * Message affiché après la CLÔTURE d'un scénario d'atelier : mêmes statuts que la page coach
+ * (`SENT`, `PREPARED`, `MAIL_UNAVAILABLE`, `SEND_FAILED`), plus l'état de l'archivage.
+ */
+function closureNotice(status: string, sendMail: boolean, archive: boolean, warnings: string[]): string {
+  const parts: string[] = []
+  switch (status) {
+    case 'SENT':
+      parts.push('mail conseiller envoyé')
+      break
+    case 'PREPARED':
+      parts.push(sendMail ? 'mail conseiller préparé' : 'pas de mail demandé')
+      break
+    case 'MAIL_UNAVAILABLE':
+      parts.push("mail conseiller NON envoyé (service mail indisponible) — dossier préparé")
+      break
+    case 'SEND_FAILED':
+      parts.push("mail conseiller NON envoyé (erreur d'envoi) — dossier préparé")
+      break
+    default:
+      parts.push(`statut ${status || 'inconnu'}`)
+  }
+  parts.push(archive
+    ? "conversation archivée, à retrouver dans la page Centre d'appels"
+    : "conversation non archivée (aucune trace au centre d'appels)")
+  const text = `Test clôturé — ${parts.join(' · ')}.`
+  return warnings.length > 0 ? `${text} ${warnings.join(' ')}` : text
 }
 
 type DiffLine = { type: 'same' | 'add' | 'remove'; text: string }
@@ -263,6 +293,11 @@ export default function PromptLab() {
   const [editorProvider, setEditorProvider] = useState<AIProvider>('DEEPSEEK')
   const [extraIterations, setExtraIterations] = useState(3)
   const [busy, setBusy] = useState(false)
+  const [closing, setClosing] = useState(false)
+  /** Clôture du test : envoyer le mail au conseiller (comme « Terminer la conversation » du chat). */
+  const [closeMail, setCloseMail] = useState(false)
+  /** Clôture du test : archiver le dossier pour la page « Centre d'appels ». */
+  const [closeArchive, setCloseArchive] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [openPrompt, setOpenPrompt] = useState<OpenPanel | null>(null)
@@ -738,8 +773,29 @@ export default function PromptLab() {
     })
   }
 
-  /** Nouvelle conversation : le prochain cycle repart SANS mémoire (les fils précédents restent sur disque). */
-  function handleNewConversation() {
+  /**
+   * Nouvelle conversation : le prochain cycle repart SANS mémoire (les fils précédents restent sur disque).
+   * <p>
+   * Si l'une des deux cases est cochée, le scénario qui se termine est d'abord CLÔTURÉ comme une conversation
+   * de la page coach : même pipeline (agent de suivi → dossier → mail conseiller → score de sens commercial),
+   * et le dossier est archivé (ou non) pour la page « Centre d'appels ».
+   */
+  async function handleNewConversation() {
+    if ((closeMail || closeArchive) && thread !== null && thread.turns.length > 0) {
+      setClosing(true)
+      try {
+        const result = await closePromptThread(thread.threadId, {
+          sendMail: closeMail,
+          archive: closeArchive,
+          provider,
+        })
+        setNotice(closureNotice(result.response.status, closeMail, closeArchive, result.response.warnings ?? []))
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Clôture impossible')
+      } finally {
+        setClosing(false)
+      }
+    }
     setThread(null)
     setNextQuestion('')
     setEditingTurn(null)
@@ -750,7 +806,47 @@ export default function PromptLab() {
     // La remise à zéro est MÉMORISÉE : sans cela, un simple F5 faisait réapparaître le fil abandonné
     // (il est repris depuis le serveur au chargement). Un fil créé après cet instant sera, lui, repris.
     markMemoryCleared(agentId)
-    setNotice("Nouvelle conversation : le prochain cycle démarrera sans historique (aucune mémoire). La conversation abandonnée ne sera plus rechargée, même après un rafraîchissement de la page.")
+    if (!closeMail && !closeArchive) {
+      setNotice("Nouvelle conversation : le prochain cycle démarrera sans historique (aucune mémoire). La conversation abandonnée ne sera plus rechargée, même après un rafraîchissement de la page.")
+    }
+  }
+
+  /**
+   * Cases à cocher de clôture + bouton « Nouvelle conversation » : quand un test s'arrête, on peut vouloir
+   * envoyer le mail conseiller et/ou retrouver la conversation dans la page « Centre d'appels ».
+   */
+  function newConversationGroup(disabled: boolean) {
+    return (
+      <>
+        <label
+          className="plab-switch"
+          title="Envoie le mail au conseiller à la fin du test (même dossier, même score commercial que depuis la page coach)."
+        >
+          <input
+            type="checkbox"
+            checked={closeMail}
+            disabled={busy || closing}
+            onChange={(event) => setCloseMail(event.target.checked)}
+          />
+          email
+        </label>
+        <label
+          className="plab-switch"
+          title="Archive le dossier du test : la conversation devient consultable dans la page Centre d'appels."
+        >
+          <input
+            type="checkbox"
+            checked={closeArchive}
+            disabled={busy || closing}
+            onChange={(event) => setCloseArchive(event.target.checked)}
+          />
+          centre d'appel
+        </label>
+        <button type="button" onClick={() => void handleNewConversation()} disabled={disabled || closing}>
+          <Plus size={15} /> {closing ? 'Clôture…' : 'Nouvelle conversation'}
+        </button>
+      </>
+    )
   }
 
   /**
@@ -1658,9 +1754,7 @@ export default function PromptLab() {
                       <Send size={16} /> GO — enchaîner ({threadExchanges} échange(s) de mémoire)
                     </button>
                     {threadCompareButton()}
-                    <button type="button" onClick={handleNewConversation} disabled={busy}>
-                      <Plus size={15} /> Nouvelle conversation
-                    </button>
+                    {newConversationGroup(busy)}
                   </div>
                   {!campaignDecided && (
                     <p className="plab-hint">
@@ -1701,9 +1795,7 @@ export default function PromptLab() {
                       <Play size={14} /> CONTINUER — question suivante du client
                     </button>
                     {threadCompareButton()}
-                    <button type="button" onClick={handleNewConversation} disabled={busy || clientRunning}>
-                      <Plus size={15} /> Nouvelle conversation
-                    </button>
+                    {newConversationGroup(busy || clientRunning)}
                   </div>
                   <p className="plab-hint">
                     {clientRunning

@@ -35,6 +35,7 @@ import type {
   PromptCampaignDetail,
   PromptCampaignStart,
   PromptThread,
+  PromptThreadClosure,
   PromptComparison,
   PromptIteration,
   PromptOptimizationAgents,
@@ -132,10 +133,26 @@ export async function fetchConversationDirectory(query: DirectoryQuery): Promise
   const params = new URLSearchParams()
   params.set('days', String(query.days))
   if (query.category) params.set('category', query.category)
+  if (query.status) params.set('status', query.status)
   if (query.q) params.set('q', query.q)
   if (query.sort) params.set('sort', query.sort)
   if (query.order) params.set('order', query.order)
   return apiFetch<DirectoryList>(`/conversations/directory?${params.toString()}`)
+}
+
+/**
+ * Change le STATUT d'avancement d'un dossier (fil de travail du centre d'appels) et renvoie le détail à jour.
+ * Un code inconnu est refusé par le backend (aucun statut deviné).
+ */
+export async function updateDirectoryStatus(
+  sessionId: string,
+  status: string,
+  comment?: string,
+): Promise<DirectoryDetail> {
+  return apiFetch<DirectoryDetail>(`/conversations/directory/${encodeURIComponent(sessionId)}/status`, {
+    method: 'POST',
+    body: JSON.stringify({ status, comment }),
+  })
 }
 
 /** Détail d'une conversation (pop-in) : synthèse conseiller, score expliqué et transcript. */
@@ -591,6 +608,29 @@ export async function updatePromptTurn(
   return apiFetch(`/prompt-optimization/threads/${encodeURIComponent(threadId)}/turns/${turnIndex}`, {
     method: 'PUT',
     body: JSON.stringify({ content }),
+  })
+}
+
+/** Options de clôture d'un scénario d'atelier. */
+export interface ThreadCloseOptions {
+  /** true = envoie le mail au conseiller (comportement de « Terminer la conversation » de la page coach). */
+  sendMail: boolean
+  /** true = écrit le dossier de suivi, donc la conversation apparaît dans la page Centre d'appels. */
+  archive: boolean
+  provider?: AIProvider
+}
+
+/**
+ * CLÔTURE du scénario : le fil de l'atelier passe dans le MÊME pipeline que la page coach (agent de suivi,
+ * dossier, mail conseiller, score de sens commercial, annuaire du centre d'appels).
+ */
+export async function closePromptThread(
+  threadId: string,
+  options: ThreadCloseOptions,
+): Promise<PromptThreadClosure> {
+  return apiFetch(`/prompt-optimization/threads/${encodeURIComponent(threadId)}/close`, {
+    method: 'POST',
+    body: JSON.stringify(options),
   })
 }
 

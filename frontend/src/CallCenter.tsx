@@ -5,6 +5,7 @@ import {
   ChevronDown,
   ChevronRight,
   History,
+  MessageSquare,
   PhoneCall,
   RefreshCw,
   Search,
@@ -12,7 +13,8 @@ import {
   X,
 } from 'lucide-react'
 
-import { fetchConversationDirectory, fetchConversationDirectoryDetail } from './api'
+import { fetchConversationDirectory, fetchConversationDirectoryDetail, updateDirectoryStatus } from './api'
+import { DOSSIER_STATUSES } from './types.directory'
 import type {
   DirectoryDetail,
   DirectoryList,
@@ -29,12 +31,13 @@ const PERIODS: { days: number; label: string }[] = [
   { days: 0, label: 'Tout' },
 ]
 
-const COLUMNS: { key: DirectorySort; label: string; sortable: boolean }[] = [
-  { key: 'client', label: 'Client', sortable: true },
+const COLUMNS: { key: DirectorySort | 'statut'; label: string; sortable: boolean }[] = [
   { key: 'categorie', label: 'Catégorie', sortable: true },
+  { key: 'client', label: 'Client', sortable: true },
   { key: 'titre', label: 'Conversation', sortable: true },
   { key: 'score', label: 'Score commercial', sortable: true },
-  { key: 'date', label: 'Clôturée le', sortable: true },
+  { key: 'statut', label: 'Statut', sortable: false },
+  { key: 'date', label: 'DATE', sortable: true },
 ]
 
 /**
@@ -46,6 +49,7 @@ const COLUMNS: { key: DirectorySort; label: string; sortable: boolean }[] = [
 export default function CallCenter() {
   const [days, setDays] = useState(10)
   const [category, setCategory] = useState('')
+  const [status, setStatus] = useState('')
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<DirectorySort>('date')
   const [order, setOrder] = useState<DirectoryOrder>('desc')
@@ -60,6 +64,7 @@ export default function CallCenter() {
       const data = await fetchConversationDirectory({
         days,
         category: category || undefined,
+        status: status || undefined,
         q: query.trim() || undefined,
         sort,
         order,
@@ -71,7 +76,7 @@ export default function CallCenter() {
     } finally {
       setLoading(false)
     }
-  }, [days, category, query, sort, order])
+  }, [days, category, status, query, sort, order])
 
   useEffect(() => {
     void load()
@@ -89,6 +94,7 @@ export default function CallCenter() {
 
   const rows = list?.rows ?? []
   const categories = list?.categories ?? []
+  const statuses = list?.statuses ?? []
   const byPriority = list?.byPriority ?? {}
 
   return (
@@ -136,6 +142,18 @@ export default function CallCenter() {
             </option>
           ))}
         </select>
+        <select
+          aria-label="Filtrer par statut"
+          value={status}
+          onChange={(event) => setStatus(event.target.value)}
+        >
+          <option value="">Tous les statuts</option>
+          {DOSSIER_STATUSES.map((item) => (
+            <option key={item.code} value={item.code}>
+              {item.label} ({statuses.find((entry) => entry.code === item.code)?.count ?? 0})
+            </option>
+          ))}
+        </select>
         <label className="cc-search">
           <Search size={15} />
           <input
@@ -180,15 +198,19 @@ export default function CallCenter() {
               <tr>
                 {COLUMNS.map((column) => (
                   <th key={column.key}>
-                    <button
-                      type="button"
-                      className="cc-sort"
-                      onClick={() => toggleSort(column.key)}
-                      title={`Trier par ${column.label.toLowerCase()}`}
-                    >
-                      {column.label}
-                      {sort === column.key ? (order === 'asc' ? ' ▲' : ' ▼') : ''}
-                    </button>
+                    {column.sortable ? (
+                      <button
+                        type="button"
+                        className="cc-sort"
+                        onClick={() => toggleSort(column.key as DirectorySort)}
+                        title={`Trier par ${column.label.toLowerCase()}`}
+                      >
+                        {column.label}
+                        {sort === column.key ? (order === 'asc' ? ' ▲' : ' ▼') : ''}
+                      </button>
+                    ) : (
+                      column.label
+                    )}
                   </th>
                 ))}
                 <th>Offres</th>
@@ -198,16 +220,26 @@ export default function CallCenter() {
             <tbody>
               {rows.map((row) => (
                 <tr key={row.sessionId}>
-                  <td>{row.customerId ?? '—'}</td>
                   <td>
                     <span className="cc-chip">{row.categoryLabel}</span>
                   </td>
+                  <td>{row.customerId ?? '—'}</td>
                   <td className="cc-title">{row.title}</td>
                   <td>
                     <span className={`cc-score ${scoreClass(row.priority)}`}>
                       {row.score === null ? '—' : `${row.score}/100`}
                     </span>
                     <span className="cc-score-label">{row.priorityLabel ?? ''}</span>
+                  </td>
+                  <td>
+                    <span className={`cc-status ${statusClass(row.status)}`} title={row.statusUpdatedAt ? `Statut modifié le ${formatDateTime(row.statusUpdatedAt)}` : undefined}>
+                      {row.statusLabel}
+                    </span>
+                    {row.noteCount > 0 && (
+                      <span className="cc-note-count" title={`${row.noteCount} message(s) laissé(s) sur ce dossier`}>
+                        <MessageSquare size={12} /> {row.noteCount}
+                      </span>
+                    )}
                   </td>
                   <td>{formatDateTime(row.closedAt)}</td>
                   <td>
@@ -225,24 +257,39 @@ export default function CallCenter() {
         </div>
       )}
 
-      {openSession && <ConversationPopup sessionId={openSession} onClose={() => setOpenSession(null)} />}
+      {openSession && (
+        <ConversationPopup
+          sessionId={openSession}
+          onClose={() => setOpenSession(null)}
+          onStatusChanged={() => void load()}
+        />
+      )}
     </div>
   )
 }
 
-/** Pop-in de détail : synthèse conseiller, score expliqué, actions et transcript repliable. */
-function ConversationPopup({ sessionId, onClose }: { sessionId: string; onClose: () => void }) {
+/** Pop-in de détail : synthèse conseiller, score expliqué, statut, actions et transcript repliable. */
+function ConversationPopup({ sessionId, onClose, onStatusChanged }: {
+  sessionId: string
+  onClose: () => void
+  onStatusChanged: () => void
+}) {
   const [detail, setDetail] = useState<DirectoryDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showTranscript, setShowTranscript] = useState(false)
   const [showCriteria, setShowCriteria] = useState(false)
+  const [statusDraft, setStatusDraft] = useState('')
+  const [statusComment, setStatusComment] = useState('')
+  const [savingStatus, setSavingStatus] = useState(false)
 
   useEffect(() => {
     void (async () => {
       setLoading(true)
       try {
-        setDetail(await fetchConversationDirectoryDetail(sessionId))
+        const loaded = await fetchConversationDirectoryDetail(sessionId)
+        setDetail(loaded)
+        setStatusDraft(loaded.row.status)
         setError(null)
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Dossier indisponible')
@@ -251,6 +298,24 @@ function ConversationPopup({ sessionId, onClose }: { sessionId: string; onClose:
       }
     })()
   }, [sessionId])
+
+  /** Enregistre le nouveau statut d'avancement du dossier (action du centre d'appels). */
+  async function saveStatus() {
+    if (!statusDraft) return
+    setSavingStatus(true)
+    try {
+      const updated = await updateDirectoryStatus(sessionId, statusDraft, statusComment.trim() || undefined)
+      setDetail(updated)
+      setStatusDraft(updated.row.status)
+      setStatusComment('')
+      setError(null)
+      onStatusChanged()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Statut non enregistré')
+    } finally {
+      setSavingStatus(false)
+    }
+  }
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -321,6 +386,68 @@ function ConversationPopup({ sessionId, onClose }: { sessionId: string; onClose:
                 </a>
               ) : null}
             </div>
+
+            <section className="cc-section cc-status-box">
+              <h3>
+                <MessageSquare size={16} /> Suivi du dossier
+              </h3>
+              <div className="cc-status-row">
+                <span className={`cc-status big ${statusClass(row?.status ?? '')}`}>{row?.statusLabel}</span>
+                <select
+                  aria-label="Nouveau statut"
+                  value={statusDraft}
+                  disabled={savingStatus}
+                  onChange={(event) => setStatusDraft(event.target.value)}
+                >
+                  {DOSSIER_STATUSES.map((option) => (
+                    <option key={option.code} value={option.code}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <textarea
+                rows={2}
+                className="cc-status-message"
+                placeholder="Message : compte rendu d'appel, objection du client, prochaine action…"
+                value={statusComment}
+                disabled={savingStatus}
+                onChange={(event) => setStatusComment(event.target.value)}
+              />
+              <div className="cc-status-row">
+                <button
+                  type="button"
+                  className="mkt-action"
+                  disabled={savingStatus
+                    || (statusDraft === row?.status && statusComment.trim().length === 0)}
+                  onClick={() => void saveStatus()}
+                >
+                  {savingStatus ? 'Enregistrement…' : 'Enregistrer le suivi'}
+                </button>
+                <span className="cc-subject">
+                  Le statut peut être changé seul, ou avec un message : un message seul est journalisé sans
+                  changer le statut.
+                </span>
+              </div>
+              {(detail.statusHistory ?? []).length > 0 ? (
+                <ul className="cc-list small cc-journal">
+                  {detail.statusHistory.slice().reverse().map((event, index) => {
+                    const changed = event.previousStatus !== event.status
+                    return (
+                      <li key={`status-${index}`}>
+                        <strong>{formatDateTime(event.timestamp)}</strong>
+                        {changed
+                          ? <> — statut : {statusLabelOf(event.previousStatus)} → <strong>{statusLabelOf(event.status)}</strong></>
+                          : <> — {statusLabelOf(event.status)}, inchangé</>}
+                        {event.comment ? <> · « {event.comment} »</> : null}
+                      </li>
+                    )
+                  })}
+                </ul>
+              ) : (
+                <p className="cc-subject">Aucun suivi enregistré : le dossier n&rsquo;a pas encore été traité.</p>
+              )}
+            </section>
 
             {(detail.nextActions ?? []).length > 0 && (
               <section className="cc-section">
@@ -421,6 +548,16 @@ function ConversationPopup({ sessionId, onClose }: { sessionId: string; onClose:
       </div>
     </div>
   )
+}
+
+/** Classe CSS du badge de statut d'avancement à partir du code. */
+function statusClass(status: string): string {
+  return (status ?? '').toLowerCase()
+}
+
+/** Libellé d'un code de statut (même liste que le backend, ordre du cycle de vie). */
+function statusLabelOf(code: string | null): string {
+  return DOSSIER_STATUSES.find((option) => option.code === code)?.label ?? (code ?? '—')
 }
 
 /** Classe CSS du badge de score à partir de la priorité (ou du score). */

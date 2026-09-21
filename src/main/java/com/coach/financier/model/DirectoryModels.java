@@ -14,7 +14,7 @@ public final class DirectoryModels {
 
     /**
      * Ligne du tableau : ce qu'un conseiller ou un téléconseiller doit voir d'un coup d'œil
-     * (qui, quel thème, quel score de sens commercial, quand, et comment ouvrir le dossier).
+     * (qui, quel thème, quel score de sens commercial, quel statut d'avancement, quand, comment ouvrir le dossier).
      */
     public record DirectoryRow(
             String sessionId,
@@ -30,16 +30,36 @@ public final class DirectoryModels {
             String closedAt,
             int productCount,
             String topProduct,
-            boolean evaluated
+            boolean evaluated,
+            String status,
+            String statusLabel,
+            String statusUpdatedAt,
+            /** Nombre de MESSAGES laissés sur le dossier (journal du centre d'appels). */
+            int noteCount
     ) {}
 
     /** Catégorie proposée dans le filtre, avec son nombre de dossiers sur la période. */
     public record DirectoryCategory(String code, String label, int count) {}
 
+    /**
+     * Changement de STATUT d'un dossier, conservé en historique : c'est la trace de l'avancement du dossier
+     * (du « nouveau » à la conclusion), avec son commentaire facultatif.
+     */
+    public record DossierStatusEvent(
+            String eventId,
+            String sessionId,
+            String status,
+            String statusLabel,
+            String previousStatus,
+            String comment,
+            String timestamp
+    ) {}
+
     /** Réponse de la liste : lignes filtrées + valeurs de filtre disponibles + compteurs. */
     public record DirectoryList(
             List<DirectoryRow> rows,
             List<DirectoryCategory> categories,
+            List<DirectoryCategory> statuses,
             Map<String, Integer> byPriority,
             int days,
             String sort,
@@ -49,7 +69,8 @@ public final class DirectoryModels {
 
     /**
      * Détail d'une conversation pour la pop-in : synthèse identique à celle du mail conseiller
-     * (sans le brouillon destiné au client), score expliqué, actions de suivi et transcript.
+     * (sans le brouillon destiné au client), score expliqué, statut et son historique, actions de suivi et
+     * transcript.
      */
     public record DirectoryDetail(
             DirectoryRow row,
@@ -64,6 +85,7 @@ public final class DirectoryModels {
             String contactPhone,
             String feedbackUrl,
             String conversationUrl,
-            boolean evaluated
+            boolean evaluated,
+            List<DossierStatusEvent> statusHistory
     ) {}
 }

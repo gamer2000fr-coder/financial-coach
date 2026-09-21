@@ -1,4 +1,4 @@
-import type { AIProvider } from './types'
+import type { AIProvider, ConversationClosure } from './types'
 
 /** Types de l'ATELIER d'amélioration itérative des prompts (route `#/prompt-lab`). */
 
@@ -94,6 +94,18 @@ export interface PromptThread {
   campaignIds: string[]
   createdAt: string
   updatedAt: string
+}
+
+/**
+ * CLÔTURE d'un scénario d'atelier : le fil est rejoué comme une conversation de chat et passe dans le même
+ * pipeline que la page coach. `response` est le dossier de suivi renvoyé par le backend (statut
+ * `SENT` / `PREPARED` / `MAIL_UNAVAILABLE` / `SEND_FAILED`, objet du mail conseiller, avertissements).
+ */
+export interface PromptThreadClosure {
+  threadId: string
+  agentId: string
+  messages: number
+  response: ConversationClosure
 }
 
 /** Démarrage d'une campagne : la campagne créée ET le fil de conversation (créé ou repris). */

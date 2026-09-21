@@ -240,6 +240,7 @@ app.suivi.dossier-url: ${SUIVI_DOSSIER_URL:https://particuliers.sg.fr}  # lien �
 #   (démo = site Société Générale ; en production = outil conseiller. Vide ⇒ aucun lien)
 app.suivi.advisor-mail-html: ${SUIVI_ADVISOR_MAIL_HTML:true}
 app.suivi.customer-phone: ${SUIVI_CUSTOMER_PHONE:0644910925}  # lien d'appel du mail conseiller + page Centre d'appels
+app.call-center.dir: ${CALL_CENTER_DIR:./data/call-center}      # historique des STATUTS d'avancement des dossiers
 #   (numéro renseigné EN DUR pour la démo ; jamais produit par l'IA. Vide ⇒ aucun lien d'appel)
 app.mail.enabled: ${MAIL_ENABLED:true}
 app.mail.from: ${MAIL_FROM:${MAIL_USERNAME:}}
@@ -304,8 +305,10 @@ app.prompt-optimization.hash-salt: ${PROMPT_OPT_HASH_SALT:…}
 | DELETE | `/api/logs` | Vider les logs |
 | GET | `/api/conversations/{sessionId}` | Historique complet d'une conversation `{sessionId, summary, messages[]}` |
 | POST | `/api/conversations/{sessionId}/close` | **Fin de conversation** : dossier de suivi + email au conseiller (body optionnel `{advisorEmail, advisorName, attachmentFormat, send, provider}` ; `send=false` = dry-run) |
-| GET | `/api/conversations/directory` | **Annuaire des conversations** (page Centre d'appels) : conversations clôturées + score commercial. Paramètres `days` (5/10/30, `0` = tout), `category` (CREDIT_CONSO, CREDIT_IMMO, EPARGNE, ASSURANCE, AUTRE), `q` (client, titre, projet, produit), `sort` (date, score, client, categorie, titre), `order` (asc, desc) |
-| GET | `/api/conversations/directory/{sessionId}` | Détail d'une conversation : synthèse du mail conseiller (sans le brouillon client), score expliqué (raisons + critères), actions de suivi, offres d'intérêt et transcript. **404** si aucun dossier |
+| GET | `/api/conversations/directory` | **Annuaire des conversations** (page Centre d'appels) : conversations clôturées + score commercial + statut d'avancement. Paramètres `days` (5/10/30, `0` = tout), `category` (CREDIT_CONSO, CREDIT_IMMO, EPARGNE, ASSURANCE, AUTRE), `status` (NOUVEAU, CONTACTE, QUALIFIE, RDV, CONCLU, PERDU, CLOTURE), `q` (client, titre, projet, produit), `sort` (date, score, client, categorie, titre), `order` (asc, desc) |
+| GET | `/api/conversations/directory/{sessionId}` | Détail d'une conversation : synthèse du mail conseiller (sans le brouillon client), score expliqué (raisons + critères), **statut et son historique**, actions de suivi, offres d'intérêt et transcript. **404** si aucun dossier |
+| POST | `/api/conversations/directory/{sessionId}/status` | **Suivi du dossier** `{status, comment}` (centre d'appels) → détail à jour ; le statut peut changer seul, ou avec un **message** ; un message SEUL est journalisé sans changer le statut ; **400** si le code est inconnu |
+| POST | `/api/prompt-optimization/threads/{threadId}/close` | **Clôture d'un scénario d'atelier** `{sendMail, archive, provider}` : le fil est rejoué comme une conversation de chat et passe dans le MÊME pipeline que la page coach (agent de suivi → dossier → mail conseiller → annuaire du centre d'appels). `archive=false` : aucun dossier écrit et pas de bloc d'évaluation dans le mail |
 | GET | `/api/mail/status` | État de l'envoi mail `{enabled, available, from, target, reason}` |
 | GET | `/api/agents` | Liste des agents éditables `[{key, libelle, file}]` (dont `suivi` et `marketing`) |
 | GET/PUT | `/api/agents/{key}/prompt` | Lire / écrire le prompt d'un agent |

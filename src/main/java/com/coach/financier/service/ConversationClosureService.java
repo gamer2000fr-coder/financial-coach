@@ -142,6 +142,20 @@ public class ConversationClosureService {
     }
 
     public SuiviModels.CloseConversationResponse close(String sessionId, SuiviModels.CloseConversationRequest request) {
+        return close(sessionId, request, true);
+    }
+
+    /**
+     * Clôture d'une conversation, avec choix d'ARCHIVER le dossier.
+     *
+     * @param archive {@code false} = ne PAS écrire de dossier de suivi : utilisé par l'ATELIER lorsque
+     *                l'utilisateur veut seulement envoyer le mail conseiller sans encombrer l'annuaire du
+     *                centre d'appels. Dans ce cas le bloc « évaluer le suivi » est lui aussi retiré du mail
+     *                (il cible un dossier qui n'existera pas) ; le lien vers l'historique de la conversation
+     *                reste, lui, valable.
+     */
+    public SuiviModels.CloseConversationResponse close(String sessionId, SuiviModels.CloseConversationRequest request,
+                                                      boolean archive) {
         SuiviModels.CloseConversationRequest req = request == null
                 ? new SuiviModels.CloseConversationRequest(null, null, null, null, null) : request;
         ConversationModels.Conversation conversation = conversationService.find(sessionId);
@@ -238,9 +252,12 @@ public class ConversationClosureService {
         //          CONVERSATIONS du centre d'appels) + LIEN D'ÉVALUATION ajouté au mail conseiller APRÈS la
         //          validation des URLs (le lien est fabriqué par le backend, il ne peut donc pas être
         //          neutralisé par le contrôle anti-invention). L'URL ne contient que le sessionId :
-        //          aucune donnée personnelle (§45).
-        advisorDossierService.persist(sessionId, result, dossierExtras(conversation, result, score));
-        validated = withAdvisorLinks(validated, sessionId, score);
+        //          aucune donnée personnelle (§45). `archive=false` (atelier) : aucun dossier n'est écrit et
+        //          le bloc d'évaluation — qui cible ce dossier — n'est pas ajouté au mail.
+        if (archive) {
+            advisorDossierService.persist(sessionId, result, dossierExtras(conversation, result, score));
+        }
+        validated = withAdvisorLinks(validated, sessionId, score, archive);
 
         // 6) Pièce jointe générée à partir du brouillon client : destinataire = mail du client
         //    (fiche customer.mail), expéditeur = mail du conseiller (évite « unknown sender »).
@@ -321,7 +338,7 @@ public class ConversationClosureService {
      * </ul>
      */
     private Validated withAdvisorLinks(Validated validated, String sessionId,
-                                       SuiviModels.CommercialScore score) {
+                                       SuiviModels.CommercialScore score, boolean archive) {
         SuiviModels.EmailContent advisor = validated.advisorEmail();
         if (advisor == null) {
             return validated;
@@ -335,7 +352,9 @@ public class ConversationClosureService {
             body.append("\n\nDossier client : [URL|Ouvrir le dossier du client|").append(dossierUrl).append(']');
         }
         body.append("\n\n").append(advisorDossierService.conversationBlock(sessionId));
-        body.append("\n\n").append(advisorDossierService.feedbackBlock(sessionId));
+        if (archive) {
+            body.append("\n\n").append(advisorDossierService.feedbackBlock(sessionId));
+        }
         return new Validated(validated.summary(), validated.products(), validated.rejectedProducts(),
                 new SuiviModels.EmailContent(advisorSubject(advisor.subject()), body.toString()),
                 validated.preparedCustomerEmail());

@@ -3,6 +3,7 @@ package com.coach.financier.service;
 import com.coach.financier.model.AdvisorFeedbackModels;
 import com.coach.financier.model.ConversationCategory;
 import com.coach.financier.model.DirectoryModels;
+import com.coach.financier.model.DossierStatus;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -46,15 +47,18 @@ public class ConversationDirectoryService {
     private final AdvisorDossierStore dossierStore;
     private final AdvisorFeedbackStore feedbackStore;
     private final AdvisorDossierService advisorDossierService;
+    private final CallCenterStatusStore statusStore;
     private final String contactPhone;
 
     public ConversationDirectoryService(AdvisorDossierStore dossierStore,
                                         AdvisorFeedbackStore feedbackStore,
                                         AdvisorDossierService advisorDossierService,
+                                        CallCenterStatusStore statusStore,
                                         @Value("${app.suivi.customer-phone:}") String contactPhone) {
         this.dossierStore = dossierStore;
         this.feedbackStore = feedbackStore;
         this.advisorDossierService = advisorDossierService;
+        this.statusStore = statusStore;
         this.contactPhone = contactPhone == null ? "" : contactPhone.trim();
     }
 
@@ -68,20 +72,42 @@ public class ConversationDirectoryService {
      * @param order    {@code asc} ou {@code desc} (par défaut : {@code desc} sur la date, {@code asc} ailleurs)
      */
     public DirectoryModels.DirectoryList list(int days, String category, String query, String sort, String order) {
+        return list(days, category, query, sort, order, null);
+    }
+
+    /**
+     * Variante avec filtre de STATUT (le fil de travail du centre d'appels).
+     *
+     * @param status code de statut ({@code null}/vide = tous ; {@code NOUVEAU} inclut les dossiers qui n'ont
+     *               encore jamais changé de statut)
+     */
+    public DirectoryModels.DirectoryList list(int days, String category, String query, String sort, String order,
+                                              String status) {
         List<AdvisorFeedbackModels.AdvisorDossier> dossiers = periodDossiers(days);
         Set<String> evaluatedSessions = evaluatedSessions(days);
+        LocalDate from = days > 0 ? LocalDate.now().minusDays(days - 1L) : null;
+        CallCenterStatusStore.StatusSummary statusSummary = statusStore.summary(from, null);
+        Map<String, DirectoryModels.DossierStatusEvent> statuses = statusSummary.latest();
+        Map<String, Integer> noteCounts = statusSummary.noteCounts();
         ConversationCategory filter = ConversationCategory.parse(category);
+        DossierStatus wanted = DossierStatus.parse(status);
+        String statusFilter = wanted == null ? null : wanted.code();
         String needle = normalize(query);
 
         List<DirectoryModels.DirectoryRow> rows = new ArrayList<>();
         Map<String, Integer> categoryCounts = new LinkedHashMap<>();
         Map<String, Integer> byPriority = new LinkedHashMap<>();
+        Map<String, Integer> byStatus = new LinkedHashMap<>();
         for (AdvisorFeedbackModels.AdvisorDossier dossier : dossiers) {
-            DirectoryModels.DirectoryRow row = toRow(dossier, evaluatedSessions);
+            DirectoryModels.DirectoryRow row = toRow(dossier, evaluatedSessions, statuses, noteCounts);
             categoryCounts.merge(row.category(), 1, Integer::sum);
             String priority = row.priority() == null ? "UNKNOWN" : row.priority();
             byPriority.merge(priority, 1, Integer::sum);
+            byStatus.merge(row.status(), 1, Integer::sum);
             if (filter != null && !filter.code().equals(row.category())) {
+                continue;
+            }
+            if (statusFilter != null && !statusFilter.equals(row.status())) {
                 continue;
             }
             if (!needle.isEmpty() && !matches(row, needle)) {
@@ -99,8 +125,42 @@ public class ConversationDirectoryService {
                 categories.add(new DirectoryModels.DirectoryCategory(value.code(), value.label(), count));
             }
         }
-        return new DirectoryModels.DirectoryList(List.copyOf(rows), List.copyOf(categories), byPriority,
-                Math.max(0, days), sortKey(sort), orderKey(sort, order), rows.size());
+        List<DirectoryModels.DirectoryCategory> statusesView = new ArrayList<>();
+        for (DossierStatus value : DossierStatus.progression()) {
+            Integer count = byStatus.get(value.code());
+            if (count != null && count > 0) {
+                statusesView.add(new DirectoryModels.DirectoryCategory(value.code(), value.label(), count));
+            }
+        }
+        return new DirectoryModels.DirectoryList(List.copyOf(rows), List.copyOf(categories),
+                List.copyOf(statusesView), byPriority, Math.max(0, days), sortKey(sort), orderKey(sort, order),
+                rows.size());
+    }
+
+    /**
+     * Enregistre le SUIVI d'un dossier : changement de statut et/ou MESSAGE laissé par le conseiller.
+     * <p>
+     * Trois cas : statut différent ⇒ un événement avec le nouveau statut et le message éventuel ; statut
+     * identique AVEC un message ⇒ un événement « message seul » (le statut ne bouge pas, le message est
+     * journalisé) ; statut identique SANS message ⇒ rien n'est écrit. Un code inconnu est refusé.
+     */
+    public Optional<DirectoryModels.DirectoryDetail> updateStatus(String sessionId, String status, String comment) {
+        DossierStatus target = DossierStatus.parse(status);
+        if (target == null) {
+            throw new IllegalArgumentException("Statut inconnu : " + status);
+        }
+        Optional<DirectoryModels.DirectoryDetail> current = detail(sessionId);
+        if (current.isEmpty()) {
+            return Optional.empty();
+        }
+        String currentCode = current.get().row().status();
+        String message = comment == null ? "" : comment.trim();
+        if (!target.code().equals(currentCode)) {
+            statusStore.save(sessionId, target.code(), target.label(), currentCode, message);
+        } else if (!message.isEmpty()) {
+            statusStore.save(sessionId, currentCode, DossierStatus.labelOf(currentCode), currentCode, message);
+        }
+        return detail(sessionId);
     }
 
     /** Détail d'une conversation (pop-in) : synthèse conseiller, score expliqué et transcript. */
@@ -112,7 +172,11 @@ public class ConversationDirectoryService {
         AdvisorFeedbackModels.AdvisorDossier dossier = found.get();
         Set<String> evaluated = feedbackStore.latestBySession(sessionId).isPresent()
                 ? Set.of(sessionId) : Set.of();
-        DirectoryModels.DirectoryRow row = toRow(dossier, evaluated);
+        CallCenterStatusStore.StatusSummary statusSummary = statusStore.summary(null, null);
+        DirectoryModels.DossierStatusEvent statusEvent = statusSummary.latest().get(sessionId);
+        Map<String, DirectoryModels.DossierStatusEvent> statuses = statusEvent == null
+                ? Map.of() : Map.of(sessionId, statusEvent);
+        DirectoryModels.DirectoryRow row = toRow(dossier, evaluated, statuses, statusSummary.noteCounts());
         AdvisorFeedbackModels.DossierScore score = dossier.score();
         return Optional.of(new DirectoryModels.DirectoryDetail(
                 row,
@@ -127,7 +191,18 @@ public class ConversationDirectoryService {
                 contactPhone,
                 firstNonBlank(dossier.feedbackUrl(), advisorDossierService.feedbackUrl(sessionId)),
                 advisorDossierService.conversationUrl(sessionId),
-                !evaluated.isEmpty()));
+                !evaluated.isEmpty(),
+                statusStore.history(sessionId)));
+    }
+
+    /** Code de statut courant d'un dossier : le dernier événement connu, sinon « Nouveau ». */
+    private static DirectoryModels.DossierStatusEvent currentStatus(DirectoryModels.DossierStatusEvent event,
+                                                                   String sessionId) {
+        if (event != null) {
+            return event;
+        }
+        return new DirectoryModels.DossierStatusEvent(null, sessionId, DossierStatus.NOUVEAU.code(),
+                DossierStatus.NOUVEAU.label(), null, null, null);
     }
 
     /** Dossiers de la période, DÉDOUBLONNÉS par session (le plus récent fait foi). */
@@ -164,7 +239,9 @@ public class ConversationDirectoryService {
     }
 
     private static DirectoryModels.DirectoryRow toRow(AdvisorFeedbackModels.AdvisorDossier dossier,
-                                                     Set<String> evaluatedSessions) {
+                                                     Set<String> evaluatedSessions,
+                                                     Map<String, DirectoryModels.DossierStatusEvent> statuses,
+                                                     Map<String, Integer> noteCounts) {
         AdvisorFeedbackModels.DossierClient client = dossier.client();
         AdvisorFeedbackModels.DossierScore score = dossier.score();
         ConversationCategory category = ConversationCategory.parse(client == null ? null : client.category());
@@ -173,6 +250,8 @@ public class ConversationDirectoryService {
         String topProduct = dossier.productsOfInterest().isEmpty()
                 ? null : dossier.productsOfInterest().get(0).name();
         int priorityScore = score == null || score.score() == null ? -1 : score.score();
+        DirectoryModels.DossierStatusEvent status = currentStatus(statuses.get(dossier.sessionId()),
+                dossier.sessionId());
         return new DirectoryModels.DirectoryRow(
                 dossier.sessionId(),
                 client == null ? null : client.customerId(),
@@ -188,7 +267,11 @@ public class ConversationDirectoryService {
                 dossier.timestamp(),
                 dossier.productsOfInterest().size(),
                 topProduct,
-                evaluatedSessions.contains(dossier.sessionId()));
+                evaluatedSessions.contains(dossier.sessionId()),
+                status.status(),
+                firstNonBlank(status.statusLabel(), DossierStatus.labelOf(status.status())),
+                status.timestamp(),
+                noteCounts.getOrDefault(dossier.sessionId(), 0));
     }
 
     private static boolean matches(DirectoryModels.DirectoryRow row, String needle) {

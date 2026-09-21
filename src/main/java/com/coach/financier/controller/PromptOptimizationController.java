@@ -4,6 +4,7 @@ import com.coach.financier.config.PromptOptimizationProperties;
 import com.coach.financier.model.AIModels;
 import com.coach.financier.model.PromptOptimizationModels;
 import com.coach.financier.service.PromptOptimizationService;
+import com.coach.financier.service.PromptThreadClosureService;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -36,11 +37,14 @@ public class PromptOptimizationController {
 
     private final PromptOptimizationService service;
     private final PromptOptimizationProperties properties;
+    private final PromptThreadClosureService threadClosureService;
 
     public PromptOptimizationController(PromptOptimizationService service,
-                                        PromptOptimizationProperties properties) {
+                                        PromptOptimizationProperties properties,
+                                        PromptThreadClosureService threadClosureService) {
         this.service = service;
         this.properties = properties;
+        this.threadClosureService = threadClosureService;
     }
 
     /**
@@ -277,6 +281,33 @@ public class PromptOptimizationController {
     @GetMapping("/threads/{threadId}/comparison")
     public PromptOptimizationModels.ConversationComparison threadComparison(@PathVariable String threadId) {
         return service.comparisonOfThread(threadId);
+    }
+
+    /**
+     * Corps de la CLÔTURE d'un scénario d'atelier.
+     *
+     * @param sendMail {@code true} = envoie le mail au conseiller, exactement comme « Terminer la
+     *                 conversation » dans la page coach (dossier préparé par l'agent de suivi, score de sens
+     *                 commercial, liens, brouillon client en pièce jointe). Défaut : {@code false}
+     *                 (rien n'est envoyé).
+     * @param archive  {@code true} = écrit le dossier de suivi, donc la conversation devient consultable dans
+     *                 la page « Centre d'appels ». Défaut : {@code false} (un test d'atelier n'encombre pas
+     *                 l'annuaire).
+     */
+    public record ThreadCloseRequest(Boolean sendMail, Boolean archive, AIModels.AIProvider provider) {
+    }
+
+    /**
+     * CLÔTURE du scénario : le fil de l'atelier est rejoué comme une conversation de chat et passe dans le
+     * MÊME pipeline que la page coach (agent de suivi → dossier → mail conseiller → annuaire du centre
+     * d'appels). Aucune écriture de prompt n'a lieu, et rien n'est envoyé au client.
+     */
+    @PostMapping("/threads/{threadId}/close")
+    public PromptThreadClosureService.ThreadClosure closeThread(@PathVariable String threadId,
+                                                                @RequestBody(required = false) ThreadCloseRequest request) {
+        ThreadCloseRequest body = request == null ? new ThreadCloseRequest(null, null, null) : request;
+        return threadClosureService.close(threadId, Boolean.TRUE.equals(body.sendMail()),
+                Boolean.TRUE.equals(body.archive()), body.provider());
     }
 
     // --- Agent C : le CLIENT simulé (il mène la conversation) ----------------------------------------

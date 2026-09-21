@@ -61,7 +61,7 @@ Empêcher structurellement l'IA de recommander ou de mentionner un produit banca
 | `#/advisor-feedback` | **Feedback Conseillers** | Saisie rapide d'un avis conseiller par dossier, KPI de pertinence, zones corrigées, pertinence produit, corrections d'intérêt, qualité des emails préparés, analyse IA, export CSV |
 | `#/advisor-feedback/session/<sessionId>` | **Évaluation d'un dossier** | Vue ciblée ouverte par le **lien du mail conseiller** : projet, synthèse du Coach, produits et niveaux d'intérêt, suivi conseillé, email préparé, puis formulaire d'évaluation |
 | `#/conversation/<sessionId>` | **Historique d'une conversation** | Vue ciblée **en lecture seule**, ouverte par le lien « Consulter l'historique de la conversation » du mail conseiller : synthèse + relecture des échanges client ↔ Coach, avec accès direct à l'évaluation du dossier. L'URL ne contient que le `sessionId` |
-| `#/centre-appels` | **Centre d'appels** | Annuaire des conversations clôturées pour l'équipe commerciale : tableau filtrable (période 5/10/30 jours, catégorie, recherche) et triable (client, catégorie, titre, **score de sens commercial**, date), avec la pop-in de détail (synthèse envoyée au conseiller, score expliqué, prochaines actions, offres d'intérêt, conversation complète repliable) |
+| `#/centre-appels` | **Centre d'appels** | Annuaire des conversations clôturées pour l'équipe commerciale : tableau filtrable (période 5/10/30 jours, catégorie, **statut**, recherche) et triable (client, catégorie, titre, **score de sens commercial**, date), avec la pop-in de détail (synthèse envoyée au conseiller, score expliqué, **statut d'avancement modifiable + historique**, prochaines actions, offres d'intérêt, conversation complète repliable) |
 | `#/prompt-lab` | **Atelier d'optimisation des prompts** | Choix de l'agent (zone optimisée **figée** au prompt de l'agent spécialisé), question de test, nombre d'itérations, fournisseur IA, puis : progression, arrêt/reprise, avis humain, comparaison des versions, diff de la zone, promotion explicite en production |
 
 ---
@@ -292,10 +292,20 @@ liste de conversations à parcourir.
   **intérêt réel** (demandes de précision, comparaison, refus), **capacité de financement** d'après les
   indicateurs disponibles, **engagement** dans l'échange. Il donne une priorité (très haute / haute / moyenne /
   faible) et **2 à 3 raisons courtes** qui l'expliquent.
-- **Tableau** : client, catégorie, titre de la conversation, score (badge + libellé), date de clôture, offres
-  concernées et bouton « Voir le détail ».
+- **Tableau** : client, catégorie, titre de la conversation, score (badge + libellé), **statut d'avancement**,
+  date de clôture, offres concernées et bouton « Voir le détail ».
+- **Statut d'avancement du dossier** (fil de travail du centre d'appels) : `Nouveau` à la clôture, puis
+  `Contacté`, `Qualifié`, `RDV planifié`, `Conclu`, `Sans suite`, `Clôturé`. Il est **saisi dans la pop-in**
+  (liste déroulante des statuts possibles) et **chaque changement est conservé**. Un code inconnu est refusé et
+  un statut inchangé n'écrit rien. Aucun statut n'est **déduit** d'une supposition : c'est le conseiller qui
+  fait avancer le dossier.
+- **Message laissé sur le dossier** : un champ libre (compte rendu d'appel, objection du client, prochaine
+  action…) peut être enregistré **seul** (le statut ne bouge pas) ou **avec** un changement de statut. Chaque
+  message entre dans le **journal de suivi** affiché dans la pop-in (date, statut inchangé ou
+  `ancien → nouveau`, message) et le tableau marque d'un **compteur** les dossiers qui portent des messages.
 - **Filtres** : période (**5 / 10 / 30 derniers jours** ou tout l'historique), **catégorie** (crédit conso,
-  crédit immobilier, épargne, assurance, autre), **recherche libre** (client, titre, projet, produit).
+  crédit immobilier, épargne, assurance, autre), **statut**, **recherche libre** (client, titre, projet,
+  produit).
 - **Tri** en cliquant sur un en-tête de colonne (client, catégorie, titre, score, date) — croissant/décroissant.
 - **Pop-in de détail** : score + raisons + critères mesurés (repliables), **prochaines actions de suivi**,
   offres d'intérêt, **synthèse envoyée au conseiller** (liens cliquables) et **conversation complète dans un bloc
@@ -594,7 +604,14 @@ Toutes les données sont **fictives** et servent uniquement la démonstration.
 61. Un dossier ancien, sans score ni identité client, reste **lisible** avec des valeurs vides (aucune valeur
     inventée) ;
 62. Le numéro de téléphone vient **exclusivement de la configuration** (`app.suivi.customer-phone`) : un lien
-    d'appel proposé par l'IA est **neutralisé** par le contrôle d'anti-invention d'URL.
+    d'appel proposé par l'IA est **neutralisé** par le contrôle d'anti-invention d'URL ;
+63. Chaque dossier porte un **statut d'avancement** (« Nouveau » à la clôture) que le centre d'appels fait
+    évoluer depuis la pop-in (liste déroulante) ; **chaque changement est conservé** (statut précédent, nouveau
+    statut, commentaire, horodatage) et un statut inchangé **sans message** n'écrit rien ;
+64. Un **message** peut être laissé **seul** sur un dossier (statut inchangé) : il est journalisé, compté dans
+    la colonne Statut du tableau et visible dans le journal de suivi ;
+65. Un **code de statut inconnu** est refusé (HTTP 400) : aucun statut n'est deviné ni normalisé
+    silencieusement.
 
 ---
 

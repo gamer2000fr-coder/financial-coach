@@ -18,7 +18,9 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -36,6 +38,7 @@ class ConversationDirectoryServiceTest {
 
     private AdvisorDossierStore dossierStore;
     private AdvisorFeedbackStore feedbackStore;
+    private CallCenterStatusStore statusStore;
     private ConversationDirectoryService service;
     private ObjectMapper mapper;
 
@@ -48,9 +51,10 @@ class ConversationDirectoryServiceTest {
         feedbackStore = mock(AdvisorFeedbackStore.class);
         when(feedbackStore.read(any(), any()))
                 .thenReturn(new AdvisorFeedbackStore.ReadResult(List.of(), 0));
+        statusStore = new CallCenterStatusStore(mapper, tempDir.resolve("call-center").toString());
         service = new ConversationDirectoryService(dossierStore, feedbackStore,
                 new AdvisorDossierService(dossierStore, feedbackStore, properties, "http://localhost:9898"),
-                DEMO_PHONE);
+                statusStore, DEMO_PHONE);
     }
 
     @Test
@@ -143,6 +147,103 @@ class ConversationDirectoryServiceTest {
     @Test
     void anUnknownSessionHasNoDetail() {
         assertEquals(Optional.empty(), service.detail("s-inconnue"));
+    }
+
+    @Test
+    void everyDossierStartsAsNewUntilTheAdvisorMovesIt() {
+        save(dossier("s-credit", "DEMO001", "CREDIT_CONSO", "Voiture", 82, 1));
+
+        DirectoryModels.DirectoryRow row = row(service.list(10, null, null, null, null), "s-credit");
+
+        assertEquals("NOUVEAU", row.status(), "un dossier qui vient d'arriver est « Nouveau »");
+        assertEquals("Nouveau", row.statusLabel());
+        assertEquals(null, row.statusUpdatedAt(), "aucun changement de statut n'a encore eu lieu");
+        assertEquals(0, row.noteCount(), "aucun message n'a encore été laissé");
+        assertEquals(0, service.detail("s-credit").orElseThrow().statusHistory().size());
+    }
+
+    @Test
+    void theAdvisorCanMoveTheDossierForwardAndTheHistoryIsKept() {
+        save(dossier("s-credit", "DEMO001", "CREDIT_CONSO", "Voiture", 82, 1));
+
+        DirectoryModels.DirectoryDetail contacte = service
+                .updateStatus("s-credit", "CONTACTE", "Client joint, rappellera lundi").orElseThrow();
+        assertEquals("CONTACTE", contacte.row().status());
+        assertEquals("Contacté", contacte.row().statusLabel());
+        assertNotNull(contacte.row().statusUpdatedAt());
+
+        DirectoryModels.DirectoryDetail conclu = service
+                .updateStatus("s-credit", "CONCLU", null).orElseThrow();
+        assertEquals("CONCLU", conclu.row().status());
+        assertEquals(2, conclu.statusHistory().size(), "chaque changement est conservé");
+        assertEquals("NOUVEAU", conclu.statusHistory().get(0).previousStatus());
+        assertEquals("CONTACTE", conclu.statusHistory().get(0).status());
+        assertEquals("Client joint, rappellera lundi", conclu.statusHistory().get(0).comment(),
+                "le commentaire du changement est conservé");
+        assertEquals("CONTACTE", conclu.statusHistory().get(1).previousStatus());
+        assertEquals("CONCLU", conclu.statusHistory().get(1).status());
+        assertEquals(null, conclu.statusHistory().get(1).comment());
+
+        // Statut inchangé : aucune nouvelle ligne (l'historique ne se remplit pas de doublons).
+        assertEquals(2, service.updateStatus("s-credit", "CONCLU", null).orElseThrow()
+                .statusHistory().size());
+    }
+
+    @Test
+    void aMessageCanBeLeftWithoutChangingTheStatus() {
+        save(dossier("s-credit", "DEMO001", "CREDIT_CONSO", "Voiture", 82, 1));
+
+        DirectoryModels.DirectoryDetail note = service
+                .updateStatus("s-credit", "NOUVEAU", "Client absent, rappellera demain matin").orElseThrow();
+
+        assertEquals("NOUVEAU", note.row().status(), "un message seul ne change pas le statut");
+        assertEquals(1, note.statusHistory().size(), "le message est journalisé");
+        assertEquals("NOUVEAU", note.statusHistory().get(0).previousStatus());
+        assertEquals("NOUVEAU", note.statusHistory().get(0).status());
+        assertEquals("Client absent, rappellera demain matin", note.statusHistory().get(0).comment());
+        assertEquals(1, note.row().noteCount(), "la ligne du tableau indique qu'un message a été laissé");
+
+        // Statut inchangé SANS message : rien n'est écrit (pas de journal vide).
+        assertEquals(1, service.updateStatus("s-credit", "NOUVEAU", "   ").orElseThrow()
+                .statusHistory().size());
+        assertEquals(1, service.updateStatus("s-credit", "NOUVEAU", null).orElseThrow()
+                .statusHistory().size());
+
+        // Le compteur de messages est aussi porté par la liste (colonne Statut du tableau).
+        assertEquals(1, row(service.list(10, null, null, null, null), "s-credit").noteCount());
+    }
+
+    @Test
+    void theStatusIsAFilterOfTheCallCenterWorkList() {
+        save(dossier("s-nouveau", "DEMO001", "CREDIT_CONSO", "Voiture", 82, 1));
+        save(dossier("s-conclu", "DEMO002", "EPARGNE", "Épargne", 58, 2));
+        save(dossier("s-contacte", "DEMO003", "ASSURANCE", "Assurance auto", 35, 3));
+        service.updateStatus("s-conclu", "CONCLU", null);
+        service.updateStatus("s-contacte", "CONTACTE", null);
+
+        DirectoryModels.DirectoryList tous = service.list(10, null, null, null, null);
+        assertEquals(3, tous.total());
+        assertEquals(3, tous.statuses().size(), "les statuts présents sont renvoyés pour le filtre");
+
+        assertEquals(1, service.list(10, null, null, null, null, "NOUVEAU").total());
+        assertEquals("s-nouveau", service.list(10, null, null, null, null, "NOUVEAU").rows().get(0).sessionId());
+        assertEquals(1, service.list(10, null, null, null, null, "CONCLU").total());
+        assertEquals(0, service.list(10, null, null, null, null, "PERDU").total());
+        assertEquals(3, service.list(10, null, null, null, null, "").total(),
+                "un filtre vide n'exclut rien");
+    }
+
+    @Test
+    void anUnknownStatusOrAnUnknownSessionIsRefused() {
+        save(dossier("s-credit", "DEMO001", "CREDIT_CONSO", "Voiture", 82, 1));
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> service.updateStatus("s-credit", "EN_COURS", null));
+        assertTrue(error.getMessage().contains("Statut inconnu"), "aucun statut n'est deviné");
+        assertEquals(0, service.detail("s-credit").orElseThrow().statusHistory().size(),
+                "un refus n'écrit rien");
+
+        assertEquals(Optional.empty(), service.updateStatus("s-inconnue", "CONTACTE", null));
     }
 
     @Test

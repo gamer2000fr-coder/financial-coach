@@ -31,4 +31,18 @@ public class ConversationService {
     public ConversationModels.Conversation find(String sessionId) {
         return conversations.get(sessionId);
     }
+
+    /**
+     * Installe une conversation VIERGE pour une session, en remplaçant celle qui existait.
+     * <p>
+     * Utilisé par l'ATELIER : avant de clore un scénario, il reconstruit une session de chat à partir de son fil
+     * de conversation (même pipeline que la page coach : dossier de suivi, mail conseiller, score, annuaire du
+     * centre d'appels). Le remplacement garantit qu'une clôture rejouée ne duplique pas les messages.
+     */
+    public ConversationModels.Conversation reset(String sessionId) {
+        ConversationModels.Conversation conversation = new ConversationModels.Conversation(sessionId);
+        conversation.setHistoryLimit(historyLimit);
+        conversations.put(sessionId, conversation);
+        return conversation;
+    }
 }
