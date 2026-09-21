@@ -31,3 +31,10 @@ build/
 
 ### VS Code ###
 .vscode/
+
+
+/data/advisor-feedback/
+/data/life-events/
+/data/marketing/
+/data/prompt-optimization/
+/data/quality/
