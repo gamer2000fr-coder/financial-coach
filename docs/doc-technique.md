@@ -185,6 +185,7 @@ Tous les fichiers sont lus **depuis le système de fichiers `./data`** (racine d
 | `data.json` | Catalogue `[{path, description}]` envoyé à l'IA (hors cascade, auto-gérée) |
 | `banking_demo_normalized.json` | Comptes, mois 07/2025→08/2026, épargne, crédits |
 | `catalogue/products.json` | **52 produits** machine : id, name, family, allowedProjectTypes, min/max, durées, taeg, `fundAvailabilityDelay` (délai de mise à disposition des fonds, renseigné pour 2 produits seulement) |
+| `catalogue/credit_conso.json` (fiches) | Offres au détail : `url` (fiche officielle) + `url_souscription` (page de souscription, whitelistée pour le contrôle anti-invention d'URL), `souscription_en_ligne`, `frais_dossier`, `taux`, `fonds` |
 | `catalogue/*.json` | Fiches produits pédagogiques (credit_conso, credit_immo, epargne, assurances…) |
 | `catalogue/cascade/*.txt` | Arbres de décision produit (attachés à la volée à la fiche parente) |
 | `synthese_financier.json` | Synthèse mensuelle + globale |
@@ -497,8 +498,19 @@ flowchart LR
   le contrat de prêt et la souscription signés font foi », + hypothèses de la grille (taux hors assurance
   facultative, frais de dossier 0 €, TAEG dépendant du dossier et de la durée) ;
 - Exposé par `POST /api/credit/simulation` (voir §5) : mêmes règles et mêmes taux que le Coach, pour vérifier
-  un chiffrage côté back-office. Le prompt de l'agent crédit conso autorise désormais le calcul à partir de
-  cette grille, à charge pour le Coach d'annoncer que la simulation est indicative et que la souscription fait foi.
+  un chiffrage côté back-office.
+- **Contenu obligatoire d'une simulation (prompt de l'agent crédit conso)** : montant du crédit, durée,
+  mensualité, **taux d'intérêt débiteur annuel fixe** (cité s'il est renseigné, sinon expliqué comme le TAEG
+  de la grille utilisé pour le calcul — jamais reconstitué), TAEG fixe, **frais de dossier** (`frais_dossier`
+  de la fiche quand il est renseigné), coût total du crédit et montant total dû. Dès que plusieurs durées /
+  mensualités / montants sont chiffrés, la réponse les présente en **tableau** (durée, mensualité, TAEG, coût
+  total, montant total dû) sous lequel figurent le montant retenu, le TAEG appliqué et le caractère
+  **indicatif et non contractuel**.
+- **Prochaine étape** : dès qu'une simulation a été produite, le Coach propose la **SOUSCRIPTION** — lien
+  officiel du produit (`[URL|Souscrire à <produit>|<url>]`, champ `url_souscription` de la fiche, à défaut `url`
+  ou `official_product_url`) — et non le simulateur ; celui-ci n'est proposé que lorsqu'aucun chiffrage n'est
+  possible (grille indisponible, paramètre manquant, crédit renouvelable) ou pour une demande d'offre ferme. Si
+  `souscription_en_ligne` est absent ou false, il renvoie au conseiller.
 
 ---
 
@@ -511,9 +523,28 @@ flowchart LR
   (chaque conversation est INDÉPENDANTE : aucune information d'un échange antérieur ou d'une autre session ;
   les EXEMPLES de format des prompts ne sont pas des données client ; en cas de manque, POSER LA QUESTION)
   puis par la règle de **CONTINUITÉ** (lire l'historique de la conversation en cours).
+  Il porte aussi les règles transverses de forme : **format des liens** `[URL|nom|url]`, **jeton de rappel**
+  `[RAPPEL|nom]`, **§19 « Ne jamais réutiliser la même phrase d'ouverture » + « Parler comme une personne, pas
+  comme un robot »** (bannir « Bonne nouvelle : … », « sur la base des données dont je dispose », les
+  transitions et avertissements recopiés d'un tour à l'autre ; les mentions obligatoires restent dues mais
+  reformulées brièvement) et **§23 « Vocabulaire interne »** — le Coach s'appuie sur ses documents (arbre de
+  décision, catalogue, grille de taux) mais ne les NOMME jamais au client (« d'après votre projet et votre
+  situation » au lieu de « d'après l'arbre de décision »). Tests :
+  `AgentFilesPromptTest.theCoachMustSoundHumanAndVaryItsOpening` et
+  `AgentFilesPromptTest.theInternalVocabularyIsNeverShownToTheClient`.
+  ℹ️ Le contrôle qualité `EXCESSIVE_REPETITION` (phrase ≥ 40 caractères répétée à l'identique) couvre déjà la
+  répétition d'une accroche.
   ⚠️ Les exemples des prompts ne contiennent plus de valeur concrète (ex. « Clio 5 ») : un modèle peut
   recopier un exemple et le présenter comme un fait du client.
 - 6 prompts spécialisés (`credit-conso.txt`, `credit-immo.txt`, `epargne.txt`, `assurance-auto.txt`, …) : expertise du thème + la fiche produit est fournie via `data`.
+  `credit-conso.txt` (le plus riche) est découpé en **13 sections numérotées** — 1. rôle et périmètre, 2. produit
+  recommandé, 3. paiement comptant, 4. chiffrage et simulation, 5. délai de mise à disposition des fonds,
+  6. soutenabilité, trésorerie et posture, 7. contenu obligatoire d'une simulation, 8. prochaine étape : la
+  souscription, 9. verdict de soutenabilité, 10. fidélité aux informations du client, 11. réponses de suivi,
+  12. caractéristiques d'une offre, 13. vocabulaire interne. Ce découpage remplace la liste de règles à plat :
+  une règle se retrouve sans relire tout le fichier, les doublons (simulation indicative ×6, apport non exigé ×2,
+  verdict de soutenabilité ×3) ont été fusionnés et le fichier repasse **sous le plafond de zone de l'atelier**
+  (≈ 18 700 caractères contre ≈ 21 900 avant).
 
 ### 9.2 Construction du prompt système
 À chaque appel, `AgentFiles.systemPromptFor(theme)` :
@@ -973,7 +1004,7 @@ Motifs (`user`/`client`) : `NOT_ANSWERING_QUESTION`, `HARD_TO_UNDERSTAND`, `TOO_
 
 | Contrôle | Sévérité par défaut | Ce qui est détecté |
 |---|---|---|
-| `CREDIT_SIMULATION_VIOLATION` | HIGH | Le Coach produit lui-même un chiffrage (mensualité, coût total, intérêts, capacité d'emprunt). Une **redirection** vers le simulateur officiel est conforme (aucune alerte) ; les rappels de crédit **existant** sont hors périmètre |
+| `CREDIT_SIMULATION_VIOLATION` | HIGH | Le Coach produit lui-même un chiffrage (mensualité, coût total, intérêts, capacité d'emprunt). Un chiffrage **issu de la grille de taux**, annoncé comme indicatif et non contractuel, est conforme — comme une **redirection** vers le simulateur officiel ; les rappels de crédit **existant** sont hors périmètre |
 | `PRODUCT_MISMATCH` | HIGH | Une offre présentée dont la famille n'est autorisée pour **aucun** projet de la conversation (les crédits existants ne sont pas des offres) |
 | `INVENTED_URL` | HIGH | URL citée (brute ou `[URL|nom|url]`) absente des fiches officielles et du lien de RDV configuré |
 | `UNANSWERED_REQUEST` | MEDIUM | Conversation terminée sur un message client sans réponse, ou appel IA en erreur |
@@ -1390,7 +1421,10 @@ sans ces champs retombe sur le fournisseur du coach (constructeurs compacts de `
   décision humain** du mode automatique — on compare, puis on promeut (ou pas). Le bilan est **oublié** dès qu'un cycle
   démarre ou qu'une nouvelle conversation commence.
 - **Bulle de réponse** : le texte de l'IA est mis en forme par `frontend/src/messageFormat.tsx` — **module partagé
-  avec la page coach** (`renderMessageContent` : `**gras**`, `*italique*`, `` `code` ``, liens `[URL|nom|url]`
+  avec la page coach** (`renderMessageContent` : `**gras**`, `*italique*`, `` `code` ``, liens `[URL|nom|url]`,
+  jeton de rappel `[RAPPEL|nom]` rendu en bouton (pop-in « un conseiller vous recontactera »), et **tableaux
+  Markdown** rendus en vrais tableaux HTML (colonnes de montants alignées à droite, défilement horizontal sur
+  mobile) — sans quoi les simulations chiffrées s'affichaient en barres verticales
   cliquables en http(s), retours à la ligne conservés ; aucun HTML brut ⇒ pas d'injection). Les questions du fil
   (humain ou Agent C) utilisent le même rendu, comme dans le chat.
 

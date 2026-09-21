@@ -7,6 +7,7 @@ import Marketing from './Marketing'
 import Quality from './Quality'
 import AdvisorFeedback from './AdvisorFeedback'
 import DossierFeedback from './DossierFeedback'
+import AdvisorCallbackPopup from './AdvisorCallbackPopup'
 import ConversationView from './ConversationView'
 import PromptLab from './PromptLab'
 import './styles.css'
@@ -51,6 +52,17 @@ function Router() {
 
   const page = pageFor(route)
 
+  // La pop-in « être rappelé par un conseiller » est montée ICI (et non dans une page) : le jeton [RAPPEL|…]
+  // du Coach fonctionne donc sur toutes les pages qui affichent une réponse (chat, historique de conversation).
+  return (
+    <>
+      {pageContent(page, route)}
+      <AdvisorCallbackPopup />
+    </>
+  )
+}
+
+function pageContent(page: Page, route: string) {
   if (page === 'logs') return <Logs />
   if (page === 'agents') return <Agents />
   if (page === 'prompt-lab') return <PromptLab />

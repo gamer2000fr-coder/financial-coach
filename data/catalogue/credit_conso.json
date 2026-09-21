@@ -13,6 +13,7 @@
       "id": "sg_credit_expresso",
       "nom": "Crédit Expresso",
       "url": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/credit-conso-expresso",
+      "url_souscription": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/credit-conso-expresso",
       "famille": "pret_personnel",
       "type_credit": "amortissable_non_affecte",
       "cible": [
@@ -85,6 +86,7 @@
       "id": "sg_credit_auto_expresso",
       "nom": "Crédit Auto Expresso",
       "url": "https://particuliers.sg.fr/emprunter/credit-auto-deux-roues/credit-auto-expresso",
+      "url_souscription": "https://particuliers.sg.fr/emprunter/credit-auto-deux-roues/credit-auto-expresso",
       "famille": "credit_auto",
       "type_credit": "credit_amortissable",
       "cible": [
@@ -136,6 +138,7 @@
       "id": "sg_alterna",
       "nom": "Crédit renouvelable Alterna",
       "url": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/pret-credit-renouvelable-alterna",
+      "url_souscription": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/pret-credit-renouvelable-alterna",
       "famille": "credit_renouvelable",
       "type_credit": "renouvelable",
       "cible": [
@@ -200,6 +203,7 @@
       "id": "sg_expresso_jeune_actif",
       "nom": "Crédit Expresso Jeune Actif",
       "url": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/pret-jeune-actif",
+      "url_souscription": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/pret-jeune-actif",
       "famille": "pret_personnel_jeune",
       "type_credit": "amortissable_non_affecte",
       "cible": [
@@ -254,6 +258,7 @@
       "id": "sg_pret_etudiant_evolutif",
       "nom": "Prêt Étudiant Évolutif",
       "url": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/pret-etudiant-evolutif",
+      "url_souscription": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/pret-etudiant-evolutif",
       "famille": "pret_etudiant",
       "type_credit": "pret_etudiant_amortissable",
       "cible": [
@@ -327,6 +332,7 @@
       "id": "sg_permis_1_euro_jour",
       "nom": "Prêt Permis à 1 € par jour",
       "url": "https://particuliers.sg.fr/emprunter/credit-auto-deux-roues/pret-permis-1-euro-jour",
+      "url_souscription": "https://particuliers.sg.fr/emprunter/credit-auto-deux-roues/pret-permis-1-euro-jour",
       "famille": "pret_permis",
       "type_credit": "pret_aide",
       "cible": [
@@ -358,6 +364,7 @@
       "id": "sg_credit_compact",
       "nom": "Crédit Compact",
       "url": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/credit-compact",
+      "url_souscription": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/credit-compact",
       "famille": "regroupement_credits",
       "type_credit": "regroupement_credit_amortissable",
       "cible": [
@@ -410,6 +417,7 @@
       "id": "bfm_liberte",
       "nom": "Prêt BFM Liberté",
       "url": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/pret-conso-bfm-liberte",
+      "url_souscription": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/pret-conso-bfm-liberte",
       "distributeur": "SG",
       "preteur": "Banque Française Mutualiste",
       "famille": "pret_personnel_fonction_publique",
@@ -469,6 +477,7 @@
       "id": "bfm_jeunes_actifs",
       "nom": "Prêt BFM Jeunes Actifs",
       "url": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/pret-bfm-jeunes-actifs",
+      "url_souscriptiuon": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/pret-bfm-jeunes-actifs",
       "distributeur": "SG",
       "preteur": "Banque Française Mutualiste",
       "famille": "pret_jeune_fonction_publique",
@@ -502,6 +511,7 @@
       "id": "bfm_avance",
       "nom": "Prêt Avance BFM",
       "url": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/pret-avance-bfm",
+      "url_souscription": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/pret-avance-bfm",
       "distributeur": "SG",
       "preteur": "Banque Française Mutualiste",
       "famille": "pret_fonction_publique_taux_zero",
@@ -547,6 +557,7 @@
       "id": "bfm_eleve",
       "nom": "Prêt BFM Élève",
       "url": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/pret-bfm-eleve",
+      "url_souscription": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/pret-bfm-eleve",
       "distributeur": "SG",
       "preteur": "Banque Française Mutualiste",
       "famille": "pret_etudiant_fonction_publique",
@@ -582,6 +593,7 @@
       "id": "bfm_mobilite_reconversion",
       "nom": "Prêt BFM Mobilité / Reconversion",
       "url": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/pret-bfm-mobilite-reconversion",
+      "url_souscription": "https://particuliers.sg.fr/emprunter/pret-credit-consommation/pret-bfm-mobilite-reconversion",
       "distributeur": "SG",
       "preteur": "Banque Française Mutualiste",
       "famille": "pret_mobilite_professionnelle",

@@ -116,6 +116,23 @@ class CoachQualityCheckServiceTest {
     }
 
     @Test
+    void creditSimulationViolation_whenATableOfFiguresIsGivenWithoutTheRateGrid() {
+        // Le prompt autorise un TABLEAU comparant plusieurs durées : le contrôle doit aussi le couvrir.
+        ConversationModels.Conversation conversation = conversation(
+                "Et si j'allonge la durée ?",
+                "Voici le comparatif :\n\n"
+                        + "| Durée | Mensualité | TAEG | Coût total | Montant total dû |\n"
+                        + "|---|---|---|---|---|\n"
+                        + "| 48 mois | 347,87 € | 5,49 % | 1 697,61 € | 16 697,61 € |\n"
+                        + "| 60 mois | 285,00 € | 5,90 % | 1 600,00 € | 16 600,00 € |");
+
+        QualityModels.QualityCheck check = checkOf(conversation, QualityModels.CREDIT_SIMULATION_VIOLATION);
+
+        assertTrue(check.detected(),
+                "Un tableau de chiffrage sans grille de taux ni mention indicative reste une violation");
+    }
+
+    @Test
     void productMismatch_detectedWhenFamilyNotAllowedForProject() {
         ConversationModels.Conversation conversation = conversationWithProduct("MORTGAGE");
         conversation.setCurrentProject(project(com.coach.financier.model.ProjectType.VEHICLE));

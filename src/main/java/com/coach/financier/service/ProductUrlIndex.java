@@ -25,6 +25,10 @@ import java.util.Map;
  * à tout objet portant un {@code id} et une {@code url} le couple (identifiant → url).
  * Elle fonctionne donc aussi bien pour les offres à plat ({@code offres[]}) que pour les
  * assurances organisées en {@code produit} + {@code formules[]}.
+ * <p>
+ * Les URL de SOUSCRIPTION déclarées par une fiche ({@code url_souscription}) sont également
+ * whitelistées — le Coach les cite comme prochaine étape après une simulation — sans remplacer
+ * l'URL de référence du produit.
  */
 @Service
 public class ProductUrlIndex {
@@ -33,6 +37,8 @@ public class ProductUrlIndex {
 
     private final Map<String, String> urlById = new LinkedHashMap<>();
     private final Map<String, String> nameById = new LinkedHashMap<>();
+    /** URL de souscription déclarées par les fiches ({@code url_souscription}), whitelistées à part. */
+    private final Map<String, String> subscriptionUrlById = new LinkedHashMap<>();
 
     public ProductUrlIndex(ObjectMapper objectMapper,
                            @Value("${app.data.dir:./data}") String dataDir) {
@@ -59,7 +65,9 @@ public class ProductUrlIndex {
 
     /** Toutes les URLs officielles connues (pour la whitelist anti-invention). */
     public java.util.Set<String> allUrls() {
-        return java.util.Set.copyOf(urlById.values());
+        java.util.Set<String> all = new java.util.LinkedHashSet<>(urlById.values());
+        all.addAll(subscriptionUrlById.values());
+        return java.util.Set.copyOf(all);
     }
 
     private void loadFromFileSystem(ObjectMapper objectMapper, Path catalogueDir) {
@@ -104,6 +112,11 @@ public class ProductUrlIndex {
                 if (name != null) {
                     nameById.putIfAbsent(id, name);
                 }
+            }
+            // URL de souscription déclarée par la fiche : whitelistée SANS écraser l'URL de la fiche.
+            String subscriptionUrl = text(node, "url_souscription");
+            if (id != null && subscriptionUrl != null && subscriptionUrl.startsWith(HTTP_PREFIX)) {
+                subscriptionUrlById.putIfAbsent(id, subscriptionUrl);
             }
             node.fields().forEachRemaining(entry -> collect(entry.getValue()));
         } else if (node.isArray()) {

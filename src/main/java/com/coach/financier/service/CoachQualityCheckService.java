@@ -70,6 +70,19 @@ public class CoachQualityCheckService {
             Pattern.compile("(?i)simulation[^.]{0,30}?[\\d][\\d\\s.,]{2,}\\s?(€|euros)"),
             Pattern.compile("(?i)[\\d][\\d\\s.,]{2,}\\s?(€|euros)\\s*(par\\s+mois|/\\s*mois|mensuel)"));
 
+    /** Libellés d'un chiffrage de crédit (prérequis de la détection d'un TABLEAU de chiffrage ci-dessous). */
+    private static final Pattern SIMULATION_LABEL = Pattern.compile(
+            "(?i)(mensualit[ée]s?|co[ûu]t\\s+total|montant\\s+total\\s+d[ûu]|taux\\s+d[ée]biteur)");
+
+    /**
+     * Ligne de TABLEAU de chiffrage (plusieurs durées / mensualités comparées) : deux montants en euros
+     * séparés par une barre de tableau. Associée à {@link #SIMULATION_LABEL} dans le MÊME message, elle évite
+     * de signaler une simple fourchette de montant (« de 1 000 € à 75 000 € ») ou un tableau de comparaison
+     * de produits ; et parce que le libellé peut précéder la ligne, les deux motifs sont testés séparément.
+     */
+    private static final Pattern SIMULATION_TABLE_ROW = Pattern.compile(
+            "[^\\n]*?[\\d][\\d\\s.,]{2,}\\s?(?:€|euros)[^\\n|]{0,12}\\|[^\\n]*?[\\d][\\d\\s.,]{2,}\\s?(?:€|euros)");
+
     /**
      * Marqueurs d'un comportement CONFORME : soit le Coach s'appuie sur la GRILLE DE TAUX fournie et annonce
      * une simulation indicative et non contractuelle, soit il refuse / redirige vers l'outil officiel
@@ -183,7 +196,8 @@ public class CoachQualityCheckService {
             if (EXISTING_CREDIT.matcher(message).find()) {
                 continue; // rappel d'un engagement réel : hors périmètre
             }
-            boolean triggered = SIMULATION_TRIGGERS.stream().anyMatch(pattern -> pattern.matcher(message).find());
+            boolean triggered = SIMULATION_TRIGGERS.stream().anyMatch(pattern -> pattern.matcher(message).find())
+                    || (SIMULATION_LABEL.matcher(message).find() && SIMULATION_TABLE_ROW.matcher(message).find());
             if (!triggered) {
                 continue;
             }

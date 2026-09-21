@@ -74,8 +74,12 @@ class PromptOptimizationServiceTest {
         ai = new FakeAI();
         factory = new FakeAIServiceFactory(ai);
         ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule())
-                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);        PromptOptimizationProperties properties =
-                new PromptOptimizationProperties(true, false, tempDir.toString(), 50, 20000, "sel-de-test");
+                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        // Même garde-fou qu'en PRODUCTION (`app.prompt-optimization.max-editable-section-length: 200000`) :
+        // les prompts réels sont longs (agent principal ~23 400 caractères, crédit conso ~22 500) — un plafond
+        // de test à 20 000 refusait à tort la promotion de l'agent crédit conso (zone « rejetée »).
+        PromptOptimizationProperties properties =
+                new PromptOptimizationProperties(true, false, tempDir.toString(), 50, 200000, "sel-de-test");
         store = new PromptOptimizationStore(properties, mapper);
         ProjectProductMappingService mapping = new ProjectProductMappingService();
         BankingDataRepository banking =

@@ -113,4 +113,76 @@ class AgentFilesPromptTest {
         assertFalse(prompt.contains("tu conclus le scénario (`endConversation` à `true`) au lieu de relancer"),
                 "la règle qui faisait perdre la dernière question ne doit pas revenir");
     }
+
+    /**
+     * CONTRAT DU RAPPEL CONSEILLER : à côté du lien de rendez-vous, le Coach doit proposer un jeton SANS URL
+     * (`[RAPPEL|Être rappelé par un conseiller]`) — c'est lui qui ouvre la pop-in « un conseiller vous
+     * recontactera ». Le format exact est verrouillé ici : l'IHM ne reconnaît que celui-là.
+     */
+    @Test
+    void theCallbackTokenIsDocumentedInThePrincipalPrompt() {
+        String prompt = AgentFiles.systemPromptFor(AgentFiles.GENERIC_THEME);
+
+        assertTrue(prompt.contains("[RAPPEL|Être rappelé par un conseiller]"),
+                "le jeton de rappel fait partie du format des liens : " + prompt);
+        assertTrue(prompt.contains("[URL|Prendre rendez-vous avec un conseiller|"),
+                "le lien de rendez-vous reste proposé en même temps que le rappel");
+        assertTrue(prompt.contains("dans les plus brefs délais"),
+                "le prompt décrit le message de la pop-in (recontacter dans les plus brefs délais)");
+        assertTrue(prompt.contains("SANS URL"),
+                "le jeton ne doit jamais être transformé en lien ni accompagné d'une adresse inventée");
+    }
+
+    /** L'agent crédit conso rappelle le jeton dans ses règles de prochaine étape (RDV + rappel). */
+    @Test
+    void theConsumerCreditAgentOffersTheCallbackTokenToo() {
+        String prompt = AgentFiles.systemPromptFor("credit_conso");
+
+        assertTrue(prompt.contains("[RAPPEL|Être rappelé par un conseiller]"),
+                "l'agent crédit conso propose aussi le rappel conseiller");
+        assertTrue(prompt.contains("url_souscription"),
+                "la souscription s'appuie sur l'URL déclarée par la fiche (url_souscription)");
+    }
+
+    /**
+     * CONTRAT DU VOCABULAIRE INTERNE : le Coach s'appuie sur ses documents (arbre de décision, catalogue,
+     * grille de taux) mais ne les NOMME jamais au client — « d'après l'arbre de décision » ne veut rien dire
+     * pour lui. Règle transverse (agent principal) + rappel dans l'agent crédit conso.
+     */
+    @Test
+    void theInternalVocabularyIsNeverShownToTheClient() {
+        String principal = AgentFiles.systemPromptFor(AgentFiles.GENERIC_THEME);
+
+        assertTrue(principal.contains("Vocabulaire interne"),
+                "la règle est présente dans l'agent principal (chargé par tous les agents)");
+        assertTrue(principal.contains("d'après l'arbre de décision"),
+                "le terme interdit est cité en exemple de ce qu'il ne faut pas écrire");
+        assertTrue(principal.contains("d'après votre projet et votre situation"),
+                "une formulation de remplacement est fournie au Coach");
+        assertTrue(AgentFiles.systemPromptFor("credit_conso").contains("« arbre de décision »"),
+                "l'agent crédit conso rappelle de ne pas nommer l'arbre de décision");
+    }
+
+    /**
+     * CONTRAT DE TON HUMAIN : le Coach ne réutilise pas la même accroche d'un tour à l'autre (ce qui fait
+     * « robot ») et évite les tournures de rapport. Constaté en réel : « Bonne nouvelle : sur la base des
+     * données dont je dispose, votre projet est réalisable. » revenait à chaque réponse.
+     */
+    @Test
+    void theCoachMustSoundHumanAndVaryItsOpening() {
+        String principal = AgentFiles.systemPromptFor(AgentFiles.GENERIC_THEME);
+
+        assertTrue(principal.contains("Ne jamais réutiliser la même phrase d'ouverture"),
+                "la règle anti-répétition de l'accroche est présente");
+        assertTrue(principal.contains("« Bonne nouvelle : ... »"),
+                "l'accroche constatée en réel est citée comme formule à ne pas répéter");
+        assertTrue(principal.contains("Parler comme une personne, pas comme un robot"),
+                "la section de ton humain est présente");
+        assertTrue(principal.contains("la même phrase recopiée mot pour mot"),
+                "les mentions obligatoires restent dues, mais reformulées");
+        assertTrue(principal.contains("ne reprend pas celle de ma réponse précédente"),
+                "la checklist finale fait vérifier l'accroche");
+        assertTrue(AgentFiles.systemPromptFor("credit_conso").contains("même phrase qu'au tour précédent"),
+                "l'agent crédit conso porte la règle pour ses réponses de suivi");
+    }
 }

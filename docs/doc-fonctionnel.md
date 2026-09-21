@@ -517,6 +517,7 @@ Toutes les données sont **fictives** et servent uniquement la démonstration.
 29. Un échec d'enregistrement de l'avis n'empêche jamais la clôture de la conversation ;
 30. Une **mauvaise note ne crée jamais** d'anomalie de qualité : les deux dimensions restent séparées ;
 31. Une simulation de crédit **adossée à la grille de taux** fournie, annoncée comme indicative et non contractuelle (la souscription fait foi), est **conforme** ; le refus de chiffrer suivi d'une redirection vers le simulateur officiel reste conforme lorsque la grille n'est pas disponible ;
+31bis. Une simulation produite détaille **montant, durée, mensualité, taux débiteur annuel fixe, TAEG fixe, frais de dossier, coût total et montant total dû**, passe en **tableau** — rendu comme un vrai tableau dans l'interface — dès que plusieurs durées ou mensualités sont chiffrées, et se termine par le **lien de souscription officiel** du produit (`url_souscription` de la fiche) — le simulateur n'étant proposé que si aucun chiffrage n'est possible ;
 32. Un chiffrage de crédit produit **sans grille de taux**, ou présenté comme un engagement ferme, est signalé (sévérité HIGH) ;
 33. La page Qualité n'affiche que les contrôles **réellement exécutés** (aucun faux « 0 ») ;
 34. Aucun avis ne contient de donnée personnelle (identifiant pseudonymisé, commentaire nettoyé).
